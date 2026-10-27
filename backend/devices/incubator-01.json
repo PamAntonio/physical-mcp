@@ -1,0 +1,22 @@
+{
+  "device_id": "incubator-01",
+  "current_screen": "TEMP 25.0",
+  "notes": [
+    "SET opens the temperature set-point.",
+    "▲/▼ change the set-point by 1.0 °C per press.",
+    "ENTER confirms the set-point.",
+    "TIMER opens the timer.",
+    "In timer mode ▲/▼ change the timer by 1 hour per press.",
+    "The timer shows HH:MM (e.g. 02:00).",
+    "START starts the run and the screen then shows RUN."
+  ],
+  "controls": {
+    "btn_set": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_up": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_down": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_enter": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_timer": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_start": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "screen_main": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null }
+  }
+}

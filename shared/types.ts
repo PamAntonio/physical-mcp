@@ -1,5 +1,9 @@
 // Physical MCP: rough contract between the backend and the web app.
-// Draft v0, 2026-10-27. Field names may change; job.sample.json matches these types.
+// Draft v1, 2026-10-27. Field names may change; job.sample.json matches these types.
+// Draft v1 adds (all optional, nothing existing breaks): Control.reachable,
+// press hold_ms, Step.max_attempts, Job.press_budget,
+// ApprovalDecision.approval_type / time_to_decide_ms, Control kind "indicator",
+// and Expectation.indicator_on.
 //
 // The web app never speaks MCP. MCP is how the planner (Muse Spark) drives the
 // machine through backend tools such as get_controls, press, read_screen.
@@ -41,10 +45,11 @@ export type BBox = [number, number, number, number];
 export interface Control {
   control_id: string;
   label: string; // text read from the panel, or a symbol like "▲"
-  kind: "button" | "screen" | "knob" | "switch";
+  kind: "button" | "screen" | "knob" | "switch" | "indicator"; // "indicator": a status light
   bbox: BBox; // from SAM 3.1 segmentation
   confidence: number; // 0..1
   risky?: boolean; // pressing it changes the machine's state (start, eject, ...)
+  reachable?: boolean; // false = the finger can't press it on this rig
 }
 
 export interface Camera {
@@ -64,13 +69,14 @@ export interface Device {
 
 // Keep the action vocabulary tiny for the hackathon.
 export type Action =
-  | { type: "press"; control_id: string; count: number }
+  | { type: "press"; control_id: string; count: number; hold_ms?: number } // hold_ms: long press, e.g. power buttons
   | { type: "wait"; seconds: number }
   | { type: "read_screen"; control_id: string };
 
 export interface Expectation {
   control_id: string; // usually the screen
   text_contains: string;
+  indicator_on?: boolean; // true = expect this indicator light to be on instead of screen text
 }
 
 export interface Evidence {
@@ -96,6 +102,7 @@ export interface Step {
   approval_reason?: string;
   status: StepStatus;
   attempts: number;
+  max_attempts?: number; // max tries before the step fails (default 3)
   started_at: string | null; // ISO 8601
   finished_at: string | null;
   evidence: Evidence;
@@ -121,6 +128,7 @@ export interface Job {
   updated_at: string;
   request: string; // the typed job request
   approval_mode: ApprovalMode;
+  press_budget?: number; // max presses per job (default 30)
   status: JobStatus;
   device: Device;
   plan: Plan | null; // null while status is "queued" or "planning"
@@ -136,6 +144,8 @@ export interface CreateJobRequest {
 export interface ApprovalDecision {
   decision: "approve" | "reject";
   note?: string;
+  approval_type?: "tap" | "hold"; // how the approval was given: tap or hold-to-approve
+  time_to_decide_ms?: number; // how long the human took to decide, in ms
 }
 
 // WebSocket events. Each carries enough to update the UI without refetching.

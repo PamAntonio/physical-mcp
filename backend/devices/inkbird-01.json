@@ -1,0 +1,29 @@
+{
+  "_comment": "PLACEHOLDER: Inkbird ITC-308 (non-WiFi) is on order and not here yet. Values below are from the manual/datasheet and must be confirmed when the device arrives.",
+  "device_id": "inkbird-01",
+  "current_screen": "PV 72.0 SV 75.0",
+  "notes": [
+    "Units are °F.",
+    "Hold SET for 3 s to enter the set-point menu (PV shows \"TS\").",
+    "▲/▼ change the set point by 1 °F per press (UNVERIFIED, confirm when the device arrives).",
+    "Hold SET for 3 s again to save and exit the menu.",
+    "If no button is pressed for 10 s the menu exits WITHOUT saving, so nothing that waits (wait steps, approvals) may sit inside the menu.",
+    "When the set point is above the current temperature, the heating outlet turns on and led_heat lights.",
+    "Approval: if the plan will turn on the heating outlet, the FIRST step (entering the menu) gets requires_approval with a reason; never require approval for a step inside the menu."
+  ],
+  "timed_menu": {
+    "enter_control_id": "btn_set",
+    "exit_control_id": "btn_set",
+    "hold_ms": 3000,
+    "timeout_seconds": 10
+  },
+  "controls": {
+    "btn_set": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null, "hold_ms": 3000 },
+    "btn_up": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_down": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "screen_pv": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "screen_sv": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "led_heat": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "led_cool": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null }
+  }
+}
