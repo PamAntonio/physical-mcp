@@ -10,6 +10,9 @@ import sampleJson from "@contract/fixtures/jobSample.json";
 
 const sample = sampleJson as unknown as Job;
 
+// stand-in camera frame (public/mock/), drawn so its buttons sit on the sample bboxes
+const MOCK_FRAME_URL = "/mock/frame-incubator.svg";
+
 class StoppedError extends Error {}
 
 function clone<T>(value: T): T {
@@ -21,7 +24,9 @@ function now() {
 }
 
 export function sampleDevice(): Device {
-  return clone(sample.device);
+  const device = clone(sample.device);
+  device.camera.latest_frame_url = MOCK_FRAME_URL;
+  return device;
 }
 
 export function sampleJob(): Job {
@@ -60,6 +65,7 @@ export class MockBackend implements JobBackend {
     job.status = "queued";
     job.plan = null;
     job.result = null;
+    job.device = sampleDevice(); // swaps in the mock frame
     this.job = job;
     return clone(job);
   }
@@ -114,8 +120,10 @@ export class MockBackend implements JobBackend {
     });
   }
 
-  frameUrl() {
-    return null; // no real frames in mock mode, the camera view draws the panel instead
+  frameUrl(path: string | null) {
+    // only our stand-in frame exists. the sample's /frames/... evidence paths don't, so skip those
+    if (path === MOCK_FRAME_URL) return path;
+    return null;
   }
 
   // ---- the fake run ----
@@ -260,7 +268,7 @@ export class MockBackend implements JobBackend {
       step.evidence.screen_text = `${step.expect.text_contains} 37.0 02:00`; // only START hits this, good enough for a mock
     }
     this.emitStep(step);
-    this.emit({ type: "frame", job_id: this.jobId(), ts: now(), frame_url: step.evidence.after_frame_url });
+    this.emit({ type: "frame", job_id: this.jobId(), ts: now(), frame_url: MOCK_FRAME_URL });
     await this.sleep(300);
     return true;
   }

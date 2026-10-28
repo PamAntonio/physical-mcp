@@ -76,22 +76,50 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
 
 /* camera */
-.camera { margin: 0; background: #000; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.camera svg { display: block; width: 100%; height: auto; }
-.camera figcaption { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 12px; font-size: 12px; color: var(--muted); background: var(--surface); border-top: 1px solid var(--line); font-family: var(--mono); }
-.cam-bg { fill: #0a0b0c; }
-.cam-panel { fill: #24282c; stroke: #3a4047; stroke-width: 2; }
-.ctl { fill: rgba(92, 200, 255, 0.08); stroke: var(--accent); stroke-width: 2; transition: fill 0.2s, stroke 0.2s; }
-.ctl-screen { fill: #0b1a10; stroke: #3d7a52; }
-.ctl-risky { stroke: var(--warn); stroke-dasharray: 6 4; }
-.ctl-target { fill: rgba(92, 200, 255, 0.35); stroke: #fff; stroke-width: 3; }
-.ctl-waiting { fill: rgba(245, 176, 65, 0.3); stroke: var(--warn); stroke-width: 4; stroke-dasharray: none; animation: pulse 1.2s ease-in-out infinite; }
-.ctl-label { fill: var(--text); font-family: var(--sans); font-size: 13px; font-weight: 700; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-.ctl-screen-text { fill: #6dff9e; font-family: var(--mono); font-size: 24px; text-anchor: middle; dominant-baseline: central; letter-spacing: 0.04em; }
-.ctl-tag { fill: var(--muted); font-family: var(--mono); font-size: 8px; }
-/* live frames are shown at full 1280 wide, so the tags need to be bigger to stay readable */
-.camera-live .ctl-tag { font-size: 18px; fill: #fff; paint-order: stroke; stroke: #000; stroke-width: 3px; }
-.camera-live .ctl { fill: transparent; }
+.camera { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.camera-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.camera-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.camera-target { color: var(--accent); }
+.camera-target-waiting { color: var(--warn); }
+.btn-small { padding: 5px 10px; font-size: 12px; }
+.camera figcaption { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 12px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); font-family: var(--mono); }
+
+/* the frame box keeps the camera's aspect ratio; everything inside is positioned in % of it */
+.camera-frame { position: relative; width: 100%; background: #000; container-type: inline-size; }
+.camera-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.camera-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.camera-overlay { position: absolute; inset: 0; pointer-events: none; }
+
+/* one box per detected control */
+.ctl { position: absolute; box-sizing: border-box; border: 2px solid var(--accent); border-radius: 4px; background: rgba(92, 200, 255, 0.08); transition: background 0.2s, border-color 0.2s; }
+.ctl-screen { border-color: #3d7a52; background: transparent; }
+.ctl-risky { border-color: var(--warn); border-style: dashed; }
+.ctl-unreachable { border-color: var(--muted); border-style: dotted; opacity: 0.6; }
+.ctl-target { border: 3px solid #fff; background: rgba(92, 200, 255, 0.35); box-shadow: 0 0 0 2px var(--accent); z-index: 1; }
+.ctl-waiting { border: 3px solid var(--warn); border-style: solid; background: rgba(245, 176, 65, 0.3); box-shadow: 0 0 0 2px rgba(245, 176, 65, 0.5); z-index: 1; animation: pulse 1.2s ease-in-out infinite; }
+
+/* label sits just above its box, fixed px size so it stays readable however small the frame gets */
+.ctl-tag { position: absolute; left: -2px; bottom: calc(100% + 2px); white-space: nowrap; font-family: var(--mono); font-size: 11px; line-height: 1.2; padding: 1px 4px; border-radius: 3px; background: rgba(0, 0, 0, 0.72); color: #fff; }
+/* confidence only on the active box, otherwise neighbouring tags (▲ ▼) run into each other */
+.ctl-conf { display: none; }
+.ctl-target .ctl-conf, .ctl-waiting .ctl-conf { display: inline; }
+.ctl-target .ctl-tag { background: var(--accent); color: #04121b; font-weight: 700; }
+.ctl-target .ctl-conf { color: #04121b; opacity: 0.75; }
+.ctl-waiting .ctl-tag { background: var(--warn); color: #241600; font-weight: 700; }
+.ctl-waiting .ctl-conf { color: #241600; }
+/* when there's more room under the box than over it (e.g. a bottom row of buttons) */
+.ctl-tag-below { bottom: auto; top: calc(100% + 2px); }
+
+/* what the LCD says (mock only). this one scales with the frame since it's "on" the panel */
+.ctl-screen-text { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--mono); font-size: 2cqw; color: #6dff9e; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; }
+
+/* narrow frame (phone): smaller tags, drop the confidence so neighbours don't collide */
+@container (max-width: 560px) {
+  .ctl-tag { font-size: 9px; padding: 0 3px; }
+  .ctl-conf { display: none; }
+  .ctl { border-width: 1.5px; }
+  .ctl-target, .ctl-waiting { border-width: 2px; }
+}
 
 /* steps */
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }

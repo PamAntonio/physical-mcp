@@ -137,7 +137,12 @@ export default function Home() {
 
       <div className="layout">
         <div className="col-main">
-          <CameraView device={device} currentStep={currentStep} frameSrc={frameSrc} screenText={screenText} />
+          <CameraView
+            device={device}
+            currentStep={currentStep}
+            frameSrc={frameSrc}
+            screenOverlay={isMock ? screenText : null}
+          />
         </div>
         <div className="col-side">
           {currentStep && currentStep.status === "awaiting_approval" && (
