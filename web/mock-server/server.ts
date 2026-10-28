@@ -14,16 +14,29 @@
 //   npm run mock-server              # just this, on :8787
 //   MOCK_FAIL_STEP=s4 npm run mock-server   # make step s4 fail
 //   curl -X POST localhost:8787/debug/drop-sockets   # cut the stream, watch the app reconnect
+//
+// Steps that need approval get scored by the Python risk scorer first (python risk/server.py,
+// POST /score on :8091, or set RISK_SCORER_URL). If it isn't running they go out as
+// "high, couldn't score", so the approval card never has an empty risk slot.
 
 import http from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { ApprovalDecision, CreateJobRequest, JobEvent } from "@contract/types";
+import type { ApprovalDecision, CreateJobRequest, Job, JobEvent, Step } from "@contract/types";
 import { MockBackend, sampleDevice } from "../lib/mockBackend";
+import { DEFAULT_RISK_SCORER_URL, scoreStep } from "../lib/riskScorer";
 
 export const MOCK_PORT = Number(process.env.MOCK_PORT || 8787);
 const failStepId = process.env.MOCK_FAIL_STEP || undefined;
+const riskScorerUrl = process.env.RISK_SCORER_URL || DEFAULT_RISK_SCORER_URL;
 
-const mock = new MockBackend({ failStepId });
+async function scoreWithLog(job: Job, step: Step) {
+  log(`scoring ${step.step_id} via ${riskScorerUrl}/score`);
+  const risk = await scoreStep(riskScorerUrl, job, step);
+  log(`${step.step_id} risk: ${risk.risk_tier} "${risk.risk_reason}" (${risk.risk_scored_by})`);
+  return risk;
+}
+
+const mock = new MockBackend({ failStepId, scoreStep: scoreWithLog });
 let currentJobId: string | null = null;
 let sockets = new Set<WebSocket>();
 let streamStarted = false;

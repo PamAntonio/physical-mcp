@@ -9,6 +9,7 @@
 
 import type { Action, Control, Expectation, Retry, Step, StepStatus } from "@contract/types";
 import { describeCorrection, findControl } from "@/lib/jobReducer";
+import { RISK_ICONS } from "@/lib/risk";
 
 const DEFAULT_MAX_ATTEMPTS = 3; // contract says max_attempts defaults to 3
 
@@ -77,7 +78,14 @@ function StepRow({ step, controls, selected, onClick }: RowProps) {
             <span className="step-intent">
               <span className="step-num">{step.index}.</span> {step.intent}
             </span>
-            <span className={`chip chip-${look.key}`}>{look.label}</span>
+            <span className="step-chips">
+              {step.risk_tier && (
+                <span className={`risk risk-${step.risk_tier}`} title={step.risk_reason}>
+                  <span aria-hidden>{RISK_ICONS[step.risk_tier]}</span> {step.risk_tier}
+                </span>
+              )}
+              <span className={`chip chip-${look.key}`}>{look.label}</span>
+            </span>
           </span>
 
           <span className="step-fields">

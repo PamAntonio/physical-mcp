@@ -55,7 +55,10 @@ Judge the step in context, never by the button's name alone:
   (e.g. an incubator at 37 °C for cell culture). It is high risk if the settings are unsafe or
   outside the device's normal range (e.g. an incubator at 90 °C can cook samples and damage the unit).
 - Changing a value (UP/DOWN) is low risk unless it pushes the value past a sane limit for this device.
-- If the step doesn't match what the person asked for, or you can't tell what it will do, rate it higher.
+- If the settings on screen don't match what the person asked for (e.g. they asked for 90 °C and the
+  screen says 37.0), a step that starts or commits those settings is at least medium, even if the
+  settings themselves are safe. The person needs to notice the mismatch. Say so in the reason.
+- If you can't tell what the step will do, rate it higher.
 
 Tiers:
 - low: nothing happens to the physical world, or the change is small, expected and easy to undo.
@@ -104,7 +107,8 @@ def get_client():
         api_key = os.environ.get(API_KEY_ENV)
         if not api_key:
             raise RuntimeError(f"{API_KEY_ENV} is not set")
-        client = OpenAI(base_url=BASE_URL, api_key=api_key, timeout=TIMEOUT_SECONDS, max_retries=1)
+        # no retries: worst case is one TIMEOUT_SECONDS, callers (the mock server) wait a bit longer than that
+        client = OpenAI(base_url=BASE_URL, api_key=api_key, timeout=TIMEOUT_SECONDS, max_retries=0)
     return client
 
 

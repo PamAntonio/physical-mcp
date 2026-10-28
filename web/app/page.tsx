@@ -6,6 +6,7 @@ import { createBackend, type ConnectionState, type JobBackend } from "@/lib/back
 import { sampleDevice, sampleJob } from "@/lib/mockBackend";
 import { AUTO_START_SAMPLE, DEVICE_ID } from "@/lib/config";
 import { emptyJobState, findCurrentStep, jobReducer } from "@/lib/jobReducer";
+import { riskFromStep } from "@/lib/risk";
 import CameraView from "@/components/CameraView";
 import StepList from "@/components/StepList";
 import ApprovalCard, { type DecisionInfo } from "@/components/ApprovalCard";
@@ -179,7 +180,7 @@ export default function Home() {
               key={currentStep.step_id}
               step={currentStep}
               device={device}
-              risk={null} // TODO Thursday: Muse Spark Open scorer fills this in
+              risk={riskFromStep(currentStep)}
               onDecide={handleDecision}
             />
           )}

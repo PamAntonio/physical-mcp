@@ -1,14 +1,13 @@
 "use client";
 
 // The card that shows up when a step is waiting on a human.
-// Shell for now: risk tier + reason are empty slots until the Muse Spark Open scorer
-// is wired in (Thursday). Approve/Reject log to the console and still send the decision,
-// so the mock keeps running.
+// Risk tier + reason come from the Muse Spark Open scorer (risk/), shown big at the top
+// so they're the first thing you read. Approve/Reject log to the console and send the decision.
 
 import { useEffect, useRef } from "react";
 import type { Device, Step } from "@contract/types";
 import { describeAction, findControl } from "@/lib/jobReducer";
-import type { RiskScore } from "@/lib/risk";
+import { RISK_ICONS, type RiskScore } from "@/lib/risk";
 
 export interface DecisionInfo {
   approvalType: "tap" | "hold";
@@ -53,6 +52,23 @@ export default function ApprovalCard({ step, device, risk, onDecide }: Props) {
 
       <h2>{step.intent}</h2>
 
+      <div className="approval-risk">
+        {risk ? (
+          <>
+            <span className={`risk risk-lg risk-${risk.tier}`}>
+              <span aria-hidden>{RISK_ICONS[risk.tier]}</span> {risk.tier} risk
+            </span>
+            <p className="approval-risk-reason">{risk.reason}</p>
+            <p className="approval-risk-by">scored by {risk.scoredBy}</p>
+          </>
+        ) : (
+          <>
+            <span className="slot-empty">not scored yet</span>
+            <p className="approval-risk-by">waiting on the risk scorer</p>
+          </>
+        )}
+      </div>
+
       <dl className="approval-facts">
         <dt>Action</dt>
         <dd>{describeAction(step, device.controls)}</dd>
@@ -68,18 +84,6 @@ export default function ApprovalCard({ step, device, risk, onDecide }: Props) {
             <span className="muted">none (no button pressed)</span>
           )}
         </dd>
-
-        <dt>Risk tier</dt>
-        <dd>
-          {risk ? (
-            <span className={`risk risk-${risk.tier}`}>{risk.tier}</span>
-          ) : (
-            <span className="slot-empty">not scored yet</span>
-          )}
-        </dd>
-
-        <dt>Risk reason</dt>
-        <dd>{risk ? risk.reason : <span className="slot-empty">waiting on the risk scorer</span>}</dd>
 
         <dt>Screen now</dt>
         <dd className="mono">{step.evidence.screen_text ?? "unknown"}</dd>

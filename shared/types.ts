@@ -4,6 +4,7 @@
 // press hold_ms, Step.max_attempts, Job.press_budget,
 // ApprovalDecision.approval_type / time_to_decide_ms, Control kind "indicator",
 // and Expectation.indicator_on.
+// Proposed (not locked with Pam yet): Step.risk_tier / risk_reason / risk_scored_by.
 //
 // The web app never speaks MCP. MCP is how the planner (Muse Spark) drives the
 // machine through backend tools such as get_controls, press, read_screen.
@@ -92,6 +93,9 @@ export interface Retry {
   correction: Action;
 }
 
+// PROPOSED, not locked with Pam yet: risk score from the Muse Spark Open scorer (risk/).
+export type RiskTier = "low" | "medium" | "high";
+
 export interface Step {
   step_id: string;
   index: number;
@@ -100,6 +104,11 @@ export interface Step {
   expect: Expectation;
   requires_approval: boolean;
   approval_reason?: string;
+  // PROPOSED, not locked with Pam yet. Filled in before a step is shown for approval.
+  // The scorer only adds these; it never changes requires_approval.
+  risk_tier?: RiskTier;
+  risk_reason?: string; // one short line, readable in 2 seconds
+  risk_scored_by?: string; // the scorer's model id, or "fallback (...)" if it couldn't score
   status: StepStatus;
   attempts: number;
   max_attempts?: number; // max tries before the step fails (default 3)

@@ -2,8 +2,9 @@
 // USE_MOCK in config.ts picks the mock or the real one; nothing else in the app cares which.
 
 import type { ApprovalDecision, CreateJobRequest, Device, Job, JobEvent } from "@contract/types";
-import { BACKEND_URL, USE_MOCK } from "./config";
+import { BACKEND_URL, RISK_SCORER_URL, USE_MOCK } from "./config";
 import { MockBackend } from "./mockBackend";
+import { scoreStep } from "./riskScorer";
 
 export type ConnectionState = "connecting" | "live" | "reconnecting" | "closed";
 
@@ -206,5 +207,6 @@ export function createBackend(): JobBackend {
     const params = new URLSearchParams(window.location.search);
     failStepId = params.get("fail") ?? undefined;
   }
-  return new MockBackend({ failStepId });
+  // approval steps get scored by the Python risk scorer, or fall back to "high, couldn't score"
+  return new MockBackend({ failStepId, scoreStep: (job, step) => scoreStep(RISK_SCORER_URL, job, step) });
 }

@@ -8,6 +8,7 @@ import type { ApprovalDecision, BBox, CreateJobRequest, Device, Job, JobEvent, J
 import type { JobBackend, JobStreamHandlers } from "./backend";
 import { applyEvent, findControl } from "./jobReducer";
 import { mockFrameUrl } from "./mockFrame";
+import type { StepRisk } from "./riskScorer";
 import sampleJson from "@contract/fixtures/jobSample.json";
 
 const sample = sampleJson as unknown as Job;
@@ -46,9 +47,13 @@ export class MockBackend implements JobBackend {
   private job: Job | null = null; // kept up to date with every event we send, so getJob is current
   private activeStep: Step | null = null;
   private failStepId: string | null;
+  private scoreStep: ((job: Job, step: Step) => Promise<StepRisk>) | null;
 
-  constructor(options: { failStepId?: string } = {}) {
+  // scoreStep: called right before a step goes to awaiting_approval, its tier + reason
+  // get attached to the step. Leave it out and steps go out unscored.
+  constructor(options: { failStepId?: string; scoreStep?: (job: Job, step: Step) => Promise<StepRisk> } = {}) {
     this.failStepId = options.failStepId ?? null;
+    this.scoreStep = options.scoreStep ?? null;
   }
 
   async getDevice(): Promise<Device> {
@@ -205,6 +210,18 @@ export class MockBackend implements JobBackend {
     step.evidence.screen_text = screenBefore;
 
     if (step.requires_approval) {
+      // score it before anyone sees the approval card. this only adds tier + reason,
+      // the step stays gated whatever the scorer says
+      if (this.scoreStep && this.job) {
+        const jobIdBefore = this.jobId();
+        const risk = await this.scoreStep(clone(this.job), clone(step));
+        // stopped, or a new job started while we were waiting on the scorer
+        if (this.stopped || this.jobId() !== jobIdBefore) throw new StoppedError();
+        step.risk_tier = risk.risk_tier;
+        step.risk_reason = risk.risk_reason;
+        step.risk_scored_by = risk.risk_scored_by;
+      }
+
       step.status = "awaiting_approval";
       this.emitStep(step);
       this.emitStatus("awaiting_approval");
