@@ -38,15 +38,17 @@ The app then uses the endpoints in `shared/types.ts`: `POST /jobs`, `GET /device
 | `lib/backend.ts` | HTTP + WebSocket client, picks mock or real |
 | `lib/mockBackend.ts` | Fake run built from `shared/fixtures/jobSample.json` |
 | `lib/jobReducer.ts` | Applies events to the job and writes the action log |
-| `lib/risk.ts` | **Placeholder** risk rules. Swap for the Muse Spark Open scorer |
+| `lib/risk.ts` | `RiskScore` shape only. The Muse Spark Open scorer fills it (Thursday) |
 | `lib/mockFrame.ts` | Draws mock camera frames (with the LCD reading) for mock mode |
 | `components/CameraView.tsx` | Frame plus bbox overlay (SVG viewBox = camera pixels) |
-| `components/ApprovalCard.tsx` | Approval card, hold-to-approve for high risk, measures time to decide |
+| `components/ApprovalCard.tsx` | Approval card shell: action, target button, empty risk tier/reason slots. Approve/Reject log to the console and send the decision |
+| `components/HoldToApprove.tsx` | **Parked**, not rendered. Hold button for high-risk steps |
 | `components/StepList.tsx` | Plan with every step state, retries shown inline |
 | `components/ActionLog.tsx` | Newest-first log: step, action, screen read, before/after frames (click to enlarge) |
 
 ## Not done yet
 
-- Risk tier and reason come from fixed rules, not the Spark Open scorer (Thursday)
+- Risk tier and reason slots are empty until the Spark Open scorer is wired in (Thursday)
+- Hold-to-approve is parked in `HoldToApprove.tsx`, not shown on the card yet
 - The mock only acts out `risky_steps`; `every_step` and `plan` modes need backend support
 - Rubber-stamp detection (Saturday, on the cut list)

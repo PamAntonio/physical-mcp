@@ -160,7 +160,13 @@ export default function Home() {
         </div>
         <div className="col-side">
           {currentStep && currentStep.status === "awaiting_approval" && (
-            <ApprovalCard key={currentStep.step_id} step={currentStep} device={device} onDecide={handleDecision} />
+            <ApprovalCard
+              key={currentStep.step_id}
+              step={currentStep}
+              device={device}
+              risk={null} // TODO Thursday: Muse Spark Open scorer fills this in
+              onDecide={handleDecision}
+            />
           )}
           {job && job.result && (
             <section className={`panel result result-${job.result.outcome}`}>

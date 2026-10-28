@@ -1,14 +1,14 @@
 "use client";
 
 // The card that shows up when a step is waiting on a human.
-// High-risk steps need a press-and-hold so they can't be rubber-stamped with one tap.
+// Shell for now: risk tier + reason are empty slots until the Muse Spark Open scorer
+// is wired in (Thursday). Approve/Reject log to the console and still send the decision,
+// so the mock keeps running.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { Device, Step } from "@contract/types";
 import { describeAction, findControl } from "@/lib/jobReducer";
-import { placeholderRisk } from "@/lib/risk";
-
-const HOLD_MS = 1500;
+import type { RiskScore } from "@/lib/risk";
 
 export interface DecisionInfo {
   approvalType: "tap" | "hold";
@@ -18,30 +18,37 @@ export interface DecisionInfo {
 interface Props {
   step: Step;
   device: Device;
+  risk: RiskScore | null; // null = not scored yet
   onDecide: (decision: "approve" | "reject", info: DecisionInfo) => void;
 }
 
-export default function ApprovalCard({ step, device, onDecide }: Props) {
+export default function ApprovalCard({ step, device, risk, onDecide }: Props) {
   // when did this card appear? we want time_to_decide_ms for rubber-stamp detection later
   const shownAt = useRef(0);
   useEffect(() => {
     shownAt.current = performance.now();
   }, [step.step_id]);
 
-  const risk = placeholderRisk(step, device);
-  const needsHold = risk.tier === "high";
   const target = step.action.type === "wait" ? null : findControl(device.controls, step.action.control_id);
 
-  function decide(decision: "approve" | "reject", approvalType: "tap" | "hold") {
+  // TODO(hold-to-approve): when risk.tier === "high", swap the Approve button for
+  // <HoldToApprove> (components/HoldToApprove.tsx, parked) and send approval_type "hold".
+  const needsHold = risk !== null && risk.tier === "high";
+
+  function decide(decision: "approve" | "reject") {
     const timeToDecideMs = Math.round(performance.now() - shownAt.current);
-    onDecide(decision, { approvalType, timeToDecideMs });
+    const info: DecisionInfo = { approvalType: "tap", timeToDecideMs };
+    console.log("[approval]", decision, { step_id: step.step_id, intent: step.intent, ...info, risk });
+    onDecide(decision, info);
   }
 
+  let cardClass = "approval";
+  if (risk) cardClass += ` approval-${risk.tier}`;
+
   return (
-    <section className={`approval approval-${risk.tier}`} aria-live="assertive">
+    <section className={cardClass} aria-live="assertive">
       <div className="approval-head">
         <span className="approval-kicker">Step {step.index} is waiting for you</span>
-        <span className={`risk risk-${risk.tier}`}>{risk.tier} risk</span>
       </div>
 
       <h2>{step.intent}</h2>
@@ -49,92 +56,50 @@ export default function ApprovalCard({ step, device, onDecide }: Props) {
       <dl className="approval-facts">
         <dt>Action</dt>
         <dd>{describeAction(step, device.controls)}</dd>
+
         <dt>Button</dt>
         <dd>
-          {target ? target.label : "none"}
-          {target && <span className="muted"> ({Math.round(target.confidence * 100)}% sure it's this one)</span>}
+          {target ? (
+            <>
+              <strong>{target.label}</strong> <span className="muted mono">{target.control_id}</span>
+              <span className="muted"> · {Math.round(target.confidence * 100)}% sure it's this one</span>
+            </>
+          ) : (
+            <span className="muted">none (no button pressed)</span>
+          )}
         </dd>
-        <dt>Why</dt>
-        <dd>{risk.reason}</dd>
+
+        <dt>Risk tier</dt>
+        <dd>
+          {risk ? (
+            <span className={`risk risk-${risk.tier}`}>{risk.tier}</span>
+          ) : (
+            <span className="slot-empty">not scored yet</span>
+          )}
+        </dd>
+
+        <dt>Risk reason</dt>
+        <dd>{risk ? risk.reason : <span className="slot-empty">waiting on the risk scorer</span>}</dd>
+
         <dt>Screen now</dt>
         <dd className="mono">{step.evidence.screen_text ?? "unknown"}</dd>
+
         <dt>Expect after</dt>
         <dd className="mono">{step.expect.text_contains}</dd>
       </dl>
 
-      <p className="scored-by">Risk scored by {risk.scoredBy}</p>
+      {step.approval_reason && <p className="approval-planner-note">Planner says: {step.approval_reason}</p>}
 
       <div className="approval-actions">
-        <button className="btn btn-ghost" onClick={() => decide("reject", "tap")}>
+        <button type="button" className="btn btn-ghost" onClick={() => decide("reject")}>
           Reject
         </button>
-        {needsHold ? (
-          <HoldButton holdMs={HOLD_MS} onComplete={() => decide("approve", "hold")} />
-        ) : (
-          <button className="btn btn-approve" onClick={() => decide("approve", "tap")}>
-            Approve
-          </button>
-        )}
+        {/* hold-to-approve goes here for high-risk steps, see TODO above */}
+        <button type="button" className="btn btn-approve" onClick={() => decide("approve")}>
+          Approve
+        </button>
       </div>
+      {needsHold && <p className="approval-hold-note">High risk: hold-to-approve will go here (not built yet).</p>}
     </section>
-  );
-}
-
-function HoldButton({ holdMs, onComplete }: { holdMs: number; onComplete: () => void }) {
-  const [progress, setProgress] = useState(0);
-  const startedAt = useRef<number | null>(null);
-  const frame = useRef<number | null>(null);
-
-  function tick() {
-    if (startedAt.current === null) return;
-    const elapsed = performance.now() - startedAt.current;
-    const fraction = Math.min(elapsed / holdMs, 1);
-    setProgress(fraction);
-    if (fraction >= 1) {
-      startedAt.current = null;
-      onComplete();
-      return;
-    }
-    frame.current = requestAnimationFrame(tick);
-  }
-
-  function begin() {
-    if (startedAt.current !== null) return;
-    startedAt.current = performance.now();
-    frame.current = requestAnimationFrame(tick);
-  }
-
-  function cancel() {
-    startedAt.current = null;
-    if (frame.current !== null) cancelAnimationFrame(frame.current);
-    setProgress(0);
-  }
-
-  // stop the animation if the card disappears mid-hold
-  useEffect(() => {
-    return () => {
-      if (frame.current !== null) cancelAnimationFrame(frame.current);
-    };
-  }, []);
-
-  return (
-    <button
-      className="btn btn-hold"
-      style={{ ["--progress" as string]: progress }}
-      onPointerDown={begin}
-      onPointerUp={cancel}
-      onPointerLeave={cancel}
-      onContextMenu={(e) => e.preventDefault()}
-      onKeyDown={(e) => {
-        if ((e.key === " " || e.key === "Enter") && !e.repeat) {
-          e.preventDefault();
-          begin();
-        }
-      }}
-      onKeyUp={cancel}
-    >
-      <span className="btn-hold-fill" aria-hidden />
-      <span className="btn-hold-text">{progress > 0 ? "Keep holding…" : "Hold to approve"}</span>
-    </button>
   );
 }
