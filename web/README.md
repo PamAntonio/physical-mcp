@@ -2,18 +2,24 @@
 
 The human side of Physical MCP: type a job, watch the camera view with detected controls, follow the plan step by step, approve risky steps, and read the action log.
 
-Built during the Meta Global AI Developer Hackathon (Oct 27 to Nov 4, 2026). Web app and approval layer by Bhavi. Backend, vision, MCP server and servo hardware by Pam.
+> Built during the Meta Global AI Developer Hackathon, Oct 27 to Nov 4, 2026
 
-## Run it
+Web app and approval layer by Bhavi. Backend, vision, MCP server and servo hardware by Pam.
+
+## Run it on mock data
+
+Both options replay Pam's `shared/fixtures/jobSample.json` (plan, the step 2 retry, the step 6 approval), so every UI state works before the hardware does. The sample job starts by itself when the page loads. Open http://localhost:3000.
 
 ```bash
 npm install
-npm run dev
+npm run dev        # quickest: the mock runs inside the browser
+npm run dev:mock   # mock server on :8787 + the app, over real HTTP + WebSocket
 ```
 
-Open http://localhost:3000. By default it runs on a **mock backend** that replays Pam's `shared/fixtures/jobSample.json` as live events, so every UI state works before the hardware does. The sample job starts by itself when the page loads.
+`dev:mock` is the one to use when touching `lib/backend.ts`, since it runs the same client code the real backend will. Ctrl+C stops both servers.
 
-- `?fail=s4` makes step s4 fail, to see the failed state
+- `?fail=s4` (in-browser mock) or `MOCK_FAIL_STEP=s4 npm run dev:mock` makes step s4 fail
+- `curl -X POST localhost:8787/debug/drop-sockets` cuts the WebSocket mid-run to watch the app reconnect and catch up
 - Reject on the approval card stops the job without pressing START
 - Stop retracts the finger (in the mock it just ends the job)
 
@@ -35,12 +41,13 @@ The app then uses the endpoints in `shared/types.ts`: `POST /jobs`, `GET /device
 |---|---|
 | `../shared/types.ts` | Pam's contract, imported directly as `@contract/types` (no copy to keep in sync) |
 | `lib/config.ts` | `USE_MOCK` flag, backend URL, device id |
-| `lib/backend.ts` | HTTP + WebSocket client, picks mock or real |
+| `lib/backend.ts` | HTTP + WebSocket client (checks every event, reconnects and catches up), picks mock or real |
 | `lib/mockBackend.ts` | Fake run built from `shared/fixtures/jobSample.json` |
+| `mock-server/` | Mock backend over HTTP + WebSocket (`npm run mock-server`), and the `dev:mock` launcher |
 | `lib/jobReducer.ts` | Applies events to the job and writes the action log |
 | `lib/risk.ts` | `RiskScore` shape only. The Muse Spark Open scorer fills it (Thursday) |
 | `lib/mockFrame.ts` | Draws mock camera frames (with the LCD reading) for mock mode |
-| `components/CameraView.tsx` | Frame plus bbox overlay (SVG viewBox = camera pixels) |
+| `components/CameraView.tsx` | Frame plus bbox overlay (boxes in % of the camera frame, so they scale with it) |
 | `components/ApprovalCard.tsx` | Approval card shell: action, target button, empty risk tier/reason slots. Approve/Reject log to the console and send the decision |
 | `components/HoldToApprove.tsx` | **Parked**, not rendered. Hold button for high-risk steps |
 | `components/StepList.tsx` | Plan with every step state, retries shown inline |
