@@ -26,6 +26,7 @@ export interface JobState {
 
 export type JobMessage =
   | { kind: "reset"; job: Job }
+  | { kind: "sync"; job: Job; ts: string } // caught up after a reconnect: new job state, keep the log
   | { kind: "event"; event: JobEvent }
   | { kind: "note"; ts: string; tone: LogTone; text: string };
 
@@ -38,6 +39,11 @@ export function jobReducer(state: JobState, message: JobMessage): JobState {
 
   if (message.kind === "note") {
     return addLog(state, { ts: message.ts, tone: message.tone, text: message.text });
+  }
+
+  if (message.kind === "sync") {
+    if (!state.job || state.job.job_id !== message.job.job_id) return state;
+    return addLog({ ...state, job: message.job }, { ts: message.ts, tone: "info", text: "Reconnected, caught up on missed events" });
   }
 
   // it's a backend event
@@ -93,8 +99,14 @@ export function applyEvent(job: Job, event: JobEvent): Job {
 
     case "job.finished":
       return { ...job, status: event.result.outcome, result: event.result, updated_at: event.ts };
+
+    default: {
+      // if types.ts grows a new event type, this stops compiling until it's handled above
+      const unhandled: never = event;
+      console.warn("unhandled job event", unhandled);
+      return job;
+    }
   }
-  return job;
 }
 
 // The step the machine is busy with right now (or waiting on), if any
@@ -232,8 +244,12 @@ function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | 
       const tone: LogTone = event.result.outcome === "succeeded" ? "good" : "bad";
       return { ts, tone, text: event.result.message };
     }
+
+    default: {
+      const unhandled: never = event; // same compile-time check as applyEvent
+      return unhandled;
+    }
   }
-  return null;
 }
 
 function findStep(job: Job, stepId: string): Step | null {

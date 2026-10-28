@@ -2,7 +2,7 @@
 
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { ApprovalMode, Device } from "@contract/types";
-import { createBackend, type JobBackend } from "@/lib/backend";
+import { createBackend, type ConnectionState, type JobBackend } from "@/lib/backend";
 import { sampleDevice, sampleJob } from "@/lib/mockBackend";
 import { DEVICE_ID } from "@/lib/config";
 import { emptyJobState, findCurrentStep, jobReducer } from "@/lib/jobReducer";
@@ -20,6 +20,16 @@ export default function Home() {
   const [isMock, setIsMock] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null); // clicked in the step list
+  const [connection, setConnection] = useState<ConnectionState | null>(null);
+
+  // one place that wires a job's event stream into the reducer
+  function listenTo(backend: JobBackend, jobId: string) {
+    unsubscribeRef.current = backend.subscribe(jobId, {
+      onEvent: (event) => dispatch({ kind: "event", event }),
+      onSync: (job) => dispatch({ kind: "sync", job, ts: new Date().toISOString() }),
+      onConnection: setConnection,
+    });
+  }
 
   // backend reads window.location, so make it on the client only
   useEffect(() => {
@@ -43,7 +53,7 @@ export default function Home() {
           if (cancelled) return;
           dispatch({ kind: "reset", job: newJob });
           setSelectedStepId(null);
-          unsubscribeRef.current = backend.subscribe(newJob.job_id, (event) => dispatch({ kind: "event", event }));
+          listenTo(backend, newJob.job_id);
         });
     }
 
@@ -88,7 +98,7 @@ export default function Home() {
       const newJob = await backend.createJob({ device_id: DEVICE_ID, request, approval_mode: approvalMode });
       dispatch({ kind: "reset", job: newJob });
       setSelectedStepId(null);
-      unsubscribeRef.current = backend.subscribe(newJob.job_id, (event) => dispatch({ kind: "event", event }));
+      listenTo(backend, newJob.job_id);
     } catch (err) {
       setError(`Couldn't start the job: ${(err as Error).message}`);
     }
@@ -135,6 +145,11 @@ export default function Home() {
           <span className="brand-mark" aria-hidden />
           Physical MCP
           {isMock && <span className="badge-mock">mock backend</span>}
+          {!isMock && connection && connection !== "closed" && (
+            <span className={`badge-conn badge-conn-${connection}`}>
+              {connection === "live" ? "live" : `${connection}…`}
+            </span>
+          )}
         </div>
         <div className="topbar-right">
           {job && <span className={`status status-${job.status}`}>{job.status.replace("_", " ")}</span>}

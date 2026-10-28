@@ -228,6 +228,9 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .log-panel h2 { position: sticky; top: 0; background: var(--surface); padding: 14px 0 8px; margin: 0; z-index: 1; }
 .log-count { font-family: var(--mono); color: var(--muted); font-weight: 400; margin-left: 4px; }
 .badge-mock { white-space: nowrap; }
+.badge-conn { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.badge-conn-live { color: var(--good); border-color: color-mix(in srgb, var(--good) 50%, transparent); }
+.badge-conn-connecting, .badge-conn-reconnecting { color: var(--warn); border-color: var(--warn); animation: pulse 1.2s ease-in-out infinite; }
 .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .log-entry { display: grid; grid-template-columns: 84px 56px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .log-entry:last-child { border-bottom: none; }

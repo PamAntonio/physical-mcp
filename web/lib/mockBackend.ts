@@ -5,8 +5,8 @@
 // Timings are made up, roughly what a servo press + screen read might take.
 
 import type { ApprovalDecision, BBox, CreateJobRequest, Device, Job, JobEvent, JobStatus, Plan, Step } from "@contract/types";
-import type { JobBackend } from "./backend";
-import { findControl } from "./jobReducer";
+import type { JobBackend, JobStreamHandlers } from "./backend";
+import { applyEvent, findControl } from "./jobReducer";
 import { mockFrameUrl } from "./mockFrame";
 import sampleJson from "@contract/fixtures/jobSample.json";
 
@@ -43,7 +43,7 @@ export class MockBackend implements JobBackend {
   private stopped = false;
   private running = false;
   private waitingForApproval: ((decision: ApprovalDecision) => void) | null = null;
-  private job: Job | null = null;
+  private job: Job | null = null; // kept up to date with every event we send, so getJob is current
   private activeStep: Step | null = null;
   private failStepId: string | null;
 
@@ -72,8 +72,15 @@ export class MockBackend implements JobBackend {
     return clone(job);
   }
 
-  subscribe(_jobId: string, onEvent: (event: JobEvent) => void) {
+  async getJob(_jobId: string): Promise<Job> {
+    if (!this.job) throw new Error("no mock job yet");
+    return clone(this.job);
+  }
+
+  subscribe(_jobId: string, handlers: JobStreamHandlers) {
+    const onEvent = handlers.onEvent;
     this.listeners.push(onEvent);
+    if (handlers.onConnection) handlers.onConnection("live"); // nothing to connect to in the browser
     if (!this.running) {
       this.running = true;
       // start the fake run once someone is listening
@@ -319,6 +326,7 @@ export class MockBackend implements JobBackend {
   }
 
   private emit(event: JobEvent) {
+    if (this.job) this.job = applyEvent(this.job, event);
     for (const listener of this.listeners) listener(event);
   }
 }
