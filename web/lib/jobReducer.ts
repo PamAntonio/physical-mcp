@@ -1,7 +1,7 @@
 // Applies backend events to a Job and keeps a human-readable action log.
 // Pure on purpose (React may call reducers twice in dev).
 
-import type { Control, Job, JobEvent, Step } from "./types";
+import type { Control, Job, JobEvent, Step } from "@contract/types";
 
 export type LogTone = "info" | "good" | "warn" | "bad" | "you";
 
@@ -37,6 +37,7 @@ export function jobReducer(state: JobState, message: JobMessage): JobState {
   // it's a backend event
   const event = message.event;
   if (!state.job) return state; // event for a job we don't know about yet, ignore
+  if (event.job_id !== state.job.job_id) return state; // stale event from an older job
 
   const nextJob = applyEvent(state.job, event);
   const entry = describeEvent(state.job, event);

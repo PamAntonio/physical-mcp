@@ -6,7 +6,7 @@
 // No real frame yet (mock mode)? We draw a fake panel from the boxes instead.
 
 import { useState } from "react";
-import type { Device, Step } from "@/lib/types";
+import type { Device, Step } from "@contract/types";
 
 interface Props {
   device: Device;

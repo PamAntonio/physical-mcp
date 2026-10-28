@@ -1,7 +1,8 @@
 // How the web app talks to Pam's backend: plain HTTP + a WebSocket (see types.ts).
-// If NEXT_PUBLIC_BACKEND_URL isn't set we fall back to the mock, so the UI works today.
+// USE_MOCK in config.ts picks the mock or the real one; nothing else in the app cares which.
 
-import type { ApprovalDecision, CreateJobRequest, Device, Job, JobEvent } from "./types";
+import type { ApprovalDecision, CreateJobRequest, Device, Job, JobEvent } from "@contract/types";
+import { BACKEND_URL, USE_MOCK } from "./config";
 import { MockBackend } from "./mockBackend";
 
 export interface JobBackend {
@@ -90,8 +91,7 @@ export class HttpBackend implements JobBackend {
 }
 
 export function createBackend(): JobBackend {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (backendUrl) return new HttpBackend(backendUrl);
+  if (!USE_MOCK) return new HttpBackend(BACKEND_URL);
 
   // mock mode. ?fail=s4 makes step s4 fail so we can see the failed state
   let failStepId: string | undefined;

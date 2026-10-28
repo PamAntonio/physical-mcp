@@ -70,6 +70,7 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 /* layout */
 .layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .col-main, .col-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.log-row { margin-top: 16px; }
 @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .col-side { order: -1; } }
 
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }

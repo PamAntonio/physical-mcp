@@ -1,10 +1,12 @@
-// Fake backend that replays job_sample.json as a stream of events.
+// Fake backend that replays Pam's shared/fixtures/jobSample.json as a stream of JobEvents,
+// the same ones the real WebSocket sends (job.status, controls.updated, plan.ready,
+// step.updated, frame, job.finished). Step 2 replays the sample's retry, step 6 waits for you.
 // Lets us build every UI state before Pam's server and the finger are ready.
 // Timings are made up, roughly what a servo press + screen read might take.
 
-import type { ApprovalDecision, CreateJobRequest, Device, Job, JobEvent, JobStatus, Plan, Step } from "./types";
+import type { ApprovalDecision, CreateJobRequest, Device, Job, JobEvent, JobStatus, Plan, Step } from "@contract/types";
 import type { JobBackend } from "./backend";
-import sampleJson from "../mock/job_sample.json";
+import sampleJson from "@contract/fixtures/jobSample.json";
 
 const sample = sampleJson as unknown as Job;
 
@@ -20,6 +22,10 @@ function now() {
 
 export function sampleDevice(): Device {
   return clone(sample.device);
+}
+
+export function sampleJob(): Job {
+  return clone(sample);
 }
 
 export class MockBackend implements JobBackend {
@@ -44,17 +50,16 @@ export class MockBackend implements JobBackend {
 
   async createJob(request: CreateJobRequest): Promise<Job> {
     this.reset();
-    const job: Job = {
-      job_id: "job_mock_" + Math.random().toString(36).slice(2, 8),
-      created_at: now(),
-      updated_at: now(),
-      request: request.request,
-      approval_mode: request.approval_mode ?? "risky_steps",
-      status: "queued",
-      device: sampleDevice(),
-      plan: null,
-      result: null,
-    };
+    // start from job_sample.json, rewound to "just submitted": no plan yet, nothing pressed
+    const job: Job = clone(sample);
+    job.job_id = "job_mock_" + Math.random().toString(36).slice(2, 8);
+    job.created_at = now();
+    job.updated_at = now();
+    job.request = request.request;
+    job.approval_mode = request.approval_mode ?? sample.approval_mode;
+    job.status = "queued";
+    job.plan = null;
+    job.result = null;
     this.job = job;
     return clone(job);
   }
@@ -118,7 +123,18 @@ export class MockBackend implements JobBackend {
   private async run() {
     await this.sleep(400);
     this.emitStatus("planning");
-    await this.sleep(1600);
+    await this.sleep(800);
+
+    // pretend SAM just re-scanned the panel and found the same buttons
+    const controls = sampleDevice().controls;
+    this.emit({
+      type: "controls.updated",
+      job_id: this.jobId(),
+      ts: now(),
+      controls_version: sample.device.controls_version + 1,
+      controls,
+    });
+    await this.sleep(800);
 
     // fresh copies of the sample steps, everything back to pending
     const steps: Step[] = [];

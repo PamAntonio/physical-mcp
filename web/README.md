@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. With no backend configured it runs on a **mock backend** that replays `mock/job_sample.json` as live events, so every UI state works before the hardware does.
+Open http://localhost:3000. By default it runs on a **mock backend** that replays Pam's `shared/fixtures/jobSample.json` as live events, so every UI state works before the hardware does. The sample job starts by itself when the page loads.
 
 - `?fail=s4` makes step s4 fail, to see the failed state
 - Reject on the approval card stops the job without pressing START
@@ -19,22 +19,24 @@ Open http://localhost:3000. With no backend configured it runs on a **mock backe
 
 ## Connect to Pam's backend
 
-Copy `.env.example` to `.env.local` and set:
+Copy `.env.example` to `.env.local`, flip the one flag, and restart `npm run dev`:
 
 ```
+NEXT_PUBLIC_USE_MOCK=false
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 NEXT_PUBLIC_DEVICE_ID=incubator-01
 ```
 
-The app then uses the endpoints in `lib/types.ts`: `POST /jobs`, `GET /devices/:id`, approval and stop POSTs, and the `/jobs/:id/events` WebSocket (reconnects on drop).
+The app then uses the endpoints in `shared/types.ts`: `POST /jobs`, `GET /devices/:id`, approval and stop POSTs, and the `/jobs/:id/events` WebSocket (reconnects on drop).
 
 ## Where things live
 
 | File | What it does |
 |---|---|
-| `lib/types.ts` | Pam's contract, copied as is. Update it when the contract changes |
+| `../shared/types.ts` | Pam's contract, imported directly as `@contract/types` (no copy to keep in sync) |
+| `lib/config.ts` | `USE_MOCK` flag, backend URL, device id |
 | `lib/backend.ts` | HTTP + WebSocket client, picks mock or real |
-| `lib/mockBackend.ts` | Fake run built from `job_sample.json` |
+| `lib/mockBackend.ts` | Fake run built from `shared/fixtures/jobSample.json` |
 | `lib/jobReducer.ts` | Applies events to the job and writes the action log |
 | `lib/risk.ts` | **Placeholder** risk rules. Swap for the Muse Spark Open scorer |
 | `components/CameraView.tsx` | Frame plus bbox overlay (SVG viewBox = camera pixels) |
@@ -45,6 +47,5 @@ The app then uses the endpoints in `lib/types.ts`: `POST /jobs`, `GET /devices/:
 ## Not done yet
 
 - Risk tier and reason come from fixed rules, not the Spark Open scorer (Thursday)
-- `approval_type` and `time_to_decide_ms` are measured but not sent, waiting on contract fields
 - The mock only acts out `risky_steps`; `every_step` and `plan` modes need backend support
 - Rubber-stamp detection (Saturday, on the cut list)

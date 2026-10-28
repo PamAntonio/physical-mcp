@@ -1,6 +1,6 @@
 "use client";
 
-import type { Control, Step, StepStatus } from "@/lib/types";
+import type { Control, Step, StepStatus } from "@contract/types";
 import { describeAction } from "@/lib/jobReducer";
 
 const statusLabels: Record<StepStatus, string> = {

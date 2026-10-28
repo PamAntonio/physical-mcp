@@ -2,7 +2,7 @@
 // Muse Spark Open scorer (tier + one-line reason per step, in context).
 // Until then it's a fixed rule: risky control or requires_approval = high.
 
-import type { Device, Step } from "./types";
+import type { Device, Step } from "@contract/types";
 import { findControl } from "./jobReducer";
 
 export type RiskTier = "low" | "medium" | "high";

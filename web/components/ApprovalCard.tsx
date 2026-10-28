@@ -4,7 +4,7 @@
 // High-risk steps need a press-and-hold so they can't be rubber-stamped with one tap.
 
 import { useEffect, useRef, useState } from "react";
-import type { Device, Step } from "@/lib/types";
+import type { Device, Step } from "@contract/types";
 import { describeAction, findControl } from "@/lib/jobReducer";
 import { placeholderRisk } from "@/lib/risk";
 

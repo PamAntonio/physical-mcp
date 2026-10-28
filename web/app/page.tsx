@@ -1,17 +1,16 @@
 "use client";
 
 import { useEffect, useReducer, useRef, useState } from "react";
-import type { ApprovalMode, Device } from "@/lib/types";
+import type { ApprovalMode, Device } from "@contract/types";
 import { createBackend, type JobBackend } from "@/lib/backend";
-import { sampleDevice } from "@/lib/mockBackend";
+import { sampleDevice, sampleJob } from "@/lib/mockBackend";
+import { DEVICE_ID } from "@/lib/config";
 import { emptyJobState, findCurrentStep, jobReducer } from "@/lib/jobReducer";
 import CameraView from "@/components/CameraView";
 import StepList from "@/components/StepList";
 import ApprovalCard, { type DecisionInfo } from "@/components/ApprovalCard";
 import ActionLog from "@/components/ActionLog";
 import JobRequestForm from "@/components/JobRequestForm";
-
-const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID ?? "incubator-01";
 
 export default function Home() {
   const backendRef = useRef<JobBackend | null>(null);
@@ -23,15 +22,33 @@ export default function Home() {
 
   // backend reads window.location, so make it on the client only
   useEffect(() => {
+    let cancelled = false; // dev mode runs this effect twice, don't let the first run leak a mock job
     const backend = createBackend();
     backendRef.current = backend;
     setIsMock(backend.isMock);
     backend
       .getDevice(DEVICE_ID)
-      .then(setIdleDevice)
+      .then((device) => {
+        if (!cancelled) setIdleDevice(device);
+      })
       .catch((err) => setError(`Couldn't load the device: ${err.message}`));
+
+    // in mock mode, kick off the sample job right away so the page opens on a live run
+    if (backend.isMock) {
+      const sample = sampleJob();
+      backend
+        .createJob({ device_id: sample.device.device_id, request: sample.request, approval_mode: sample.approval_mode })
+        .then((newJob) => {
+          if (cancelled) return;
+          dispatch({ kind: "reset", job: newJob });
+          unsubscribeRef.current = backend.subscribe(newJob.job_id, (event) => dispatch({ kind: "event", event }));
+        });
+    }
+
     return () => {
+      cancelled = true;
       if (unsubscribeRef.current) unsubscribeRef.current();
+      unsubscribeRef.current = null;
     };
   }, []);
 
@@ -76,8 +93,11 @@ export default function Home() {
       text: `You ${how} step ${currentStep.index} after ${seconds}s`,
     });
     try {
-      // TODO: send approval_type + time_to_decide_ms once Pam adds them to ApprovalDecision
-      await backend.decide(job.job_id, currentStep.step_id, { decision });
+      await backend.decide(job.job_id, currentStep.step_id, {
+        decision,
+        approval_type: info.approvalType, // contract v1 fields
+        time_to_decide_ms: info.timeToDecideMs,
+      });
     } catch (err) {
       setError(`Couldn't send your decision: ${(err as Error).message}`);
     }
@@ -118,7 +138,6 @@ export default function Home() {
       <div className="layout">
         <div className="col-main">
           <CameraView device={device} currentStep={currentStep} frameSrc={frameSrc} screenText={screenText} />
-          <ActionLog log={state.log} frameUrl={(path) => (backendRef.current ? backendRef.current.frameUrl(path) : null)} />
         </div>
         <div className="col-side">
           {currentStep && currentStep.status === "awaiting_approval" && (
@@ -136,6 +155,11 @@ export default function Home() {
             planning={job !== null && job.status === "planning"}
           />
         </div>
+      </div>
+
+      {/* full width along the bottom */}
+      <div className="log-row">
+        <ActionLog log={state.log} frameUrl={(path) => (backendRef.current ? backendRef.current.frameUrl(path) : null)} />
       </div>
     </main>
   );
