@@ -1,7 +1,7 @@
 // Applies backend events to a Job and keeps a human-readable action log.
 // Pure on purpose (React may call reducers twice in dev).
 
-import type { Control, Job, JobEvent, Step } from "@contract/types";
+import type { Action, Control, Job, JobEvent, Step } from "@contract/types";
 
 export type LogTone = "info" | "good" | "warn" | "bad" | "you";
 
@@ -9,8 +9,14 @@ export interface LogEntry {
   id: string;
   ts: string;
   tone: LogTone;
-  text: string;
-  step?: Step; // attached when the entry is about a finished step, so we can show evidence
+  text: string; // what happened, e.g. "Verified" or "Plan ready, 6 steps"
+  // the rest only shows up when the entry is about a step
+  stepIndex?: number;
+  stepIntent?: string;
+  action?: string; // "Press ▲ ×12"
+  screenText?: string | null; // what the camera read after
+  beforeFrame?: string | null; // evidence paths, as the backend sent them
+  afterFrame?: string | null;
 }
 
 export interface JobState {
@@ -123,6 +129,19 @@ export function describeAction(step: Step, controls: Control[]): string {
   return `Press ${label}`;
 }
 
+// what a retry did about it: "Pressed ▲ once more."
+export function describeCorrection(correction: Action, controls: Control[]): string {
+  if (correction.type === "wait") return `Waited ${correction.seconds}s more.`;
+  const control = findControl(controls, correction.control_id);
+  const name = control ? control.label : correction.control_id;
+  if (correction.type === "read_screen") return `Read ${name} again.`;
+
+  let times = `${correction.count} more times`;
+  if (correction.count === 1) times = "once more";
+  if (correction.count === 2) times = "twice more";
+  return `Pressed ${name} ${times}.`;
+}
+
 // ---- helpers ----
 
 function addLog(state: JobState, entry: Omit<LogEntry, "id">): JobState {
@@ -149,8 +168,12 @@ function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | 
 
     case "step.updated": {
       const step = event.step;
-      const prefix = `Step ${step.index}`;
-      const actionText = describeAction(step, controls);
+      const about = {
+        ts,
+        stepIndex: step.index,
+        stepIntent: step.intent,
+        action: describeAction(step, controls),
+      };
 
       // was this a retry? compare with what we had before
       const previous = findStep(jobBefore, step.step_id);
@@ -158,29 +181,44 @@ function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | 
       const retriesNow = step.retries ? step.retries.length : 0;
       if (retriesNow > retriesBefore && step.retries) {
         const latest = step.retries[step.retries.length - 1];
-        const fakeStep = { ...step, action: latest.correction };
         return {
-          ts,
+          ...about,
           tone: "warn",
-          text: `${prefix} self-corrected: ${latest.problem}. ${describeAction(fakeStep, controls)}`,
+          text: `Self-corrected: ${latest.problem}. ${describeCorrection(latest.correction, controls)}`,
+          screenText: latest.screen_text,
         };
       }
 
       if (previous && previous.status === step.status) return null; // no real change
 
-      if (step.status === "running") return { ts, tone: "info", text: `${prefix}: ${actionText}` };
-      if (step.status === "verifying") return { ts, tone: "info", text: `${prefix}: reading the screen to check` };
+      if (step.status === "running") return { ...about, tone: "info", text: "Pressing" };
+      if (step.status === "verifying") return { ...about, tone: "info", text: "Reading the screen to check" };
       if (step.status === "succeeded") {
-        const screen = step.evidence.screen_text ? `, screen reads "${step.evidence.screen_text}"` : "";
-        return { ts, tone: "good", text: `${prefix} verified${screen}`, step };
+        return {
+          ...about,
+          tone: "good",
+          text: retriesNow > 0 ? "Verified after retry" : "Verified",
+          screenText: step.evidence.screen_text,
+          beforeFrame: step.evidence.before_frame_url,
+          afterFrame: step.evidence.after_frame_url,
+        };
       }
       if (step.status === "awaiting_approval") {
-        return { ts, tone: "warn", text: `${prefix} needs approval before the finger moves: ${actionText}` };
+        return { ...about, tone: "warn", text: "Needs approval before the finger moves" };
       }
       if (step.status === "failed") {
-        return { ts, tone: "bad", text: `${prefix} failed: ${step.error ?? "unknown error"}`, step };
+        return {
+          ...about,
+          tone: "bad",
+          text: `Failed: ${step.error ?? "unknown error"}`,
+          screenText: step.evidence.screen_text,
+          beforeFrame: step.evidence.before_frame_url,
+          afterFrame: step.evidence.after_frame_url,
+        };
       }
-      if (step.status === "skipped") return { ts, tone: "bad", text: `${prefix} skipped` };
+      if (step.status === "skipped") {
+        return { ...about, tone: "bad", text: step.error ? `Skipped: ${step.error}` : "Skipped" };
+      }
       return null;
     }
 

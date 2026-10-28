@@ -8,7 +8,7 @@
 // from retries.length.
 
 import type { Action, Control, Expectation, Retry, Step, StepStatus } from "@contract/types";
-import { findControl } from "@/lib/jobReducer";
+import { describeCorrection, findControl } from "@/lib/jobReducer";
 
 const DEFAULT_MAX_ATTEMPTS = 3; // contract says max_attempts defaults to 3
 
@@ -189,15 +189,4 @@ function describeExpect(expect: Expectation, controls: Control[]): string {
 function describeRetry(retry: Retry, expect: Expectation, controls: Control[]): string {
   const saw = `Attempt ${retry.attempt}: screen said “${retry.screen_text}”, wanted “${expect.text_contains}”.`;
   return `${saw} ${describeCorrection(retry.correction, controls)}`;
-}
-
-function describeCorrection(correction: Action, controls: Control[]): string {
-  if (correction.type === "wait") return `Waited ${correction.seconds}s more.`;
-  const name = controlName(correction.control_id, controls);
-  if (correction.type === "read_screen") return `Read ${name} again.`;
-
-  let times = `${correction.count} more times`;
-  if (correction.count === 1) times = "once more";
-  if (correction.count === 2) times = "twice more";
-  return `Pressed ${name} ${times}.`;
 }

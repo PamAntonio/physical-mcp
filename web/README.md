@@ -39,10 +39,11 @@ The app then uses the endpoints in `shared/types.ts`: `POST /jobs`, `GET /device
 | `lib/mockBackend.ts` | Fake run built from `shared/fixtures/jobSample.json` |
 | `lib/jobReducer.ts` | Applies events to the job and writes the action log |
 | `lib/risk.ts` | **Placeholder** risk rules. Swap for the Muse Spark Open scorer |
+| `lib/mockFrame.ts` | Draws mock camera frames (with the LCD reading) for mock mode |
 | `components/CameraView.tsx` | Frame plus bbox overlay (SVG viewBox = camera pixels) |
 | `components/ApprovalCard.tsx` | Approval card, hold-to-approve for high risk, measures time to decide |
 | `components/StepList.tsx` | Plan with every step state, retries shown inline |
-| `components/ActionLog.tsx` | Timestamped log with before/after frames |
+| `components/ActionLog.tsx` | Newest-first log: step, action, screen read, before/after frames (click to enlarge) |
 
 ## Not done yet
 

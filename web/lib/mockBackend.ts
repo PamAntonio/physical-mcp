@@ -4,14 +4,16 @@
 // Lets us build every UI state before Pam's server and the finger are ready.
 // Timings are made up, roughly what a servo press + screen read might take.
 
-import type { ApprovalDecision, CreateJobRequest, Device, Job, JobEvent, JobStatus, Plan, Step } from "@contract/types";
+import type { ApprovalDecision, BBox, CreateJobRequest, Device, Job, JobEvent, JobStatus, Plan, Step } from "@contract/types";
 import type { JobBackend } from "./backend";
+import { findControl } from "./jobReducer";
+import { mockFrameUrl } from "./mockFrame";
 import sampleJson from "@contract/fixtures/jobSample.json";
 
 const sample = sampleJson as unknown as Job;
 
-// stand-in camera frame (public/mock/), drawn so its buttons sit on the sample bboxes
-const MOCK_FRAME_URL = "/mock/frame-incubator.svg";
+// stand-in camera frame with a blank LCD (the camera view paints the live screen text on top)
+const MOCK_FRAME_URL = mockFrameUrl(null);
 
 class StoppedError extends Error {}
 
@@ -121,8 +123,8 @@ export class MockBackend implements JobBackend {
   }
 
   frameUrl(path: string | null) {
-    // only our stand-in frame exists. the sample's /frames/... evidence paths don't, so skip those
-    if (path === MOCK_FRAME_URL) return path;
+    // mock frames are data: urls we drew ourselves. the sample's /frames/... paths don't exist, so skip those
+    if (path && path.startsWith("data:")) return path;
     return null;
   }
 
@@ -186,8 +188,13 @@ export class MockBackend implements JobBackend {
   // returns false if the job should stop here
   private async runStep(step: Step, sampleStep: Step, screenBefore: string): Promise<boolean> {
     this.activeStep = step;
-    const framePrefix = `/frames/${this.jobId()}/${step.step_id}`;
-    step.evidence.before_frame_url = `${framePrefix}_before.jpg`;
+    // "before" frame: the screen as it is now, with a ring where the finger is about to press
+    let pressBox: BBox | undefined;
+    if (step.action.type !== "wait") {
+      const control = findControl(this.job ? this.job.device.controls : [], step.action.control_id);
+      if (control && control.kind !== "screen") pressBox = control.bbox;
+    }
+    step.evidence.before_frame_url = mockFrameUrl(screenBefore, pressBox);
     step.evidence.screen_text = screenBefore;
 
     if (step.requires_approval) {
@@ -233,6 +240,7 @@ export class MockBackend implements JobBackend {
       step.status = "failed";
       step.error = "Screen didn't change after the press. The finger may have missed the button.";
       step.finished_at = now();
+      step.evidence.after_frame_url = mockFrameUrl(screenBefore); // nothing changed, that's the problem
       this.emitStep(step);
       this.emit({
         type: "job.finished",
@@ -261,12 +269,12 @@ export class MockBackend implements JobBackend {
     // done, use the sample evidence when it has some
     step.status = "succeeded";
     step.finished_at = now();
-    step.evidence.after_frame_url = `${framePrefix}_after.jpg`;
     if (sampleStep.status === "succeeded" && sampleStep.evidence.screen_text) {
       step.evidence.screen_text = sampleStep.evidence.screen_text;
     } else {
       step.evidence.screen_text = `${step.expect.text_contains} 37.0 02:00`; // only START hits this, good enough for a mock
     }
+    step.evidence.after_frame_url = mockFrameUrl(step.evidence.screen_text);
     this.emitStep(step);
     this.emit({ type: "frame", job_id: this.jobId(), ts: now(), frame_url: MOCK_FRAME_URL });
     await this.sleep(300);
