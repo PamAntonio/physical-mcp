@@ -2,3 +2,13 @@
 out/
 .env
 __pycache__/
+.env.*
+!.env.example
+
+# vision: raw SAM responses, outputs and test images stay local
+*.sam_raw.json
+vision/**/*.controls.json
+vision/**/*.jpg
+vision/**/*.jpeg
+vision/**/*.png
+vision/**/*.webp
