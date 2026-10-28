@@ -12,3 +12,6 @@ vision/**/*.jpg
 vision/**/*.jpeg
 vision/**/*.png
 vision/**/*.webp
+
+# risk: raw model replies stay local
+risk/out/
