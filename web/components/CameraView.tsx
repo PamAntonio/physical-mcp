@@ -14,9 +14,10 @@ interface Props {
   frameSrc: string | null;
   // mock frames are a still image, so we paint what the screen "says" on top. null = don't
   screenOverlay: string | null;
+  selectedControlId: string | null; // picked in the step list
 }
 
-export default function CameraView({ device, currentStep, frameSrc, screenOverlay }: Props) {
+export default function CameraView({ device, currentStep, frameSrc, screenOverlay, selectedControlId }: Props) {
   const [showBoxes, setShowBoxes] = useState(true);
   const [frameBroken, setFrameBroken] = useState(false);
 
@@ -85,6 +86,7 @@ export default function CameraView({ device, currentStep, frameSrc, screenOverla
                 frameWidth={frameWidth}
                 frameHeight={frameHeight}
                 isTarget={control.control_id === targetId}
+                isSelected={control.control_id === selectedControlId}
                 waitingForApproval={waitingForApproval}
                 screenOverlay={screenOverlay}
                 labelBelow={moreRoomBelow(control, device.controls, frameHeight)}
@@ -110,6 +112,7 @@ interface BoxProps {
   frameWidth: number;
   frameHeight: number;
   isTarget: boolean;
+  isSelected: boolean;
   waitingForApproval: boolean;
   screenOverlay: string | null;
   labelBelow: boolean;
@@ -141,7 +144,16 @@ function moreRoomBelow(control: Control, allControls: Control[], frameHeight: nu
   return crampedAbove && gapBelow > gapAbove;
 }
 
-function ControlBox({ control, frameWidth, frameHeight, isTarget, waitingForApproval, screenOverlay, labelBelow }: BoxProps) {
+function ControlBox({
+  control,
+  frameWidth,
+  frameHeight,
+  isTarget,
+  isSelected,
+  waitingForApproval,
+  screenOverlay,
+  labelBelow,
+}: BoxProps) {
   const [x, y, w, h] = control.bbox;
 
   // camera pixels -> % of the frame, so the box stretches with the image
@@ -160,6 +172,7 @@ function ControlBox({ control, frameWidth, frameHeight, isTarget, waitingForAppr
     // amber while it waits for a human, blue while the finger is on it
     className += waitingForApproval ? " ctl-waiting" : " ctl-target";
   }
+  if (isSelected) className += " ctl-selected";
 
   const confidence = Math.round(control.confidence * 100);
 

@@ -98,6 +98,10 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .ctl-target { border: 3px solid #fff; background: rgba(92, 200, 255, 0.35); box-shadow: 0 0 0 2px var(--accent); z-index: 1; }
 .ctl-waiting { border: 3px solid var(--warn); border-style: solid; background: rgba(245, 176, 65, 0.3); box-shadow: 0 0 0 2px rgba(245, 176, 65, 0.5); z-index: 1; animation: pulse 1.2s ease-in-out infinite; }
 
+/* picked in the step list: dashed violet outline (outline, so it stacks on top of target/waiting) */
+.ctl-selected { outline: 2px dashed var(--you); outline-offset: 3px; z-index: 2; }
+.ctl-selected .ctl-tag { background: var(--you); color: #1a0f33; font-weight: 700; }
+
 /* label sits just above its box, fixed px size so it stays readable however small the frame gets */
 .ctl-tag { position: absolute; left: -2px; bottom: calc(100% + 2px); white-space: nowrap; font-family: var(--mono); font-size: 11px; line-height: 1.2; padding: 1px 4px; border-radius: 3px; background: rgba(0, 0, 0, 0.72); color: #fff; }
 /* confidence only on the active box, otherwise neighbouring tags (▲ ▼) run into each other */
@@ -122,31 +126,74 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 }
 
 /* steps */
-.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.step { display: flex; gap: 10px; padding: 8px; border-radius: 8px; border: 1px solid transparent; }
-.step-dot { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; font-family: var(--mono); background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); }
-.step-body { flex: 1; min-width: 0; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.steps-hint { margin: 10px 0 0; font-size: 11px; color: var(--muted); }
+.step { border-radius: 8px; border: 1px solid transparent; border-left: 3px solid var(--line); transition: background 0.2s, border-color 0.2s; }
+.step-button { all: unset; box-sizing: border-box; width: 100%; display: flex; gap: 10px; padding: 8px 10px; cursor: pointer; border-radius: 8px; }
+.step-button:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.step-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.step-dot { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; font-family: var(--mono); background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); box-sizing: border-box; }
+.step-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .step-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .step-intent { font-weight: 600; }
-.step-meta { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
-.tag-approval { color: var(--warn); }
+.step-num { color: var(--muted); font-family: var(--mono); font-weight: 400; font-size: 12px; }
+.step-fields { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12px; font-family: var(--mono); }
+.step-field { display: inline-flex; gap: 5px; }
+.step-field-name { color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; line-height: 18px; }
+.step-field-value { color: var(--text); }
+.step-attempts-warn { color: var(--warn); font-weight: 700; }
+.step-approval-note { margin-top: 4px; font-size: 12px; color: var(--warn); }
+.step-approval-now { font-weight: 700; }
+
+/* pending: dim, hollow numbered dot */
 .step-pending { opacity: 0.55; }
-.step-running, .step-verifying { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
-.step-running .step-dot, .step-verifying .step-dot { border-color: var(--accent); border-top-color: transparent; animation: spin 0.8s linear infinite; color: transparent; }
+.step-pending .step-dot { background: transparent; border-style: dashed; }
+
+/* running / checking: blue, spinning ring */
+.step-running { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); border-left-color: var(--accent); }
+.step-running .step-dot, .step-retrying .step-dot { border: 2px solid var(--accent); border-top-color: transparent; animation: spin 0.8s linear infinite; color: transparent; }
+
+/* retrying right now: blue spinner, amber edge so it reads as "trying again" */
+.step-retrying { background: color-mix(in srgb, var(--warn) 8%, transparent); border-color: color-mix(in srgb, var(--warn) 35%, transparent); border-left-color: var(--warn); }
+
+/* succeeded: green check */
+.step-succeeded { border-left-color: var(--good); }
 .step-succeeded .step-dot { background: var(--good); border-color: var(--good); color: #05210f; }
-.step-awaiting_approval { background: color-mix(in srgb, var(--warn) 10%, transparent); border-color: var(--warn); }
-.step-awaiting_approval .step-dot { background: var(--warn); border-color: var(--warn); color: #241600; }
+
+/* succeeded after a retry: amber ↻ dot, amber edge, the retry block stays visible */
+.step-retried { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 5%, transparent); }
+.step-retried .step-dot { background: transparent; border: 2px solid var(--good); color: var(--warn); font-size: 14px; }
+
+/* awaiting approval: solid amber, "!" dot */
+.step-awaiting { background: color-mix(in srgb, var(--warn) 12%, transparent); border-color: var(--warn); border-left-color: var(--warn); }
+.step-awaiting .step-dot { background: var(--warn); border-color: var(--warn); color: #241600; }
+
+/* failed: red, "×" dot */
+.step-failed { background: color-mix(in srgb, var(--bad) 10%, transparent); border-color: color-mix(in srgb, var(--bad) 45%, transparent); border-left-color: var(--bad); }
 .step-failed .step-dot { background: var(--bad); border-color: var(--bad); color: #2a0606; }
+
+/* skipped (rejected or stopped): struck through */
 .step-skipped { opacity: 0.6; }
 .step-skipped .step-intent { text-decoration: line-through; }
 
+/* clicked: matches the dashed violet box on the camera */
+.step-selected { outline: 2px dashed var(--you); outline-offset: 2px; }
+
 .chip { flex: none; font-size: 11px; font-family: var(--mono); padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
-.chip-running, .chip-verifying { color: var(--accent); border-color: var(--accent); }
+.chip-running { color: var(--accent); border-color: var(--accent); }
+.chip-retrying { color: var(--warn); border-color: var(--warn); }
 .chip-succeeded { color: var(--good); border-color: color-mix(in srgb, var(--good) 50%, transparent); }
-.chip-succeeded.chip-retried { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
-.chip-awaiting_approval { color: var(--warn); border-color: var(--warn); }
-.chip-failed, .chip-skipped { color: var(--bad); border-color: var(--bad); }
-.retry-note { margin-top: 6px; font-size: 12px; color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); padding: 4px 8px; border-radius: 6px; }
+.chip-retried { color: #241600; background: var(--warn); border-color: var(--warn); font-weight: 700; }
+.chip-awaiting { color: #241600; background: var(--warn); border-color: var(--warn); font-weight: 700; animation: pulse 1.4s ease-in-out infinite; }
+.chip-failed { color: #2a0606; background: var(--bad); border-color: var(--bad); font-weight: 700; }
+.chip-skipped { color: var(--muted); text-decoration: line-through; }
+
+/* retry detail: the self-correction moment */
+.retry-block { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.retry-line { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--text); background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); padding: 6px 10px; border-radius: 6px; }
+.retry-line strong { color: var(--warn); }
+.retry-icon { flex: none; color: var(--warn); font-size: 16px; line-height: 1.2; font-weight: 700; }
+.retry-problem { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); font-family: var(--mono); }
 .error-note { margin-top: 6px; font-size: 12px; color: var(--bad); }
 
 /* approval card */

@@ -19,6 +19,7 @@ export default function Home() {
   const [idleDevice, setIdleDevice] = useState<Device>(sampleDevice());
   const [isMock, setIsMock] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null); // clicked in the step list
 
   // backend reads window.location, so make it on the client only
   useEffect(() => {
@@ -41,6 +42,7 @@ export default function Home() {
         .then((newJob) => {
           if (cancelled) return;
           dispatch({ kind: "reset", job: newJob });
+          setSelectedStepId(null);
           unsubscribeRef.current = backend.subscribe(newJob.job_id, (event) => dispatch({ kind: "event", event }));
         });
     }
@@ -55,6 +57,16 @@ export default function Home() {
   const job = state.job;
   const device = job ? job.device : idleDevice;
   const currentStep = findCurrentStep(job);
+
+  // the control of whichever step was clicked, so the camera can point at it
+  let selectedControlId: string | null = null;
+  if (job && job.plan && selectedStepId) {
+    for (const step of job.plan.steps) {
+      if (step.step_id === selectedStepId && step.action.type !== "wait") {
+        selectedControlId = step.action.control_id;
+      }
+    }
+  }
   const finished = job !== null && (job.status === "succeeded" || job.status === "failed" || job.status === "stopped");
   const busy = job !== null && !finished;
 
@@ -75,6 +87,7 @@ export default function Home() {
     try {
       const newJob = await backend.createJob({ device_id: DEVICE_ID, request, approval_mode: approvalMode });
       dispatch({ kind: "reset", job: newJob });
+      setSelectedStepId(null);
       unsubscribeRef.current = backend.subscribe(newJob.job_id, (event) => dispatch({ kind: "event", event }));
     } catch (err) {
       setError(`Couldn't start the job: ${(err as Error).message}`);
@@ -142,6 +155,7 @@ export default function Home() {
             currentStep={currentStep}
             frameSrc={frameSrc}
             screenOverlay={isMock ? screenText : null}
+            selectedControlId={selectedControlId}
           />
         </div>
         <div className="col-side">
@@ -158,6 +172,8 @@ export default function Home() {
             steps={job && job.plan ? job.plan.steps : null}
             controls={device.controls}
             planning={job !== null && job.status === "planning"}
+            selectedStepId={selectedStepId}
+            onSelect={setSelectedStepId}
           />
         </div>
       </div>
