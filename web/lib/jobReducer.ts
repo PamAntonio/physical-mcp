@@ -169,6 +169,9 @@ function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | 
     case "job.status":
       if (event.status === "planning") return { ts, tone: "info", text: "Muse Spark is planning the steps" };
       if (event.status === "queued") return { ts, tone: "info", text: "Job queued" };
+      if (event.status === "paused") {
+        return { ts, tone: "warn", text: "Job paused, nothing was pressed. Approve the step to carry on, or Stop." };
+      }
       return null; // running / awaiting_approval are already covered by step entries
 
     case "plan.ready":

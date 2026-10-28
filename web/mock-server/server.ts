@@ -147,7 +147,13 @@ async function handle(request: http.IncomingMessage, response: http.ServerRespon
     if (body.decision !== "approve" && body.decision !== "reject") {
       return sendError(response, 400, 'decision must be "approve" or "reject"');
     }
-    log(`step ${parts[3]}: ${body.decision} (${body.approval_type ?? "?"}, ${body.time_to_decide_ms ?? "?"}ms)`);
+    log(
+      `step ${parts[3]}: ${body.decision}${body.decision === "reject" ? ` -> ${body.on_reject ?? "pause"}` : ""}` +
+        ` (${body.approval_type ?? "?"}, ${body.time_to_decide_ms ?? "?"}ms, by ${body.decided_by ?? "?"} at ${body.decided_at ?? "?"})`,
+    );
+    if (body.decision === "reject" && body.on_reject === "replan") {
+      log("replan requested (no replanner in the mock yet, holding like a pause)");
+    }
     await mock.decide(jobId, parts[3], body as ApprovalDecision);
     return sendJson(response, 200, await mock.getJob(jobId));
   }

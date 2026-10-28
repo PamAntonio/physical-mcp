@@ -1,17 +1,32 @@
 "use client";
 
 import { useEffect, useReducer, useRef, useState } from "react";
-import type { ApprovalMode, Device } from "@contract/types";
+import type { ApprovalDecision, ApprovalMode, Control, Device, RejectBehavior, Step } from "@contract/types";
 import { createBackend, type ConnectionState, type JobBackend } from "@/lib/backend";
 import { sampleDevice, sampleJob } from "@/lib/mockBackend";
-import { AUTO_START_SAMPLE, DEVICE_ID } from "@/lib/config";
-import { emptyJobState, findCurrentStep, jobReducer } from "@/lib/jobReducer";
+import { AUTO_START_SAMPLE, DEVICE_ID, OPERATOR_NAME, REJECT_BEHAVIOR } from "@/lib/config";
+import { emptyJobState, findControl, findCurrentStep, jobReducer } from "@/lib/jobReducer";
 import { riskFromStep } from "@/lib/risk";
 import CameraView from "@/components/CameraView";
 import StepList from "@/components/StepList";
 import ApprovalCard, { type DecisionInfo } from "@/components/ApprovalCard";
 import ActionLog from "@/components/ActionLog";
 import JobRequestForm from "@/components/JobRequestForm";
+
+const REJECT_LOG_SUFFIX: Record<RejectBehavior, string> = {
+  abort: ", stopping the job",
+  pause: ", job paused",
+  replan: ", replan requested",
+};
+
+// what the log calls a step: the button's label ("START"), or the intent if no button
+function stepTargetName(step: Step, controls: Control[]): string {
+  if (step.action.type === "press") {
+    const control = findControl(controls, step.action.control_id);
+    if (control) return control.label;
+  }
+  return `step ${step.index} (${step.intent})`;
+}
 
 export default function Home() {
   const backendRef = useRef<JobBackend | null>(null);
@@ -108,20 +123,25 @@ export default function Home() {
   async function handleDecision(decision: "approve" | "reject", info: DecisionInfo) {
     const backend = backendRef.current;
     if (!backend || !job || !currentStep) return;
+    const decidedAt = new Date().toISOString();
+
+    // "You approved START (hold, 2.1s)" / "You rejected START (tap, 1.4s), job paused"
     const seconds = (info.timeToDecideMs / 1000).toFixed(1);
-    const how = info.approvalType === "hold" ? "held to approve" : decision === "approve" ? "approved" : "rejected";
-    dispatch({
-      kind: "note",
-      ts: new Date().toISOString(),
-      tone: "you",
-      text: `You ${how} step ${currentStep.index} after ${seconds}s`,
-    });
+    const what = stepTargetName(currentStep, device.controls);
+    let text = `You ${decision === "approve" ? "approved" : "rejected"} ${what} (${info.approvalType}, ${seconds}s)`;
+    if (decision === "reject") text += REJECT_LOG_SUFFIX[REJECT_BEHAVIOR];
+    dispatch({ kind: "note", ts: decidedAt, tone: "you", text });
+
+    const payload: ApprovalDecision = {
+      decision,
+      decided_by: OPERATOR_NAME,
+      decided_at: decidedAt,
+      approval_type: info.approvalType,
+      time_to_decide_ms: info.timeToDecideMs,
+    };
+    if (decision === "reject") payload.on_reject = REJECT_BEHAVIOR;
     try {
-      await backend.decide(job.job_id, currentStep.step_id, {
-        decision,
-        approval_type: info.approvalType, // contract v1 fields
-        time_to_decide_ms: info.timeToDecideMs,
-      });
+      await backend.decide(job.job_id, currentStep.step_id, payload);
     } catch (err) {
       setError(`Couldn't send your decision: ${(err as Error).message}`);
     }
@@ -181,6 +201,8 @@ export default function Home() {
               step={currentStep}
               device={device}
               risk={riskFromStep(currentStep)}
+              paused={job !== null && job.status === "paused"}
+              rejectBehavior={REJECT_BEHAVIOR}
               onDecide={handleDecision}
             />
           )}

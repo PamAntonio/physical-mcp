@@ -226,23 +226,34 @@ export class MockBackend implements JobBackend {
       this.emitStep(step);
       this.emitStatus("awaiting_approval");
 
-      const decision = await this.waitForDecision();
-      if (decision.decision === "reject") {
-        step.status = "skipped";
-        step.error = decision.note ?? "Rejected at approval";
-        step.finished_at = now();
-        this.emitStep(step);
-        this.emit({
-          type: "job.finished",
-          job_id: this.jobId(),
-          ts: now(),
-          result: {
-            outcome: "stopped",
-            message: `Stopped: step ${step.index} was rejected, the finger never moved.`,
-            final_screen_text: screenBefore,
-          },
-        });
-        return false;
+      // keep asking until it's approved or aborted. a pause just holds here
+      let decision = await this.waitForDecision();
+      while (decision.decision === "reject") {
+        const behavior = decision.on_reject ?? "pause"; // contract default
+
+        if (behavior === "abort") {
+          step.status = "skipped";
+          step.error = decision.note ?? "Rejected at approval";
+          step.finished_at = now();
+          this.emitStep(step);
+          this.emit({
+            type: "job.finished",
+            job_id: this.jobId(),
+            ts: now(),
+            result: {
+              outcome: "stopped",
+              message: `Stopped: step ${step.index} was rejected, the finger never moved.`,
+              final_screen_text: screenBefore,
+            },
+          });
+          return false;
+        }
+
+        // "pause", and "replan" for now (no replanner in the mock, so it holds like a pause).
+        // the step stays awaiting_approval: approving it later resumes, Stop ends the job.
+        // (the mock server logs "replan requested", the action log shows it too)
+        this.emitStatus("paused");
+        decision = await this.waitForDecision();
       }
       this.emitStatus("running");
     }
