@@ -4,7 +4,7 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import type { ApprovalMode, Device } from "@contract/types";
 import { createBackend, type ConnectionState, type JobBackend } from "@/lib/backend";
 import { sampleDevice, sampleJob } from "@/lib/mockBackend";
-import { DEVICE_ID } from "@/lib/config";
+import { AUTO_START_SAMPLE, DEVICE_ID } from "@/lib/config";
 import { emptyJobState, findCurrentStep, jobReducer } from "@/lib/jobReducer";
 import CameraView from "@/components/CameraView";
 import StepList from "@/components/StepList";
@@ -44,8 +44,8 @@ export default function Home() {
       })
       .catch((err) => setError(`Couldn't load the device: ${err.message}`));
 
-    // in mock mode, kick off the sample job right away so the page opens on a live run
-    if (backend.isMock) {
+    // on mock data, kick off the sample job right away so the page opens on a live run
+    if (AUTO_START_SAMPLE) {
       const sample = sampleJob();
       backend
         .createJob({ device_id: sample.device.device_id, request: sample.request, approval_mode: sample.approval_mode })
