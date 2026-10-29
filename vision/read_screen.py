@@ -409,8 +409,11 @@ INKBIRD_PROMPT = (
 
 TIMER_PROMPT = (
     "This is a crop of a camera photo showing one or more rows of an LCD on a kitchen timer. "
-    "Each row looks like \"00:00 00\": minutes:seconds, then two small digits (hundredths or seconds). "
-    "Reply with one line per row, top to bottom, using only 0-9, \":\" and spaces. "
+    "Each row looks like \"00:05 00\": hours:minutes in big digits, then two small digits for seconds, "
+    "so \"00:05 00\" means 0 hours, 5 minutes, 0 seconds. "
+    "Unlit segments are faintly visible as light grey ghost segments, so every digit has a faint 8 behind it. "
+    "Only read the dark, fully lit segments and ignore the ghost ones. "
+    "Reply with one line per row, top to bottom, as HH:MM SS, using only 0-9, \":\" and spaces. "
     "Nothing else, no row labels like T1, no explanation. "
     "If the display is blank or you can't read it, reply with an empty string."
 )
