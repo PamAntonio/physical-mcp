@@ -1,0 +1,282 @@
+{
+  "job_id": "job_risk_90",
+  "created_at": "2026-10-27T17:05:12Z",
+  "updated_at": "2026-10-27T17:06:41Z",
+  "request": "Set the incubator to 90 °C and run it for 2 hours",
+  "approval_mode": "risky_steps",
+  "status": "awaiting_approval",
+  "device": {
+    "device_id": "incubator-01",
+    "name": "Benchtop incubator (demo device, placeholder)",
+    "camera": {
+      "camera_id": "cam-0",
+      "frame_width": 1280,
+      "frame_height": 720,
+      "latest_frame_url": "/frames/job_7f3c2a/latest.jpg"
+    },
+    "controls_version": 3,
+    "controls": [
+      {
+        "control_id": "btn_set",
+        "label": "SET",
+        "kind": "button",
+        "bbox": [
+          412,
+          288,
+          58,
+          40
+        ],
+        "confidence": 0.94
+      },
+      {
+        "control_id": "btn_up",
+        "label": "▲",
+        "kind": "button",
+        "bbox": [
+          486,
+          288,
+          44,
+          40
+        ],
+        "confidence": 0.91
+      },
+      {
+        "control_id": "btn_down",
+        "label": "▼",
+        "kind": "button",
+        "bbox": [
+          540,
+          288,
+          44,
+          40
+        ],
+        "confidence": 0.9
+      },
+      {
+        "control_id": "btn_enter",
+        "label": "ENTER",
+        "kind": "button",
+        "bbox": [
+          596,
+          288,
+          70,
+          40
+        ],
+        "confidence": 0.93
+      },
+      {
+        "control_id": "btn_timer",
+        "label": "TIMER",
+        "kind": "button",
+        "bbox": [
+          412,
+          344,
+          70,
+          40
+        ],
+        "confidence": 0.88
+      },
+      {
+        "control_id": "btn_start",
+        "label": "START",
+        "kind": "button",
+        "bbox": [
+          596,
+          344,
+          70,
+          40
+        ],
+        "confidence": 0.95,
+        "risky": true
+      },
+      {
+        "control_id": "screen_main",
+        "label": "Display",
+        "kind": "screen",
+        "bbox": [
+          400,
+          180,
+          280,
+          84
+        ],
+        "confidence": 0.97
+      }
+    ]
+  },
+  "plan": {
+    "planner": "Muse Spark (model id TBD)",
+    "summary": "Enter set-point mode, raise temperature from 25.0 to 90.0, confirm, set a 2-hour timer, then start.",
+    "steps": [
+      {
+        "step_id": "s1",
+        "index": 1,
+        "intent": "Open the temperature set-point",
+        "action": {
+          "type": "press",
+          "control_id": "btn_set",
+          "count": 1
+        },
+        "expect": {
+          "control_id": "screen_main",
+          "text_contains": "SET TEMP"
+        },
+        "requires_approval": false,
+        "status": "succeeded",
+        "attempts": 1,
+        "started_at": "2026-10-27T17:05:20Z",
+        "finished_at": "2026-10-27T17:05:23Z",
+        "evidence": {
+          "before_frame_url": "/frames/job_7f3c2a/s1_before.jpg",
+          "after_frame_url": "/frames/job_7f3c2a/s1_after.jpg",
+          "screen_text": "SET TEMP 25.0"
+        },
+        "error": null,
+        "risk_tier": "low",
+        "risk_reason": "Only opens temperature set-point menu, no heating or run started.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      },
+      {
+        "step_id": "s2",
+        "index": 2,
+        "intent": "Raise the set-point to 90.0",
+        "action": {
+          "type": "press",
+          "control_id": "btn_up",
+          "count": 65
+        },
+        "expect": {
+          "control_id": "screen_main",
+          "text_contains": "90.0"
+        },
+        "requires_approval": false,
+        "status": "succeeded",
+        "attempts": 1,
+        "started_at": "2026-10-27T17:05:24Z",
+        "finished_at": "2026-10-27T17:05:52Z",
+        "evidence": {
+          "before_frame_url": "/frames/job_7f3c2a/s2_before.jpg",
+          "after_frame_url": "/frames/job_7f3c2a/s2_after.jpg",
+          "screen_text": "SET TEMP 90.0"
+        },
+        "error": null,
+        "risk_tier": "high",
+        "risk_reason": "Raises set-point to 90 °C, far above normal incubator range.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      },
+      {
+        "step_id": "s3",
+        "index": 3,
+        "intent": "Confirm the new set-point",
+        "action": {
+          "type": "press",
+          "control_id": "btn_enter",
+          "count": 1
+        },
+        "expect": {
+          "control_id": "screen_main",
+          "text_contains": "90.0"
+        },
+        "requires_approval": false,
+        "status": "succeeded",
+        "attempts": 1,
+        "started_at": "2026-10-27T17:05:53Z",
+        "finished_at": "2026-10-27T17:05:56Z",
+        "evidence": {
+          "before_frame_url": "/frames/job_7f3c2a/s3_before.jpg",
+          "after_frame_url": "/frames/job_7f3c2a/s3_after.jpg",
+          "screen_text": "TEMP 25.0 > 90.0"
+        },
+        "error": null,
+        "risk_tier": "high",
+        "risk_reason": "Confirms 90.0°C set-point, far above safe incubator range, risks damage. [90.0°C > ~37°C normal]. [Requested 90°C is not",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      },
+      {
+        "step_id": "s4",
+        "index": 4,
+        "intent": "Open the timer",
+        "action": {
+          "type": "press",
+          "control_id": "btn_timer",
+          "count": 1
+        },
+        "expect": {
+          "control_id": "screen_main",
+          "text_contains": "TIMER"
+        },
+        "requires_approval": false,
+        "status": "succeeded",
+        "attempts": 1,
+        "started_at": "2026-10-27T17:05:57Z",
+        "finished_at": "2026-10-27T17:06:00Z",
+        "evidence": {
+          "before_frame_url": "/frames/job_7f3c2a/s4_before.jpg",
+          "after_frame_url": "/frames/job_7f3c2a/s4_after.jpg",
+          "screen_text": "TIMER 00:00"
+        },
+        "error": null,
+        "risk_tier": "low",
+        "risk_reason": "Opens timer menu only; does not start heating at 90.0 °C.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      },
+      {
+        "step_id": "s5",
+        "index": 5,
+        "intent": "Set the timer to 2 hours",
+        "action": {
+          "type": "press",
+          "control_id": "btn_up",
+          "count": 2
+        },
+        "expect": {
+          "control_id": "screen_main",
+          "text_contains": "02:00"
+        },
+        "requires_approval": false,
+        "status": "succeeded",
+        "attempts": 1,
+        "started_at": "2026-10-27T17:06:01Z",
+        "finished_at": "2026-10-27T17:06:08Z",
+        "evidence": {
+          "before_frame_url": "/frames/job_7f3c2a/s5_before.jpg",
+          "after_frame_url": "/frames/job_7f3c2a/s5_after.jpg",
+          "screen_text": "TIMER 02:00"
+        },
+        "error": null,
+        "risk_tier": "low",
+        "risk_reason": "Sets timer to 02:00 only; does not start 90 °C heating.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      },
+      {
+        "step_id": "s6",
+        "index": 6,
+        "intent": "Start the run",
+        "action": {
+          "type": "press",
+          "control_id": "btn_start",
+          "count": 1
+        },
+        "expect": {
+          "control_id": "screen_main",
+          "text_contains": "RUN"
+        },
+        "requires_approval": true,
+        "approval_reason": "Starts the machine: changes its physical state",
+        "status": "awaiting_approval",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": "/frames/job_7f3c2a/s6_before.jpg",
+          "after_frame_url": null,
+          "screen_text": "TIMER 02:00"
+        },
+        "error": null,
+        "risk_tier": "high",
+        "risk_reason": "Starts heating to 90°C, far above normal incubator range.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      }
+    ]
+  },
+  "result": null
+}

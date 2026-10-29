@@ -17,4 +17,6 @@ vision/**/*.webp
 *.crop.png
 
 # risk: raw model replies stay local
-risk/out/
+!risk/out/
+risk/out/*
+!risk/out/*.scored.json

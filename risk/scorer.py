@@ -40,7 +40,9 @@ RISK_SCHEMA = {
     "type": "object",
     "properties": {
         "risk_tier": {"type": "string", "enum": TIERS},
-        "risk_reason": {"type": "string"},
+        # without a cap the model sometimes never closes this string and pads it
+        # with filler until 32k tokens, which blows the timeout
+        "risk_reason": {"type": "string", "maxLength": MAX_REASON_CHARS},
     },
     "required": ["risk_tier", "risk_reason"],
     "additionalProperties": False,
