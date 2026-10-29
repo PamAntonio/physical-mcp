@@ -68,8 +68,14 @@ FINISHED = ("succeeded", "failed", "stopped")
 # placeholder stills the web app serves itself, e.g. web/public/mock/inkbird-01.svg -> /mock/inkbird-01.svg
 MOCK_FRAMES_DIR = REPO_ROOT / "web" / "public" / "mock"
 
-# Pam: swap in the servo + camera class here
-hardware = FakeHardware()
+# HARDWARE=serial (env or repo-root .env) drives the real ESP32 finger + webcam, see
+# backend/serial_hardware.py. Anything else keeps the fake, so the demo runs with no rig.
+if os.environ.get("HARDWARE") == "serial":
+    from serial_hardware import SerialHardware  # noqa: E402
+
+    hardware = SerialHardware.from_env()
+else:
+    hardware = FakeHardware()
 # one finger, so one hardware call at a time
 hardware_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="hardware")
 # scores take 9 to 14 s each, so run them side by side

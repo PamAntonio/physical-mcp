@@ -20,3 +20,6 @@ vision/**/*.webp
 !risk/out/
 risk/out/*
 !risk/out/*.scored.json
+
+# live webcam frames written by backend/serial_hardware.py
+web/public/frames/

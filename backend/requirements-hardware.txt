@@ -1,0 +1,5 @@
+# Extra packages for the real rig (HARDWARE=serial). The fake hardware needs none of these.
+pyserial
+opencv-python
+# vision/read_screen.py crops frames with Pillow
+Pillow
