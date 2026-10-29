@@ -1,6 +1,7 @@
-// Fake backend that replays Pam's shared/fixtures/jobSample.json as a stream of JobEvents,
-// the same ones the real WebSocket sends (job.status, controls.updated, plan.ready,
-// step.updated, frame, job.finished). Step 2 replays the sample's retry, step 6 waits for you.
+// Fake backend that replays one of Pam's fixtures as a stream of JobEvents, the same ones
+// the real WebSocket sends (job.status, controls.updated, plan.ready, step.updated, frame,
+// job.finished). inkbird-01 replays shared/fixtures/inkbirdJobSample.json, any other device
+// replays jobSample.json. Retries in the fixture get replayed, approval steps wait for you.
 // Lets us build every UI state before Pam's server and the finger are ready.
 // Timings are made up, roughly what a servo press + screen read might take.
 
@@ -10,8 +11,43 @@ import { applyEvent, findControl } from "./jobReducer";
 import { mockFrameUrl } from "./mockFrame";
 import type { StepRisk } from "./riskScorer";
 import sampleJson from "@contract/fixtures/jobSample.json";
+import inkbirdJson from "@contract/fixtures/inkbirdJobSample.json";
 
-const sample = sampleJson as unknown as Job;
+// the fixtures only have the screen text Pam wrote down, so the mock fills in the rest
+type MockScript = {
+  firstScreen: string;
+  doneMessage: string;
+  screenAfter: (step: Step) => string; // for steps the fixture has no screen text for
+};
+
+const INKBIRD_SCREENS: Record<string, string> = {
+  s1: "TS 75.0",
+  s2: "TS 80.0",
+  s3: "PV 72.0 SV 80.0",
+  s4: "PV 72.0 SV 80.0 HEAT",
+};
+
+const INCUBATOR: { job: Job; script: MockScript } = {
+  job: sampleJson as unknown as Job,
+  script: {
+    firstScreen: "SET TEMP 25.0",
+    doneMessage: "Job done. Incubator is running at 37.0 for 2 hours.",
+    screenAfter: (step) => `${step.expect.text_contains} 37.0 02:00`, // only START hits this, good enough for a mock
+  },
+};
+
+const INKBIRD: { job: Job; script: MockScript } = {
+  job: inkbirdJson as unknown as Job,
+  script: {
+    firstScreen: "PV 72.0 SV 75.0",
+    doneMessage: "Job done. SV is 80.0 °F and the HEAT light is on.",
+    screenAfter: (step) => INKBIRD_SCREENS[step.step_id] ?? "PV 72.0 SV 80.0",
+  },
+};
+
+function fixtureFor(deviceId: string) {
+  return deviceId === "inkbird-01" ? INKBIRD : INCUBATOR;
+}
 
 // stand-in camera frame with a blank LCD (the camera view paints the live screen text on top)
 const MOCK_FRAME_URL = mockFrameUrl(null);
@@ -26,14 +62,14 @@ function now() {
   return new Date().toISOString();
 }
 
-export function sampleDevice(): Device {
-  const device = clone(sample.device);
+export function sampleDevice(deviceId: string): Device {
+  const device = clone(fixtureFor(deviceId).job.device);
   device.camera.latest_frame_url = MOCK_FRAME_URL;
   return device;
 }
 
-export function sampleJob(): Job {
-  return clone(sample);
+export function sampleJob(deviceId: string): Job {
+  return clone(fixtureFor(deviceId).job);
 }
 
 export class MockBackend implements JobBackend {
@@ -45,6 +81,7 @@ export class MockBackend implements JobBackend {
   private running = false;
   private waitingForApproval: ((decision: ApprovalDecision) => void) | null = null;
   private job: Job | null = null; // kept up to date with every event we send, so getJob is current
+  private fixture = INCUBATOR; // picked by device_id in createJob
   private activeStep: Step | null = null;
   private failStepId: string | null;
   private scoreStep: ((job: Job, step: Step) => Promise<StepRisk>) | null;
@@ -56,13 +93,15 @@ export class MockBackend implements JobBackend {
     this.scoreStep = options.scoreStep ?? null;
   }
 
-  async getDevice(): Promise<Device> {
-    return sampleDevice();
+  async getDevice(deviceId: string): Promise<Device> {
+    return sampleDevice(deviceId);
   }
 
   async createJob(request: CreateJobRequest): Promise<Job> {
     this.reset();
-    // start from job_sample.json, rewound to "just submitted": no plan yet, nothing pressed
+    this.fixture = fixtureFor(request.device_id);
+    const sample = this.fixture.job;
+    // start from the fixture, rewound to "just submitted": no plan yet, nothing pressed
     const job: Job = clone(sample);
     job.job_id = "job_mock_" + Math.random().toString(36).slice(2, 8);
     job.created_at = now();
@@ -72,7 +111,7 @@ export class MockBackend implements JobBackend {
     job.status = "queued";
     job.plan = null;
     job.result = null;
-    job.device = sampleDevice(); // swaps in the mock frame
+    job.device = sampleDevice(request.device_id); // swaps in the mock frame
     this.job = job;
     return clone(job);
   }
@@ -143,12 +182,14 @@ export class MockBackend implements JobBackend {
   // ---- the fake run ----
 
   private async run() {
+    const sample = this.fixture.job;
+    const script = this.fixture.script;
     await this.sleep(400);
     this.emitStatus("planning");
     await this.sleep(800);
 
     // pretend SAM just re-scanned the panel and found the same buttons
-    const controls = sampleDevice().controls;
+    const controls = sampleDevice(sample.device.device_id).controls;
     this.emit({
       type: "controls.updated",
       job_id: this.jobId(),
@@ -176,7 +217,7 @@ export class MockBackend implements JobBackend {
     this.emit({ type: "plan.ready", job_id: this.jobId(), ts: now(), plan: clone(plan) });
     this.emitStatus("running");
 
-    let lastScreenText = "SET TEMP 25.0";
+    let lastScreenText = script.firstScreen;
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       const sampleStep = sample.plan!.steps[i];
@@ -191,7 +232,7 @@ export class MockBackend implements JobBackend {
       ts: now(),
       result: {
         outcome: "succeeded",
-        message: "Job done. Incubator is running at 37.0 for 2 hours.",
+        message: script.doneMessage,
         final_screen_text: lastScreenText,
       },
     });
@@ -307,7 +348,7 @@ export class MockBackend implements JobBackend {
     if (sampleStep.status === "succeeded" && sampleStep.evidence.screen_text) {
       step.evidence.screen_text = sampleStep.evidence.screen_text;
     } else {
-      step.evidence.screen_text = `${step.expect.text_contains} 37.0 02:00`; // only START hits this, good enough for a mock
+      step.evidence.screen_text = this.fixture.script.screenAfter(step);
     }
     step.evidence.after_frame_url = mockFrameUrl(step.evidence.screen_text);
     this.emitStep(step);

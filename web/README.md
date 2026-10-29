@@ -8,7 +8,7 @@ Web app and approval layer by Bhavi. Backend, vision, MCP server and servo hardw
 
 ## Run it on mock data
 
-Both options replay Pam's `shared/fixtures/jobSample.json` (plan, the step 2 retry, the step 6 approval), so every UI state works before the hardware does. The sample job starts by itself when the page loads. Open http://localhost:3000.
+Both options replay one of Pam's fixtures: `shared/fixtures/inkbirdJobSample.json` for `inkbird-01` (the default device, step 1 waits for approval) or `jobSample.json` for anything else (the step 2 retry, the step 6 approval), so every UI state works before the hardware does. The sample job starts by itself when the page loads. Open http://localhost:3000.
 
 ```bash
 npm install
@@ -30,7 +30,7 @@ Copy `.env.example` to `.env.local`, flip the one flag, and restart `npm run dev
 ```
 NEXT_PUBLIC_USE_MOCK=false
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-NEXT_PUBLIC_DEVICE_ID=incubator-01
+NEXT_PUBLIC_DEVICE_ID=inkbird-01
 ```
 
 The app then uses the endpoints in `shared/types.ts`: `POST /jobs`, `GET /devices/:id`, approval and stop POSTs, and the `/jobs/:id/events` WebSocket (reconnects on drop).
@@ -42,7 +42,7 @@ The app then uses the endpoints in `shared/types.ts`: `POST /jobs`, `GET /device
 | `../shared/types.ts` | Pam's contract, imported directly as `@contract/types` (no copy to keep in sync) |
 | `lib/config.ts` | `USE_MOCK` flag, backend URL, device id |
 | `lib/backend.ts` | HTTP + WebSocket client (checks every event, reconnects and catches up), picks mock or real |
-| `lib/mockBackend.ts` | Fake run built from `shared/fixtures/jobSample.json` |
+| `lib/mockBackend.ts` | Fake run built from `shared/fixtures/inkbirdJobSample.json` or `jobSample.json`, picked by device id |
 | `mock-server/` | Mock backend over HTTP + WebSocket (`npm run mock-server`), and the `dev:mock` launcher |
 | `lib/jobReducer.ts` | Applies events to the job and writes the action log |
 | `lib/risk.ts` | `RiskScore` shape only. The Muse Spark Open scorer fills it (Thursday) |

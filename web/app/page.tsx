@@ -32,7 +32,7 @@ export default function Home() {
   const backendRef = useRef<JobBackend | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const [state, dispatch] = useReducer(jobReducer, emptyJobState);
-  const [idleDevice, setIdleDevice] = useState<Device>(sampleDevice());
+  const [idleDevice, setIdleDevice] = useState<Device>(sampleDevice(DEVICE_ID));
   const [isMock, setIsMock] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null); // clicked in the step list
@@ -62,7 +62,7 @@ export default function Home() {
 
     // on mock data, kick off the sample job right away so the page opens on a live run
     if (AUTO_START_SAMPLE) {
-      const sample = sampleJob();
+      const sample = sampleJob(DEVICE_ID);
       backend
         .createJob({ device_id: sample.device.device_id, request: sample.request, approval_mode: sample.approval_mode })
         .then((newJob) => {

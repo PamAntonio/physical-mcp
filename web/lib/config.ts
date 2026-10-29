@@ -19,7 +19,7 @@ export const REJECT_BEHAVIOR: RejectBehavior = pickRejectBehavior(process.env.NE
 // who's approving, sent as decided_by. No logins at the hackathon, so it's just a name.
 export const OPERATOR_NAME = process.env.NEXT_PUBLIC_OPERATOR_NAME || "operator";
 
-export const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "incubator-01";
+export const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "inkbird-01";
 
 // start the sample job as soon as the page loads. always on for the in-browser mock,
 // `npm run dev:mock` turns it on for the mock server too

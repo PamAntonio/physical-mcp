@@ -103,8 +103,8 @@ async function handle(request: http.IncomingMessage, response: http.ServerRespon
 
   // GET /devices/:device_id
   if (method === "GET" && parts.length === 2 && parts[0] === "devices") {
-    const device = sampleDevice();
-    if (parts[1] !== device.device_id) return sendError(response, 404, `no device ${parts[1]} (mock only has ${device.device_id})`);
+    const device = sampleDevice(parts[1]);
+    if (parts[1] !== device.device_id) return sendError(response, 404, `no device ${parts[1]} (mock has inkbird-01 and ${device.device_id})`);
     return sendJson(response, 200, device);
   }
 
