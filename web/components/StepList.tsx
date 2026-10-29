@@ -125,8 +125,7 @@ function StepRow({ step, controls, selected, onClick }: RowProps) {
                     ↻
                   </span>
                   <span>
-                    <strong>Retried.</strong> {describeRetry(retry, step.expect, controls)}
-                    <span className="retry-problem">{retry.problem}</span>
+                    <strong>Retried.</strong> {describeRetry(retry, controls)}
                   </span>
                 </span>
               ))}
@@ -194,7 +193,9 @@ function describeExpect(expect: Expectation, controls: Control[]): string {
 }
 
 // "Attempt 1: screen said “SET TEMP 36.0”, wanted “37.0”. Pressed ▲ once more."
-function describeRetry(retry: Retry, expect: Expectation, controls: Control[]): string {
-  const saw = `Attempt ${retry.attempt}: screen said “${retry.screen_text}”, wanted “${expect.text_contains}”.`;
-  return `${saw} ${describeCorrection(retry.correction, controls)}`;
+// "Attempt 1: Screen says 79.0, wanted 80.0. Pressed ▲ once more."
+// the problem line comes from the backend already saying what the screen read, so it's not repeated
+function describeRetry(retry: Retry, controls: Control[]): string {
+  const problem = retry.problem.replace(/\.$/, "");
+  return `Attempt ${retry.attempt}: ${problem}. ${describeCorrection(retry.correction, controls)}`;
 }

@@ -1,6 +1,7 @@
 {
   "device_id": "incubator-01",
   "current_screen": "TEMP 25.0",
+  "step_size": 1.0,
   "notes": [
     "SET opens the temperature set-point.",
     "▲/▼ change the set-point by 1.0 °C per press.",

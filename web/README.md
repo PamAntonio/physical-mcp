@@ -38,6 +38,19 @@ NEXT_PUBLIC_DEVICE_ID=inkbird-01
 
 The app then uses the endpoints in `shared/types.ts`: `POST /jobs`, `GET /devices/:id`, approval and stop POSTs, and the `/jobs/:id/events` WebSocket (reconnects on drop).
 
+## Run the backend
+
+`backend/api.py` is a FastAPI server that speaks that contract for real: Muse Spark plans the job (`backend/planner.py`), the risk scorer scores the approval steps (`risk/scorer.py`), and `FakeHardware` in `backend/hardware.py` pretends to press, until the servo + camera class replaces it. It needs `MODEL_API_KEY` and `BASETEN_API_KEY` in the repo-root `.env`. From the repo root:
+
+```bash
+pip install -r backend/requirements.txt
+python backend/api.py              # http://127.0.0.1:8000
+```
+
+Then point the app at it with the `.env.local` above (`NEXT_PUBLIC_USE_MOCK=false`, `NEXT_PUBLIC_BACKEND_URL=http://localhost:8000`) and restart `npm run dev`. Type a request (for the Inkbird: `Set the heater to turn on at 80 °F`) and hit Run job. Planning takes about 10 s. The approval card shows up right away as "not scored yet", and the risk tier fills in when the score lands (another 9 to 14 s).
+
+To show the self-correction on fake hardware, start it with `FAKE_UNDERSHOOT=1 python backend/api.py`: the first ▲/▼ step loses one press, the screen reads one short (`79.0`), and the backend presses ▲ once more and checks again. Once per server run.
+
 ## Where things live
 
 | File | What it does |

@@ -2,6 +2,7 @@
   "_comment": "PLACEHOLDER: Inkbird ITC-308 (non-WiFi) is on order and not here yet. Values below are from the manual/datasheet and must be confirmed when the device arrives.",
   "device_id": "inkbird-01",
   "current_screen": "PV 72.0 SV 75.0",
+  "step_size": 1.0,
   "notes": [
     "Units are °F.",
     "Hold SET for 3 s to enter the set-point menu (PV shows \"TS\").",
