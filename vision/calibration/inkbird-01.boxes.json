@@ -1,0 +1,26 @@
+{
+  "_comment": "PLACEHOLDER, to be redone on the rig with `python vision/read_screen.py <rig frame> --calibrate inkbird-01`. Boxes are the fixture's, for the placeholder frame web/public/mock/inkbird-01.svg (2560x1440). LED baselines were measured on that placeholder (rendered to PNG), with both LEDs drawn off.",
+  "device_id": "inkbird-01",
+  "frame_size": [2560, 1440],
+  "boxes": {
+    "btn_set": [820, 980, 140, 72],
+    "btn_up": [1000, 980, 100, 72],
+    "btn_down": [1140, 980, 100, 72],
+    "screen_pv": [820, 420, 420, 140],
+    "screen_sv": [820, 600, 420, 140],
+    "led_heat": [1330, 460, 48, 48],
+    "led_cool": [1330, 620, 48, 48]
+  },
+  "baselines": {
+    "led_heat": {
+      "brightness": 0.2082,
+      "redness": 0.0632,
+      "greenness": -0.0121
+    },
+    "led_cool": {
+      "brightness": 0.2082,
+      "redness": 0.0632,
+      "greenness": -0.0121
+    }
+  }
+}

@@ -2,3 +2,21 @@
 out/
 .env
 __pycache__/
+.env.*
+!.env.example
+
+# vision: raw SAM responses, outputs and test images stay local
+*.sam_raw.json
+vision/**/*.controls.json
+vision/**/*.jpg
+vision/**/*.jpeg
+vision/**/*.png
+vision/**/*.webp
+# read_screen.py: raw Muse Spark replies and --draw crops (crops can come from real photos)
+*.read_raw.json
+*.crop.png
+
+# risk: raw model replies stay local
+!risk/out/
+risk/out/*
+!risk/out/*.scored.json

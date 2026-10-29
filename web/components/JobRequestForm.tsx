@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ApprovalMode } from "@/lib/types";
+import type { ApprovalMode } from "@contract/types";
 
 interface Props {
   busy: boolean;

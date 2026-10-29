@@ -1,28 +1,29 @@
-// PLACEHOLDER risk scoring. Thursday's job is to replace this with the
-// Muse Spark Open scorer (tier + one-line reason per step, in context).
-// Until then it's a fixed rule: risky control or requires_approval = high.
+// Risk scoring shape. The Muse Spark Open scorer (risk/) puts risk_tier, risk_reason and
+// risk_scored_by on the step (proposed contract fields, see shared/types.ts).
+// null = this step hasn't been scored (e.g. Pam's backend doesn't send them yet).
 
-import type { Device, Step } from "./types";
-import { findControl } from "./jobReducer";
+import type { RiskTier, Step } from "@contract/types";
 
-export type RiskTier = "low" | "medium" | "high";
+export type { RiskTier };
 
 export interface RiskScore {
   tier: RiskTier;
   reason: string;
-  scoredBy: string;
+  scoredBy: string; // e.g. the scorer's model id
 }
 
-export function placeholderRisk(step: Step, device: Device): RiskScore {
-  const scoredBy = "fixed rules (Spark Open scorer not wired yet)";
-  const controlId = step.action.type === "wait" ? null : step.action.control_id;
-  const control = controlId ? findControl(device.controls, controlId) : null;
+// each tier gets a shape as well as a color, so they don't only differ by hue
+export const RISK_ICONS: Record<RiskTier, string> = {
+  low: "●",
+  medium: "▲",
+  high: "■",
+};
 
-  if (control && control.risky) {
-    return { tier: "high", reason: step.approval_reason ?? "Changes the machine's physical state", scoredBy };
-  }
-  if (step.requires_approval) {
-    return { tier: "medium", reason: step.approval_reason ?? "Marked as needing approval by the planner", scoredBy };
-  }
-  return { tier: "low", reason: "Only changes a setting on the screen", scoredBy };
+export function riskFromStep(step: Step): RiskScore | null {
+  if (!step.risk_tier) return null;
+  return {
+    tier: step.risk_tier,
+    reason: step.risk_reason ?? "",
+    scoredBy: step.risk_scored_by ?? "unknown",
+  };
 }

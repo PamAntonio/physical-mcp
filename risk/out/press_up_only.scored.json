@@ -1,0 +1,169 @@
+{
+  "job_id": "job_risk_up",
+  "created_at": "2026-10-27T17:05:12Z",
+  "updated_at": "2026-10-27T17:06:41Z",
+  "request": "Nudge the incubator set-point up by 1 °C",
+  "approval_mode": "risky_steps",
+  "status": "running",
+  "device": {
+    "device_id": "incubator-01",
+    "name": "Benchtop incubator (demo device, placeholder)",
+    "camera": {
+      "camera_id": "cam-0",
+      "frame_width": 1280,
+      "frame_height": 720,
+      "latest_frame_url": "/frames/job_7f3c2a/latest.jpg"
+    },
+    "controls_version": 3,
+    "controls": [
+      {
+        "control_id": "btn_set",
+        "label": "SET",
+        "kind": "button",
+        "bbox": [
+          412,
+          288,
+          58,
+          40
+        ],
+        "confidence": 0.94
+      },
+      {
+        "control_id": "btn_up",
+        "label": "▲",
+        "kind": "button",
+        "bbox": [
+          486,
+          288,
+          44,
+          40
+        ],
+        "confidence": 0.91
+      },
+      {
+        "control_id": "btn_down",
+        "label": "▼",
+        "kind": "button",
+        "bbox": [
+          540,
+          288,
+          44,
+          40
+        ],
+        "confidence": 0.9
+      },
+      {
+        "control_id": "btn_enter",
+        "label": "ENTER",
+        "kind": "button",
+        "bbox": [
+          596,
+          288,
+          70,
+          40
+        ],
+        "confidence": 0.93
+      },
+      {
+        "control_id": "btn_timer",
+        "label": "TIMER",
+        "kind": "button",
+        "bbox": [
+          412,
+          344,
+          70,
+          40
+        ],
+        "confidence": 0.88
+      },
+      {
+        "control_id": "btn_start",
+        "label": "START",
+        "kind": "button",
+        "bbox": [
+          596,
+          344,
+          70,
+          40
+        ],
+        "confidence": 0.95,
+        "risky": true
+      },
+      {
+        "control_id": "screen_main",
+        "label": "Display",
+        "kind": "screen",
+        "bbox": [
+          400,
+          180,
+          280,
+          84
+        ],
+        "confidence": 0.97
+      }
+    ]
+  },
+  "plan": {
+    "planner": "Muse Spark (model id TBD)",
+    "summary": "Open the set-point and press UP once.",
+    "steps": [
+      {
+        "step_id": "s1",
+        "index": 1,
+        "intent": "Open the temperature set-point",
+        "action": {
+          "type": "press",
+          "control_id": "btn_set",
+          "count": 1
+        },
+        "expect": {
+          "control_id": "screen_main",
+          "text_contains": "SET TEMP"
+        },
+        "requires_approval": false,
+        "status": "succeeded",
+        "attempts": 1,
+        "started_at": "2026-10-27T17:05:20Z",
+        "finished_at": "2026-10-27T17:05:23Z",
+        "evidence": {
+          "before_frame_url": "/frames/job_7f3c2a/s1_before.jpg",
+          "after_frame_url": "/frames/job_7f3c2a/s1_after.jpg",
+          "screen_text": "SET TEMP 36.0"
+        },
+        "error": null,
+        "risk_tier": "low",
+        "risk_reason": "Opens set-point menu only, no heating change yet.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      },
+      {
+        "step_id": "s2",
+        "index": 2,
+        "intent": "Raise the set-point by 1 °C",
+        "action": {
+          "type": "press",
+          "control_id": "btn_up",
+          "count": 1
+        },
+        "expect": {
+          "control_id": "screen_main",
+          "text_contains": "37.0"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null,
+        "risk_tier": "low",
+        "risk_reason": "Raises set-point to 37.0 °C, within normal incubator range.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      }
+    ]
+  },
+  "result": null
+}

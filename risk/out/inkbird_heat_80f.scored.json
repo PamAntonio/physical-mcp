@@ -1,0 +1,234 @@
+{
+  "job_id": "job_risk_inkbird_80f",
+  "created_at": "2026-10-27T17:10:00Z",
+  "updated_at": "2026-10-27T17:10:05Z",
+  "request": "Set the heater to turn on at 80 °F",
+  "approval_mode": "risky_steps",
+  "status": "awaiting_approval",
+  "device": {
+    "device_id": "inkbird-01",
+    "name": "Inkbird ITC-308 temperature controller (placeholder, device not here yet)",
+    "camera": {
+      "camera_id": "cam-0",
+      "frame_width": 2560,
+      "frame_height": 1440,
+      "latest_frame_url": "/frames/job_9a4e1b/latest.jpg"
+    },
+    "controls_version": 1,
+    "controls": [
+      {
+        "control_id": "btn_set",
+        "label": "SET",
+        "kind": "button",
+        "bbox": [
+          820,
+          980,
+          140,
+          72
+        ],
+        "confidence": 0.94,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_up",
+        "label": "▲",
+        "kind": "button",
+        "bbox": [
+          1000,
+          980,
+          100,
+          72
+        ],
+        "confidence": 0.91,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_down",
+        "label": "▼",
+        "kind": "button",
+        "bbox": [
+          1140,
+          980,
+          100,
+          72
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_pv",
+        "label": "PV",
+        "kind": "screen",
+        "bbox": [
+          820,
+          420,
+          420,
+          140
+        ],
+        "confidence": 0.97,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_sv",
+        "label": "SV",
+        "kind": "screen",
+        "bbox": [
+          820,
+          600,
+          420,
+          140
+        ],
+        "confidence": 0.96,
+        "reachable": true
+      },
+      {
+        "control_id": "led_heat",
+        "label": "HEAT",
+        "kind": "indicator",
+        "bbox": [
+          1330,
+          460,
+          48,
+          48
+        ],
+        "confidence": 0.89,
+        "reachable": true
+      },
+      {
+        "control_id": "led_cool",
+        "label": "COOL",
+        "kind": "indicator",
+        "bbox": [
+          1330,
+          620,
+          48,
+          48
+        ],
+        "confidence": 0.88,
+        "reachable": true
+      }
+    ]
+  },
+  "plan": {
+    "planner": "Muse Spark (model id TBD)",
+    "summary": "Enter the set-point menu, raise SV from 75.0 to 80.0 °F, save and exit, then verify the HEAT light is on.",
+    "steps": [
+      {
+        "step_id": "s1",
+        "index": 1,
+        "intent": "Enter the set-point menu",
+        "action": {
+          "type": "press",
+          "control_id": "btn_set",
+          "count": 1,
+          "hold_ms": 3000
+        },
+        "expect": {
+          "control_id": "screen_pv",
+          "text_contains": "TS"
+        },
+        "requires_approval": true,
+        "approval_reason": "Holding SET starts a plan that turns the heating outlet on: SV 80 °F is above PV 72 °F",
+        "status": "awaiting_approval",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null,
+        "risk_tier": "medium",
+        "risk_reason": "Starts plan to heat to 80 °F, above current 72 °F",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      },
+      {
+        "step_id": "s2",
+        "index": 2,
+        "intent": "Raise the set point to 80 °F",
+        "action": {
+          "type": "press",
+          "control_id": "btn_up",
+          "count": 5
+        },
+        "expect": {
+          "control_id": "screen_sv",
+          "text_contains": "80"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null,
+        "risk_tier": "low",
+        "risk_reason": "Raises set point to 80°F in menu, heating not yet active.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      },
+      {
+        "step_id": "s3",
+        "index": 3,
+        "intent": "Save and exit the menu",
+        "action": {
+          "type": "press",
+          "control_id": "btn_set",
+          "count": 1,
+          "hold_ms": 3000
+        },
+        "expect": {
+          "control_id": "screen_sv",
+          "text_contains": "80"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null,
+        "risk_tier": "medium",
+        "risk_reason": "Commits 80°F set point, heating outlet will stay on.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      },
+      {
+        "step_id": "s4",
+        "index": 4,
+        "intent": "Verify the heating outlet is on",
+        "action": {
+          "type": "read_screen",
+          "control_id": "led_heat"
+        },
+        "expect": {
+          "control_id": "led_heat",
+          "text_contains": "",
+          "indicator_on": true
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null,
+        "risk_tier": "low",
+        "risk_reason": "Read-only check, no physical change.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      }
+    ]
+  },
+  "result": null
+}

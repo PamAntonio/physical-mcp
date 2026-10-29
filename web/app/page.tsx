@@ -1,43 +1,98 @@
 "use client";
 
 import { useEffect, useReducer, useRef, useState } from "react";
-import type { ApprovalMode, Device } from "@/lib/types";
-import { createBackend, type JobBackend } from "@/lib/backend";
-import { sampleDevice } from "@/lib/mockBackend";
-import { emptyJobState, findCurrentStep, jobReducer } from "@/lib/jobReducer";
+import type { ApprovalDecision, ApprovalMode, Control, Device, RejectBehavior, Step } from "@contract/types";
+import { createBackend, type ConnectionState, type JobBackend } from "@/lib/backend";
+import { sampleDevice, sampleJob } from "@/lib/mockBackend";
+import { AUTO_START_SAMPLE, DEVICE_ID, OPERATOR_NAME, REJECT_BEHAVIOR } from "@/lib/config";
+import { emptyJobState, findControl, findCurrentStep, jobReducer } from "@/lib/jobReducer";
+import { riskFromStep } from "@/lib/risk";
 import CameraView from "@/components/CameraView";
 import StepList from "@/components/StepList";
 import ApprovalCard, { type DecisionInfo } from "@/components/ApprovalCard";
 import ActionLog from "@/components/ActionLog";
 import JobRequestForm from "@/components/JobRequestForm";
 
-const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID ?? "incubator-01";
+const REJECT_LOG_SUFFIX: Record<RejectBehavior, string> = {
+  abort: ", stopping the job",
+  pause: ", job paused",
+  replan: ", replan requested",
+};
+
+// what the log calls a step: the button's label ("START"), or the intent if no button
+function stepTargetName(step: Step, controls: Control[]): string {
+  if (step.action.type === "press") {
+    const control = findControl(controls, step.action.control_id);
+    if (control) return control.label;
+  }
+  return `step ${step.index} (${step.intent})`;
+}
 
 export default function Home() {
   const backendRef = useRef<JobBackend | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const [state, dispatch] = useReducer(jobReducer, emptyJobState);
-  const [idleDevice, setIdleDevice] = useState<Device>(sampleDevice());
+  const [idleDevice, setIdleDevice] = useState<Device>(sampleDevice(DEVICE_ID));
   const [isMock, setIsMock] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null); // clicked in the step list
+  const [connection, setConnection] = useState<ConnectionState | null>(null);
+
+  // one place that wires a job's event stream into the reducer
+  function listenTo(backend: JobBackend, jobId: string) {
+    unsubscribeRef.current = backend.subscribe(jobId, {
+      onEvent: (event) => dispatch({ kind: "event", event }),
+      onSync: (job) => dispatch({ kind: "sync", job, ts: new Date().toISOString() }),
+      onConnection: setConnection,
+    });
+  }
 
   // backend reads window.location, so make it on the client only
   useEffect(() => {
+    let cancelled = false; // dev mode runs this effect twice, don't let the first run leak a mock job
     const backend = createBackend();
     backendRef.current = backend;
     setIsMock(backend.isMock);
     backend
       .getDevice(DEVICE_ID)
-      .then(setIdleDevice)
+      .then((device) => {
+        if (!cancelled) setIdleDevice(device);
+      })
       .catch((err) => setError(`Couldn't load the device: ${err.message}`));
+
+    // on mock data, kick off the sample job right away so the page opens on a live run
+    if (AUTO_START_SAMPLE) {
+      const sample = sampleJob(DEVICE_ID);
+      backend
+        .createJob({ device_id: sample.device.device_id, request: sample.request, approval_mode: sample.approval_mode })
+        .then((newJob) => {
+          if (cancelled) return;
+          dispatch({ kind: "reset", job: newJob });
+          setSelectedStepId(null);
+          listenTo(backend, newJob.job_id);
+        });
+    }
+
     return () => {
+      cancelled = true;
       if (unsubscribeRef.current) unsubscribeRef.current();
+      unsubscribeRef.current = null;
     };
   }, []);
 
   const job = state.job;
   const device = job ? job.device : idleDevice;
   const currentStep = findCurrentStep(job);
+
+  // the control of whichever step was clicked, so the camera can point at it
+  let selectedControlId: string | null = null;
+  if (job && job.plan && selectedStepId) {
+    for (const step of job.plan.steps) {
+      if (step.step_id === selectedStepId && step.action.type !== "wait") {
+        selectedControlId = step.action.control_id;
+      }
+    }
+  }
   const finished = job !== null && (job.status === "succeeded" || job.status === "failed" || job.status === "stopped");
   const busy = job !== null && !finished;
 
@@ -58,7 +113,8 @@ export default function Home() {
     try {
       const newJob = await backend.createJob({ device_id: DEVICE_ID, request, approval_mode: approvalMode });
       dispatch({ kind: "reset", job: newJob });
-      unsubscribeRef.current = backend.subscribe(newJob.job_id, (event) => dispatch({ kind: "event", event }));
+      setSelectedStepId(null);
+      listenTo(backend, newJob.job_id);
     } catch (err) {
       setError(`Couldn't start the job: ${(err as Error).message}`);
     }
@@ -67,17 +123,25 @@ export default function Home() {
   async function handleDecision(decision: "approve" | "reject", info: DecisionInfo) {
     const backend = backendRef.current;
     if (!backend || !job || !currentStep) return;
+    const decidedAt = new Date().toISOString();
+
+    // "You approved START (hold, 2.1s)" / "You rejected START (tap, 1.4s), job paused"
     const seconds = (info.timeToDecideMs / 1000).toFixed(1);
-    const how = info.approvalType === "hold" ? "held to approve" : decision === "approve" ? "approved" : "rejected";
-    dispatch({
-      kind: "note",
-      ts: new Date().toISOString(),
-      tone: "you",
-      text: `You ${how} step ${currentStep.index} after ${seconds}s`,
-    });
+    const what = stepTargetName(currentStep, device.controls);
+    let text = `You ${decision === "approve" ? "approved" : "rejected"} ${what} (${info.approvalType}, ${seconds}s)`;
+    if (decision === "reject") text += REJECT_LOG_SUFFIX[REJECT_BEHAVIOR];
+    dispatch({ kind: "note", ts: decidedAt, tone: "you", text });
+
+    const payload: ApprovalDecision = {
+      decision,
+      decided_by: OPERATOR_NAME,
+      decided_at: decidedAt,
+      approval_type: info.approvalType,
+      time_to_decide_ms: info.timeToDecideMs,
+    };
+    if (decision === "reject") payload.on_reject = REJECT_BEHAVIOR;
     try {
-      // TODO: send approval_type + time_to_decide_ms once Pam adds them to ApprovalDecision
-      await backend.decide(job.job_id, currentStep.step_id, { decision });
+      await backend.decide(job.job_id, currentStep.step_id, payload);
     } catch (err) {
       setError(`Couldn't send your decision: ${(err as Error).message}`);
     }
@@ -102,6 +166,11 @@ export default function Home() {
           <span className="brand-mark" aria-hidden />
           Physical MCP
           {isMock && <span className="badge-mock">mock backend</span>}
+          {!isMock && connection && connection !== "closed" && (
+            <span className={`badge-conn badge-conn-${connection}`}>
+              {connection === "live" ? "live" : `${connection}…`}
+            </span>
+          )}
         </div>
         <div className="topbar-right">
           {job && <span className={`status status-${job.status}`}>{job.status.replace("_", " ")}</span>}
@@ -117,12 +186,25 @@ export default function Home() {
 
       <div className="layout">
         <div className="col-main">
-          <CameraView device={device} currentStep={currentStep} frameSrc={frameSrc} screenText={screenText} />
-          <ActionLog log={state.log} frameUrl={(path) => (backendRef.current ? backendRef.current.frameUrl(path) : null)} />
+          <CameraView
+            device={device}
+            currentStep={currentStep}
+            frameSrc={frameSrc}
+            screenOverlay={isMock ? screenText : null}
+            selectedControlId={selectedControlId}
+          />
         </div>
         <div className="col-side">
           {currentStep && currentStep.status === "awaiting_approval" && (
-            <ApprovalCard key={currentStep.step_id} step={currentStep} device={device} onDecide={handleDecision} />
+            <ApprovalCard
+              key={currentStep.step_id}
+              step={currentStep}
+              device={device}
+              risk={riskFromStep(currentStep)}
+              paused={job !== null && job.status === "paused"}
+              rejectBehavior={REJECT_BEHAVIOR}
+              onDecide={handleDecision}
+            />
           )}
           {job && job.result && (
             <section className={`panel result result-${job.result.outcome}`}>
@@ -134,8 +216,15 @@ export default function Home() {
             steps={job && job.plan ? job.plan.steps : null}
             controls={device.controls}
             planning={job !== null && job.status === "planning"}
+            selectedStepId={selectedStepId}
+            onSelect={setSelectedStepId}
           />
         </div>
+      </div>
+
+      {/* full width along the bottom */}
+      <div className="log-row">
+        <ActionLog log={state.log} frameUrl={(path) => (backendRef.current ? backendRef.current.frameUrl(path) : null)} />
       </div>
     </main>
   );

@@ -4,6 +4,8 @@
 // press hold_ms, Step.max_attempts, Job.press_budget,
 // ApprovalDecision.approval_type / time_to_decide_ms, Control kind "indicator",
 // and Expectation.indicator_on.
+// Proposed (not locked with Pam yet): Step.risk_tier / risk_reason / risk_scored_by,
+// JobStatus "paused", ApprovalDecision.decided_by / decided_at / on_reject.
 //
 // The web app never speaks MCP. MCP is how the planner (Muse Spark) drives the
 // machine through backend tools such as get_controls, press, read_screen.
@@ -21,6 +23,9 @@ export type JobStatus =
   | "planning"
   | "running"
   | "awaiting_approval"
+  // PROPOSED, not locked with Pam yet: a step was rejected with on_reject "pause" (or "replan").
+  // Nothing gets pressed. The step stays awaiting_approval: approving it resumes, Stop ends the job.
+  | "paused"
   | "succeeded"
   | "failed"
   | "stopped";
@@ -92,6 +97,9 @@ export interface Retry {
   correction: Action;
 }
 
+// PROPOSED, not locked with Pam yet: risk score from the Muse Spark Open scorer (risk/).
+export type RiskTier = "low" | "medium" | "high";
+
 export interface Step {
   step_id: string;
   index: number;
@@ -100,6 +108,11 @@ export interface Step {
   expect: Expectation;
   requires_approval: boolean;
   approval_reason?: string;
+  // PROPOSED, not locked with Pam yet. Filled in before a step is shown for approval.
+  // The scorer only adds these; it never changes requires_approval.
+  risk_tier?: RiskTier;
+  risk_reason?: string; // one short line, readable in 2 seconds
+  risk_scored_by?: string; // the scorer's model id, or "fallback (...)" if it couldn't score
   status: StepStatus;
   attempts: number;
   max_attempts?: number; // max tries before the step fails (default 3)
@@ -141,11 +154,20 @@ export interface CreateJobRequest {
   approval_mode?: ApprovalMode;
 }
 
+// PROPOSED, not locked with Pam yet: what a reject does.
+// "abort": skip the step and end the job. "pause": hold here, nothing pressed, approve later to
+// resume. "replan": ask the planner for a new plan (mock only logs it for now, then pauses).
+export type RejectBehavior = "abort" | "pause" | "replan";
+
 export interface ApprovalDecision {
   decision: "approve" | "reject";
   note?: string;
   approval_type?: "tap" | "hold"; // how the approval was given: tap or hold-to-approve
-  time_to_decide_ms?: number; // how long the human took to decide, in ms
+  time_to_decide_ms?: number; // how long the human took to decide, in ms, from when the card appeared
+  // PROPOSED, not locked with Pam yet:
+  decided_by?: string; // who decided, e.g. the operator name from the web app's config
+  decided_at?: string; // ISO 8601, when the decision was made
+  on_reject?: RejectBehavior; // only meaningful with decision "reject", backend default "pause"
 }
 
 // WebSocket events. Each carries enough to update the UI without refetching.
