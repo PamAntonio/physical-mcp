@@ -63,6 +63,13 @@ GREEN_THRESHOLD = 0.25  # mean (green - avg(red, blue)) above this = on. COOL is
 # which colour score counts for which LED
 LED_COLOUR = {"led_heat": "redness", "led_cool": "greenness"}
 
+# --calibrate on a multi-row LCD (timer-01): finding each row's lit digits. tune on real rig frames
+LCD_DARK_FACTOR = 0.6  # a pixel is lit if it's under this share of the background around it. ghost segments aren't
+LCD_BACKGROUND_WINDOW = 10  # px above and below a pixel row to take the background level from
+LCD_LINE_FRACTION = 0.7  # a dark run across this share of the width = a divider line, not digits
+LCD_BORDER_FRACTION = 0.9  # a column dark in this share of a row's height = the window border, not a digit
+LCD_EDGE_MARGIN = 0.04  # ignore this share of the screen box on the left and right (bezel edge, glare)
+
 # the screen-read prompt and the range check are per device, see DEVICE_SETTINGS
 
 # Inkbird ITC-308 labels we pull numbers out of. Anything else stays only in "text"
@@ -642,9 +649,14 @@ def read_indicator(image_path, control_id=None, bbox=None, device_id=DEFAULT_DEV
 # ---------------------------------------------------------------------------
 
 def profile_control_ids(device_id):
-    """Control ids from Pam's backend/devices/<device>.json, in its order."""
+    """Control ids from Pam's backend/devices/<device>.json, in its order.
+    No profile but a CALIBRATION_LAYOUTS entry (the timer) = that entry's list."""
     path = DEVICES_DIR / f"{device_id}.json"
     if not path.exists():
+        layout = CALIBRATION_LAYOUTS.get(device_id)
+        if layout is not None:
+            log(f"No device profile at {path}, using the control list in CALIBRATION_LAYOUTS")
+            return list(layout["controls"])
         raise SystemExit(f"No device profile at {path}")
     profile = json.loads(path.read_text(encoding="utf-8"))
     return list(profile.get("controls", {}).keys())
@@ -690,10 +702,19 @@ def calibrate(image_path, device_id, draw=False):
             found_by_kind[kind] = []
         log(f"  {len(found_by_kind[kind])} found")
 
+    # devices with their own layout (the timer) suggest every box at once, the Inkbird goes one by one
+    layout = CALIBRATION_LAYOUTS.get(device_id)
+    suggested = {}
+    if layout is not None:
+        suggested = layout["suggest_boxes"](open_rgb(image_path), found_by_kind)
+
     print(f"\nConfirm each box for {device_id}. Enter = keep the suggestion, x,y,w,h = use that, - = no box.")
     boxes = {}
     for control_id in control_ids:
-        suggestion = pick_sam_box(control_id, found_by_kind[control_kind(control_id)])
+        if layout is not None:
+            suggestion = suggested.get(control_id)
+        else:
+            suggestion = pick_sam_box(control_id, found_by_kind[control_kind(control_id)])
         where = "SAM"
         if suggestion is None and control_id in calibration["boxes"]:
             suggestion = calibration["boxes"][control_id]
@@ -757,6 +778,190 @@ def calibrate(image_path, device_id, draw=False):
         draw_path = Path(f"{Path(image_path).with_suffix('')}.calibration.png")
         detect_controls.draw_boxes(Path(image_path), controls, draw_path)
         print(f"Boxes drawn on {draw_path}")
+
+
+# ---------------------------------------------------------------------------
+# --calibrate layouts for devices that aren't the Inkbird
+# ---------------------------------------------------------------------------
+
+def find_lcd_rows(image, screen_box, rows):
+    """Boxes [x, y, w, h] (frame pixels, top row first) hugging the lit digits of each row of
+    a multi-row LCD inside screen_box. Rows get split at the dark divider lines. The x range is
+    the columns lit in more than half the rows, so a "T4" label, an icon or glare in a row or two
+    doesn't widen every box. None if it can't find `rows` rows."""
+    x, y, w, h = screen_box
+    gray = image.convert("L").crop((x, y, x + w, y + h))
+    pixels = gray.load()
+
+    # background per pixel row: a bright-ish level (3/4 of the way up) of each row, then the
+    # brightest of those nearby, so the lighting gradient and dark divider rows don't throw it off
+    row_levels = []
+    for row in range(h):
+        values = []
+        for col in range(w):
+            values.append(pixels[col, row])
+        values.sort()
+        row_levels.append(values[len(values) * 3 // 4])
+
+    # lit = clearly darker than the background. ghost segments are only a bit darker
+    lit = []
+    for row in range(h):
+        nearby = row_levels[max(0, row - LCD_BACKGROUND_WINDOW):row + LCD_BACKGROUND_WINDOW + 1]
+        threshold = max(nearby) * LCD_DARK_FACTOR
+        lit_row = []
+        for col in range(w):
+            lit_row.append(pixels[col, row] < threshold)
+        lit.append(lit_row)
+
+    # divider lines (and the window's dark edge) are one long dark run, digits are broken up
+    is_line = []
+    for row in range(h):
+        longest = 0
+        run = 0
+        gap = 0
+        for col in range(w):
+            if lit[row][col]:
+                run += gap + 1  # let a line have tiny breaks in it
+                gap = 0
+                longest = max(longest, run)
+            else:
+                gap += 1
+                if gap > 3:
+                    run = 0
+                    gap = 0
+        is_line.append(longest >= w * LCD_LINE_FRACTION)
+
+    # the bands between lines, minus slivers, then the tallest `rows` of them in top-to-bottom order
+    bands = []
+    start = None
+    for row in range(h):
+        if not is_line[row] and start is None:
+            start = row
+        if is_line[row] and start is not None:
+            bands.append((start, row))
+            start = None
+    if start is not None:
+        bands.append((start, h))
+    margin = 3  # skip the soft edge next to a line
+    tall_bands = []
+    for top, bottom in bands:
+        if bottom - top >= h / rows / 3:
+            tall_bands.append((top + margin, bottom - margin))
+    if len(tall_bands) < rows:
+        log(f"  found {len(tall_bands)} rows in the screen, wanted {rows}")
+        return None
+    tall_bands.sort(key=lambda band: band[1] - band[0], reverse=True)
+    picked = sorted(tall_bands[:rows])
+
+    # digit columns: lit in more than half the rows, not dark top to bottom (the window border),
+    # and not right at the box's left/right edge
+    edge = int(w * LCD_EDGE_MARGIN)
+    rows_lit_in = [0] * w
+    for top, bottom in picked:
+        for col in range(edge, w - edge):
+            count = 0
+            for row in range(top, bottom):
+                if lit[row][col]:
+                    count += 1
+            if 0 < count < (bottom - top) * LCD_BORDER_FRACTION:
+                rows_lit_in[col] += 1
+    digit_columns = []
+    for col in range(w):
+        if rows_lit_in[col] > rows // 2:
+            digit_columns.append(col)
+    if not digit_columns:
+        log("  no lit digits found in the screen")
+        return None
+    left = digit_columns[0]
+    right = digit_columns[-1]
+
+    # each row: from its first to its last pixel row with something lit between left and right
+    row_boxes = []
+    for top, bottom in picked:
+        lit_rows = []
+        for row in range(top, bottom):
+            for col in range(left, right + 1):
+                if lit[row][col]:
+                    lit_rows.append(row)
+                    break
+        if not lit_rows:
+            log("  a row of the screen has nothing lit in it")
+            return None
+        row_boxes.append([x + left, y + lit_rows[0], right - left + 1, lit_rows[-1] - lit_rows[0] + 1])
+    return row_boxes
+
+
+def box_center(bbox):
+    return bbox[0] + bbox[2] / 2, bbox[1] + bbox[3] / 2
+
+
+def suggest_timer_boxes(image, found_by_kind):
+    """The 4-channel kitchen timer: 4 LCD rows (screen_t1..t4), T1-T4 in a column right of
+    the screen, and below it H M S over 10M 5M 10S, then RESET and ST/SP.
+    Returns {control_id: [x, y, w, h]} for what it could work out."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import detect_controls
+
+    suggestions = {}
+
+    # the biggest "display screen" match, cut into its rows
+    screens = found_by_kind.get("screen", [])
+    if screens:
+        biggest = screens[0]
+        for match in screens:
+            if match["bbox"][2] * match["bbox"][3] > biggest["bbox"][2] * biggest["bbox"][3]:
+                biggest = match
+        row_boxes = find_lcd_rows(image, biggest["bbox"], 4)
+        if row_boxes is None:
+            log("  couldn't split the screen into 4 rows, type the screen_t boxes by hand")
+        else:
+            for index in range(4):
+                suggestions[f"screen_t{index + 1}"] = row_boxes[index]
+
+    # buttons, minus LED slits (same filter as detect_controls.py)
+    buttons = []
+    for match in found_by_kind.get("button", []):
+        x, y, w, h = match["bbox"]
+        box = {"x1": x, "y1": y, "x2": x + w - 1, "y2": y + h - 1, "confidence": match["confidence"]}
+        if detect_controls.button_skip_reason(box) is None:
+            buttons.append(match)
+    if len(buttons) != 12:
+        log(f"  {len(buttons)} buttons after skipping LED slits, wanted 12. type the button boxes by hand")
+        return suggestions
+
+    # T1-T4 sit higher than every button in the bottom block
+    top_to_bottom = sorted(buttons, key=lambda match: box_center(match["bbox"])[1])
+    for index in range(4):
+        suggestions[f"btn_t{index + 1}"] = top_to_bottom[index]["bbox"]
+
+    # bottom block left to right: 3 columns of two (top one, bottom one), then RESET, then ST/SP
+    left_to_right = sorted(top_to_bottom[4:], key=lambda match: box_center(match["bbox"])[0])
+    column_names = [("btn_h", "btn_10m"), ("btn_m", "btn_5m"), ("btn_s", "btn_10s")]
+    for column in range(3):
+        pair = left_to_right[column * 2:column * 2 + 2]
+        pair.sort(key=lambda match: box_center(match["bbox"])[1])
+        top_name, bottom_name = column_names[column]
+        suggestions[top_name] = pair[0]["bbox"]
+        suggestions[bottom_name] = pair[1]["bbox"]
+    suggestions["btn_reset"] = left_to_right[6]["bbox"]
+    suggestions["btn_stsp"] = left_to_right[7]["bbox"]
+    return suggestions
+
+
+TIMER_CONTROLS = [
+    "screen_t1", "screen_t2", "screen_t3", "screen_t4",
+    "btn_t1", "btn_t2", "btn_t3", "btn_t4",
+    "btn_h", "btn_m", "btn_s", "btn_10m", "btn_5m", "btn_10s", "btn_reset", "btn_stsp",
+]
+
+# devices whose --calibrate doesn't go through pick_sam_box (that one is the Inkbird's).
+# "controls" is used when there's no backend/devices/<device>.json for it
+CALIBRATION_LAYOUTS = {
+    "timer-01": {
+        "controls": TIMER_CONTROLS,
+        "suggest_boxes": suggest_timer_boxes,
+    },
+}
 
 
 # ---------------------------------------------------------------------------

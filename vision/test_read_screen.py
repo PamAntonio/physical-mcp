@@ -9,6 +9,7 @@ Screen reads are stubbed, so the voting gets tested without calling Muse Spark.
 
 import contextlib
 import io
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -17,8 +18,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detect_controls  # noqa: E402
 from read_screen import (  # noqa: E402
+    CALIBRATION_DIR,
     DEVICE_SETTINGS,
+    TIMER_CONTROLS,
     clean_reply,
+    control_kind,
+    find_lcd_rows,
     led_scores,
     matches_expectation,
     padded_box,
@@ -26,6 +31,7 @@ from read_screen import (  # noqa: E402
     parse_timer,
     read_indicator,
     row_box,
+    suggest_timer_boxes,
     vote_reads,
 )
 
@@ -242,6 +248,93 @@ def test_skip_led_slits():
     assert printed.count("skipping button") == 2, printed
 
 
+# ---- timer-01 calibration ----
+
+def test_timer_calibration_file():
+    """timer-01.boxes.json has a box for all 4 LCD rows and all 12 buttons."""
+    calibration = json.loads((CALIBRATION_DIR / "timer-01.boxes.json").read_text(encoding="utf-8"))
+    assert calibration["device_id"] == "timer-01"
+    assert calibration["_comment"].startswith("PLACEHOLDER"), "hand-held photo, has to be redone on the rig"
+    boxes = calibration["boxes"]
+
+    rows = ["screen_t1", "screen_t2", "screen_t3", "screen_t4"]
+    buttons = ["btn_t1", "btn_t2", "btn_t3", "btn_t4", "btn_h", "btn_m", "btn_s",
+               "btn_10m", "btn_5m", "btn_10s", "btn_reset", "btn_stsp"]
+    for name in rows + buttons:
+        assert name in boxes, f"{name} missing from timer-01.boxes.json"
+    assert len(boxes) == 16, sorted(boxes)
+    assert sorted(boxes) == sorted(TIMER_CONTROLS)
+
+    frame_width, frame_height = calibration["frame_size"]
+    for name, box in boxes.items():
+        x, y, w, h = box
+        assert w > 0 and h > 0, (name, box)
+        assert x >= 0 and y >= 0 and x + w <= frame_width and y + h <= frame_height, (name, box)
+    for name in rows:
+        assert control_kind(name) == "screen"
+    for name in buttons:
+        assert control_kind(name) == "button"
+
+    # rows go top to bottom and don't overlap, so each box only has its own row in it
+    for index in range(1, 4):
+        above = boxes[rows[index - 1]]
+        assert boxes[rows[index]][1] >= above[1] + above[3], (rows[index - 1], rows[index])
+
+
+def test_find_lcd_rows():
+    from PIL import Image, ImageDraw
+
+    # a 400x330 LCD at (20, 20) in a dark frame: 4 rows split by divider lines, lit digit blocks
+    # in each row, ghost blocks (only a bit darker than the background) and a "T4" label in row 4
+    image = Image.new("RGB", (440, 370), (30, 30, 30))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle([20, 20, 419, 349], fill=(180, 180, 180))
+    band_tops = [20, 103, 183, 263]
+    for divider_y in [100, 180, 260]:
+        draw.rectangle([30, divider_y, 409, divider_y + 2], fill=(20, 20, 20))
+    for top in band_tops:
+        for block_x in [120, 165, 210, 255, 300]:
+            draw.rectangle([block_x, top + 15, block_x + 29, top + 60], fill=(20, 20, 20))
+        draw.rectangle([345, top + 10, 380, top + 65], fill=(150, 150, 150))  # ghost, not lit
+    draw.rectangle([60, band_tops[3] + 30, 80, band_tops[3] + 60], fill=(20, 20, 20))  # "T4"
+
+    row_boxes = find_lcd_rows(image, [20, 20, 400, 330], 4)
+    assert row_boxes is not None
+    expected = []
+    for top in band_tops:
+        expected.append([120, top + 15, 210, 46])  # first block's left to last block's right
+    assert row_boxes == expected, row_boxes
+
+    # a plain screen with no divider lines can't be split
+    blank = Image.new("RGB", (100, 100), (180, 180, 180))
+    with contextlib.redirect_stderr(io.StringIO()):
+        assert find_lcd_rows(blank, [0, 0, 100, 100], 4) is None
+
+
+def test_suggest_timer_buttons():
+    """Buttons get their real names from the layout, LED slits are left out."""
+    real = {
+        "btn_t1": [697, 289, 81, 81], "btn_t2": [700, 386, 82, 81],
+        "btn_t3": [705, 485, 83, 81], "btn_t4": [710, 585, 85, 83],
+        "btn_h": [163, 731, 94, 69], "btn_m": [276, 729, 94, 68], "btn_s": [389, 727, 93, 69],
+        "btn_10m": [160, 818, 96, 71], "btn_5m": [276, 816, 94, 70], "btn_10s": [390, 814, 93, 70],
+        "btn_reset": [521, 780, 103, 100], "btn_stsp": [660, 777, 153, 99],
+    }
+    found = []
+    for name in reversed(list(real)):  # SAM's order shouldn't matter
+        found.append({"bbox": real[name], "confidence": 0.95})
+    for slit_y in [300, 400, 500, 600]:
+        found.append({"bbox": [640, slit_y, 16, 40], "confidence": 0.7})
+
+    with contextlib.redirect_stderr(io.StringIO()):
+        suggestions = suggest_timer_boxes(None, {"button": found, "screen": []})
+    assert suggestions == real, suggestions
+
+    # not 12 buttons = no guessing, the boxes get typed in by hand
+    with contextlib.redirect_stderr(io.StringIO()):
+        assert suggest_timer_boxes(None, {"button": found[:10], "screen": []}) == {}
+
+
 # ---- LEDs against a baseline ----
 
 def test_read_indicator():
@@ -301,6 +394,9 @@ def main():
         test_row_box,
         test_vote_timer,
         test_skip_led_slits,
+        test_timer_calibration_file,
+        test_find_lcd_rows,
+        test_suggest_timer_buttons,
         test_read_indicator,
     ]
     for test in tests:

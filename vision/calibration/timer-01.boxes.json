@@ -1,0 +1,24 @@
+{
+  "_comment": "PLACEHOLDER: from a hand-held photo, redo on the rig with `python vision/read_screen.py <rig frame> --calibrate timer-01`. Calibrated on timer_5.webp (959x1280) at 2026-10-29T20:23:40Z. Redo if the camera moves.",
+  "device_id": "timer-01",
+  "frame_size": [959, 1280],
+  "boxes": {
+    "screen_t1": [288, 324, 292, 76],
+    "screen_t2": [288, 415, 292, 75],
+    "screen_t3": [288, 504, 292, 77],
+    "screen_t4": [288, 588, 292, 87],
+    "btn_t1": [697, 289, 81, 81],
+    "btn_t2": [700, 386, 82, 81],
+    "btn_t3": [705, 485, 83, 81],
+    "btn_t4": [710, 585, 85, 83],
+    "btn_h": [163, 731, 94, 69],
+    "btn_m": [276, 729, 94, 68],
+    "btn_s": [389, 727, 93, 69],
+    "btn_10m": [160, 818, 96, 71],
+    "btn_5m": [276, 816, 94, 70],
+    "btn_10s": [390, 814, 93, 70],
+    "btn_reset": [521, 780, 103, 100],
+    "btn_stsp": [660, 777, 153, 99]
+  },
+  "baselines": {}
+}
