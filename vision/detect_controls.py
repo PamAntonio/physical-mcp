@@ -40,6 +40,12 @@ PROMPTS = [
 
 MIN_CONFIDENCE = 0.0  # drop matches below this. 0 = keep everything
 
+# LED slits next to buttons (the timer's T1-T4 lights) come back as "button" too.
+# real buttons are about square, slits are tall and thin, so skip by shape
+MIN_BUTTON_CONFIDENCE = 0.0  # skip buttons below this. 0 = off (Inkbird buttons only score 0.83-0.87)
+MIN_BUTTON_WIDTH = 20  # px. skip buttons narrower than this
+MIN_BUTTON_RATIO = 0.6  # width / height. skip buttons thinner than this (slits are 0.34-0.47)
+
 # ---- API details, from the SAM 3.1 docs (dev.meta.ai/docs/sam/segmenting) ----
 
 API_URL = "https://api.meta.ai/v1/responses"  # same base URL as backend/planner.py
@@ -185,6 +191,23 @@ def parse_boxes(text):
     return boxes
 
 
+def button_skip_reason(box):
+    """Why a "button" box looks like an LED slit and not a button. None = keep it."""
+    width = box["x2"] - box["x1"] + 1
+    height = box["y2"] - box["y1"] + 1
+    reasons = []
+    if width < MIN_BUTTON_WIDTH:
+        reasons.append(f"narrower than {MIN_BUTTON_WIDTH}px")
+    if width / height < MIN_BUTTON_RATIO:
+        reasons.append(f"width/height under {MIN_BUTTON_RATIO}")
+    confidence = box["confidence"]
+    if confidence is not None and confidence < MIN_BUTTON_CONFIDENCE:
+        reasons.append(f"confidence under {MIN_BUTTON_CONFIDENCE}")
+    if not reasons:
+        return None
+    return ", ".join(reasons)
+
+
 def to_controls(boxes_by_prompt):
     """SAM boxes -> device.controls entries, numbered per kind in reading order."""
     controls = []
@@ -196,6 +219,17 @@ def to_controls(boxes_by_prompt):
             confidence = box["confidence"]
             if confidence is not None and confidence < MIN_CONFIDENCE:
                 continue
+            if prompt["kind"] == "button":
+                reason = button_skip_reason(box)
+                if reason is not None:
+                    # say what got dropped, so a missing button is easy to track down
+                    width = box["x2"] - box["x1"] + 1
+                    height = box["y2"] - box["y1"] + 1
+                    shown_confidence = "?" if confidence is None else round(confidence, 4)
+                    print(f"  skipping button at [{box['x1']}, {box['y1']}, {width}, {height}]: "
+                          f"{width}x{height}px, ratio {width / height:.2f}, confidence {shown_confidence} "
+                          f"({reason})", file=sys.stderr)
+                    continue
             kept.append(box)
 
         # top-to-bottom, then left-to-right, so button_1 is roughly the top-left one

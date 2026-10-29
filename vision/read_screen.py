@@ -17,7 +17,14 @@ Usage (MODEL_API_KEY comes from the repo-root .env, or the environment):
     python vision/read_screen.py frame.jpg --bbox 1330,460,48,48 --indicator  # an LED at a one-off box
     python vision/read_screen.py frame.jpg --controls frame.controls.json     # boxes from detect_controls.py
     python vision/read_screen.py frame.jpg --calibrate inkbird-01             # set up the boxes + LED baselines
+    python vision/read_screen.py frame.jpg --controls frame.controls.json --device timer-01
+                                                                             # the timer's prompt, all rows in one read
+    python vision/read_screen.py frame.jpg --controls frame.controls.json --device timer-01 --rows 4 --row 1
+                                                                             # cut the screen in 4 strips, read the top one
     add --draw to any of them to save the crops next to the image
+
+How a screen gets read (prompt, reply cleanup, range check) depends on --device, see
+DEVICE_SETTINGS. inkbird-01 is the default.
 
 Screens get read 2-3 times and voted on, see vote_reads(). The raw API replies always
 get saved to <image>.read_raw.json for debugging.
@@ -56,17 +63,7 @@ GREEN_THRESHOLD = 0.25  # mean (green - avg(red, blue)) above this = on. COOL is
 # which colour score counts for which LED
 LED_COLOUR = {"led_heat": "redness", "led_cool": "greenness"}
 
-# sanity check on what the screen read. outside this = confidence "low"
-TEMP_MIN_F = 32
-TEMP_MAX_F = 212
-
-PROMPT = (
-    "This is a crop of a camera photo showing one 7-segment LED readout on a temperature controller. "
-    "Reply with only the characters shown, using only 0-9, \".\", \"-\" and the letters P, V, S, T. "
-    "Nothing else, no units, no explanation. "
-    "Treat 6 and 8 carefully: a 6 has no top-right segment, an 8 has all seven. "
-    "If the readout is blank or you can't read it, reply with an empty string."
-)
+# the screen-read prompt and the range check are per device, see DEVICE_SETTINGS
 
 # Inkbird ITC-308 labels we pull numbers out of. Anything else stays only in "text"
 INKBIRD_FIELDS = ["PV", "SV", "TS", "HD", "CD", "AH", "AL", "PT", "CA"]
@@ -150,6 +147,17 @@ def padded_box(bbox, frame_width, frame_height, pad_fraction):
     if right <= left or bottom <= top:
         raise ValueError(f"bbox {bbox} is outside the {frame_width}x{frame_height} frame")
     return left, top, right, bottom
+
+
+def row_box(bbox, rows, row):
+    """bbox [x, y, w, h] cut into `rows` equal horizontal strips, returns strip `row`
+    (1-based, 1 = top) as [x, y, w, h]. The strips share edges, so together they cover the box."""
+    if rows < 1 or row < 1 or row > rows:
+        raise ValueError(f"row {row} of {rows} doesn't exist")
+    x, y, w, h = bbox
+    top = y + int(round(h * (row - 1) / rows))
+    bottom = y + int(round(h * row / rows))
+    return [x, top, w, bottom - top]
 
 
 def crop_for_reading(image, bbox):
@@ -268,7 +276,7 @@ def resolve_box(image_path, control_id, device_id, bbox=None, api_key=None):
 # calling Muse Spark
 # ---------------------------------------------------------------------------
 
-def call_model(api_key, image_data_url):
+def call_model(api_key, image_data_url, prompt):
     """One Responses request with the prompt and the crop. Returns the parsed JSON response."""
     body = {
         "model": MODEL,
@@ -277,7 +285,7 @@ def call_model(api_key, image_data_url):
                 "type": "message",
                 "role": "user",  # the docs say images only get looked at in user messages
                 "content": [
-                    {"type": "input_text", "text": PROMPT},
+                    {"type": "input_text", "text": prompt},
                     {"type": "input_image", "image_url": image_data_url, "detail": IMAGE_DETAIL},
                 ],
             }
@@ -326,12 +334,23 @@ QUOTE_CHARS = "\"'`“”‘’"
 DEGREES_F = re.compile(r"(\d)\s*(?:°|º|deg)?\s*F\b")
 
 
-def clean_reply(text):
+def clean_reply(text, multiline=False):
+    """multiline=True keeps one line per screen row (the timer), else it's all one line."""
     text = text.strip()
     # strip wrapping quotes/backticks, maybe more than one layer ("`TS 80.0`")
     while len(text) >= 2 and text[0] in QUOTE_CHARS and text[-1] in QUOTE_CHARS:
         text = text[1:-1].strip()
     text = text.strip(QUOTE_CHARS).strip()
+
+    if multiline:
+        # tidy each row on its own, drop blank lines
+        lines = []
+        for line in text.splitlines():
+            line = " ".join(line.split())
+            if line:
+                lines.append(DEGREES_F.sub(r"\1°F", line))
+        return "\n".join(lines)
+
     text = " ".join(text.split())  # collapse spaces and newlines
     text = DEGREES_F.sub(r"\1°F", text)
     return text
@@ -354,13 +373,70 @@ def parse_inkbird(text):
     return parsed
 
 
-def out_of_range_temperatures(parsed):
+def parse_timer(text):
+    """"00:00 00\n00:05 30" -> {"rows": ["00:00 00", "00:05 30"]}, top row first. "" -> {}"""
+    rows = []
+    for line in text.splitlines():
+        line = line.strip()
+        if line:
+            rows.append(line)
+    if not rows:
+        return {}
+    return {"rows": rows}
+
+
+def out_of_range_temperatures(parsed, temp_range_f):
     """The temperatures in parsed that can't be right for a room/water controller."""
+    low, high = temp_range_f
     bad = []
     for field in TEMPERATURE_FIELDS:
-        if field in parsed and not (TEMP_MIN_F <= parsed[field] <= TEMP_MAX_F):
+        if field in parsed and not (low <= parsed[field] <= high):
             bad.append(field)
     return bad
+
+
+# ---------------------------------------------------------------------------
+# per-device read settings
+# ---------------------------------------------------------------------------
+
+INKBIRD_PROMPT = (
+    "This is a crop of a camera photo showing one 7-segment LED readout on a temperature controller. "
+    "Reply with only the characters shown, using only 0-9, \".\", \"-\" and the letters P, V, S, T. "
+    "Nothing else, no units, no explanation. "
+    "Treat 6 and 8 carefully: a 6 has no top-right segment, an 8 has all seven. "
+    "If the readout is blank or you can't read it, reply with an empty string."
+)
+
+TIMER_PROMPT = (
+    "This is a crop of a camera photo showing one or more rows of an LCD on a kitchen timer. "
+    "Each row looks like \"00:00 00\": minutes:seconds, then two small digits (hundredths or seconds). "
+    "Reply with one line per row, top to bottom, using only 0-9, \":\" and spaces. "
+    "Nothing else, no row labels like T1, no explanation. "
+    "If the display is blank or you can't read it, reply with an empty string."
+)
+
+DEVICE_SETTINGS = {
+    "inkbird-01": {
+        "prompt": INKBIRD_PROMPT,
+        "multiline": False,  # one 7-segment readout, one line
+        "parse": parse_inkbird,
+        "temp_range_f": (32, 212),  # a temperature outside this = confidence "low"
+    },
+    "timer-01": {
+        "prompt": TIMER_PROMPT,
+        "multiline": True,  # one line per LCD row
+        "parse": parse_timer,
+        "temp_range_f": None,  # it's a timer, nothing to range check
+    },
+}
+
+
+def read_settings(device_id):
+    settings = DEVICE_SETTINGS.get(device_id)
+    if settings is None:
+        log(f"No read settings for {device_id}, using {DEFAULT_DEVICE}'s")
+        return DEVICE_SETTINGS[DEFAULT_DEVICE]
+    return settings
 
 
 def normalize_for_compare(text):
@@ -412,11 +488,15 @@ def matches_expectation(read_text, text_contains, confidence=None):
 # reading a screen: 2-3 reads and a vote
 # ---------------------------------------------------------------------------
 
-def vote_reads(read_once):
+def vote_reads(read_once, settings=None):
     """read_once() -> cleaned text of one read. Reads twice: agree = "high".
     Disagree = a third read, majority wins = "medium". All three differ = "low", first read.
-    Then the sanity check: a temperature outside 32-212 °F = "low" whatever the vote said.
+    Then the sanity check, if the device has one: for the Inkbird a temperature outside
+    32-212 °F = "low" whatever the vote said. settings = a DEVICE_SETTINGS entry, default Inkbird.
     Returns {"text", "parsed", "confidence", "reads", "out_of_range"}."""
+    if settings is None:
+        settings = DEVICE_SETTINGS[DEFAULT_DEVICE]
+
     reads = [read_once(), read_once()]
     if normalize_for_compare(reads[0]) == normalize_for_compare(reads[1]):
         text, confidence = reads[0], "high"
@@ -430,18 +510,27 @@ def vote_reads(read_once):
         else:
             text, confidence = reads[0], "low"
 
-    parsed = parse_inkbird(text)
-    bad = out_of_range_temperatures(parsed)
+    parsed = settings["parse"](text)
+    bad = []
+    if settings["temp_range_f"] is not None:
+        bad = out_of_range_temperatures(parsed, settings["temp_range_f"])
     if bad:
         confidence = "low"
     return {"text": text, "parsed": parsed, "confidence": confidence, "reads": reads, "out_of_range": bad}
 
 
-def read_screen(image_path, control_id=None, bbox=None, device_id=DEFAULT_DEVICE, raw_log=None, draw_path=None):
-    """Read one 7-segment readout (screen_pv or screen_sv, never both at once).
+def read_screen(image_path, control_id=None, bbox=None, device_id=DEFAULT_DEVICE, raw_log=None, draw_path=None,
+                rows=None, row=None):
+    """Read one screen (for the Inkbird: screen_pv or screen_sv, never both at once).
+    rows/row: cut the screen box into `rows` equal strips and read only strip `row` (1 = top).
     Returns {"text", "parsed", "confidence": "high"|"medium"|"low", "reads", "out_of_range",
-    "bbox", "box_source"}. raw_log: a list to append the raw API replies to."""
+    "bbox", "box_source"}, plus "row", "rows" and "screen_bbox" for a strip.
+    raw_log: a list to append the raw API replies to."""
     box, source = resolve_box(image_path, control_id or "screen", device_id, bbox=bbox)
+    screen_box = box
+    if rows is not None:
+        box = row_box(screen_box, rows, row)
+    settings = read_settings(device_id)
 
     # crop (and --draw) before the key check, so you can still eyeball the crop without a key
     image = open_rgb(image_path)
@@ -452,16 +541,25 @@ def read_screen(image_path, control_id=None, bbox=None, device_id=DEFAULT_DEVICE
     data_url = image_to_data_url(crop)
 
     def read_once():
-        response_json = call_model(api_key, data_url)
-        text = clean_reply(reply_text(response_json))
+        response_json = call_model(api_key, data_url, settings["prompt"])
+        text = clean_reply(reply_text(response_json), multiline=settings["multiline"])
         if raw_log is not None:
-            raw_log.append({"control_id": control_id, "bbox": box, "crop_size": [crop.width, crop.height],
-                            "text": text, "response": response_json})
+            entry = {"control_id": control_id, "bbox": box, "crop_size": [crop.width, crop.height]}
+            if rows is not None:
+                entry["row"] = row
+                entry["rows"] = rows
+            entry["text"] = text
+            entry["response"] = response_json
+            raw_log.append(entry)
         return text
 
-    result = vote_reads(read_once)
+    result = vote_reads(read_once, settings)
     result["bbox"] = box
     result["box_source"] = source
+    if rows is not None:
+        result["row"] = row
+        result["rows"] = rows
+        result["screen_bbox"] = screen_box
     return result
 
 
@@ -689,7 +787,9 @@ def load_controls(path):
 def main():
     parser = argparse.ArgumentParser(description="Read displays (Muse Spark) and LEDs (pixels) in a camera frame.")
     parser.add_argument("image", type=Path, help="the camera frame")
-    parser.add_argument("--device", default=DEFAULT_DEVICE, help=f"whose calibration to use (default {DEFAULT_DEVICE})")
+    parser.add_argument("--device", default=DEFAULT_DEVICE,
+                        help=f"whose calibration and read settings to use: {', '.join(DEVICE_SETTINGS)} "
+                             f"(default {DEFAULT_DEVICE})")
     parser.add_argument("--control", help="one control_id, e.g. screen_sv or led_heat (box from calibration, else SAM)")
     parser.add_argument("--bbox", type=parse_bbox, help="x,y,w,h in frame pixels, instead of a saved box")
     parser.add_argument("--indicator", action="store_true", help="with --bbox and no --control: it's an LED")
@@ -698,7 +798,15 @@ def main():
     parser.add_argument("--expect", help='with one display: PASS / FAIL / UNSURE against this text, e.g. "80"')
     parser.add_argument("--draw", action="store_true", help="save each crop next to the image to eyeball")
     parser.add_argument("--raw-out", type=Path, help="where to save raw API replies (default: <image>.read_raw.json)")
+    parser.add_argument("--rows", type=int, help="cut each screen box into this many equal horizontal strips, read each one")
+    parser.add_argument("--row", type=int, help="with --rows: read only this strip (1 = top)")
     args = parser.parse_args()
+    if args.row is not None and args.rows is None:
+        parser.error("--row needs --rows")
+    if args.rows is not None and args.rows < 1:
+        parser.error("--rows has to be 1 or more")
+    if args.row is not None and not 1 <= args.row <= args.rows:
+        parser.error(f"--row has to be between 1 and {args.rows}")
     load_dotenv()
 
     image_path = args.image
@@ -737,43 +845,58 @@ def main():
             raise SystemExit(f"Nothing to read: no screens or LEDs in {calibration_path(args.device)}. "
                              f"Run --calibrate {args.device} first, or pass --control / --bbox")
 
+    # --rows: which strips of each screen to read (all of them, or just --row)
+    screen_rows = [None]
+    if args.rows is not None:
+        if args.row is not None:
+            screen_rows = [args.row]
+        else:
+            screen_rows = list(range(1, args.rows + 1))
+
     raw_log = []
     results = {}
     failed = False
     for control_id, kind, bbox in targets:
-        name = control_id or "bbox"
-        draw_path = Path(f"{base}.{name}.crop.png") if args.draw else None
-        try:
-            if kind == "indicator":
-                result = read_indicator(image_path, control_id, bbox=bbox, device_id=args.device, draw_path=draw_path)
-                log(f"{name}: {'ON' if result['on'] else 'off'} (brightness {result['brightness']}, "
-                    f"redness {result['redness']}, greenness {result['greenness']}, saturated {result['saturated']}, "
-                    f"{'against baseline' if result['baseline'] else 'no baseline, plain thresholds'}, "
-                    f"box from {result['box_source']})")
-            else:
-                log(f"{name}: reading...")
-                result = read_screen(image_path, control_id, bbox=bbox, device_id=args.device,
-                                     raw_log=raw_log, draw_path=draw_path)
-                log(f"  reads {result['reads']} -> \"{result['text']}\" ({result['confidence']}"
-                    f"{', out of range: ' + ', '.join(result['out_of_range']) if result['out_of_range'] else ''})")
-        except (ApiError, ValueError) as err:
-            # keep going with the other controls, the error goes in the result
-            result = {"error": str(err)}
-            log(f"  {name} failed: {err}")
+        rows_to_read = [None]
+        if kind == "screen":
+            rows_to_read = screen_rows
+        for row in rows_to_read:
+            name = control_id or "bbox"
+            if row is not None:
+                name = f"{name}.row{row}"
+            draw_path = Path(f"{base}.{name}.crop.png") if args.draw else None
+            try:
+                if kind == "indicator":
+                    result = read_indicator(image_path, control_id, bbox=bbox, device_id=args.device, draw_path=draw_path)
+                    log(f"{name}: {'ON' if result['on'] else 'off'} (brightness {result['brightness']}, "
+                        f"redness {result['redness']}, greenness {result['greenness']}, saturated {result['saturated']}, "
+                        f"{'against baseline' if result['baseline'] else 'no baseline, plain thresholds'}, "
+                        f"box from {result['box_source']})")
+                else:
+                    log(f"{name}: reading...")
+                    rows = args.rows if row is not None else None
+                    result = read_screen(image_path, control_id, bbox=bbox, device_id=args.device,
+                                         raw_log=raw_log, draw_path=draw_path, rows=rows, row=row)
+                    log(f"  reads {result['reads']} -> \"{result['text']}\" ({result['confidence']}"
+                        f"{', out of range: ' + ', '.join(result['out_of_range']) if result['out_of_range'] else ''})")
+            except (ApiError, ValueError) as err:
+                # keep going with the other controls, the error goes in the result
+                result = {"error": str(err)}
+                log(f"  {name} failed: {err}")
 
-        if args.expect is not None and kind == "screen":
-            if "error" in result:
-                verdict = "UNSURE"
-            else:
-                verdict = matches_expectation(result["text"], args.expect, result["confidence"])
-            result["expect"] = args.expect
-            result["verdict"] = verdict
-            log(f'  {verdict}: expected "{args.expect}"')
-            if verdict != "PASS":
-                failed = True
-        if draw_path is not None and draw_path.exists():
-            log(f"  crop saved to {draw_path}")
-        results[name] = result
+            if args.expect is not None and kind == "screen":
+                if "error" in result:
+                    verdict = "UNSURE"
+                else:
+                    verdict = matches_expectation(result["text"], args.expect, result["confidence"])
+                result["expect"] = args.expect
+                result["verdict"] = verdict
+                log(f'  {verdict}: expected "{args.expect}"')
+                if verdict != "PASS":
+                    failed = True
+            if draw_path is not None and draw_path.exists():
+                log(f"  crop saved to {draw_path}")
+            results[name] = result
 
     if raw_log:
         raw_path.write_text(json.dumps(raw_log, indent=2, ensure_ascii=False), encoding="utf-8")
