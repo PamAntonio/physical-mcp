@@ -73,10 +73,13 @@ def test_read_indicator():
 
     with tempfile.TemporaryDirectory() as folder:
         frame = Path(folder) / "frame.png"
-        image = Image.new("RGB", (40, 20), (20, 20, 20))  # dark panel
+        image = Image.new("RGB", (60, 20), (20, 20, 20))  # dark panel
         for x in range(20, 40):
             for y in range(20):
-                image.putpixel((x, y), (230, 30, 30))  # bright red LED on the right half
+                image.putpixel((x, y), (230, 30, 30))  # bright red LED (HEAT) in the middle
+        for x in range(40, 60):
+            for y in range(20):
+                image.putpixel((x, y), (30, 230, 30))  # bright green LED (COOL) on the right
         image.save(frame)
 
         dark = read_indicator(frame, [0, 0, 20, 20])
@@ -86,6 +89,14 @@ def test_read_indicator():
         red = read_indicator(frame, [20, 0, 20, 20])
         assert red["on"] is True, red
         assert red["redness"] > 0.5, red
+        assert red["greenness"] < 0, red
+
+        green = read_indicator(frame, [40, 0, 20, 20])
+        assert green["on"] is True, green
+        assert green["greenness"] > 0.5, green
+        assert green["redness"] < 0, green
+        # it's the colour that turns it on here, not the brightness
+        assert green["brightness"] < 0.6, green
 
 
 def main():

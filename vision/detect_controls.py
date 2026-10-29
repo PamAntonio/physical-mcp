@@ -8,8 +8,7 @@ Prints the result as device.controls from shared/types.ts:
 SAM only finds where things are, it can't read them, so labels are placeholders
 (button_1, screen_1). Reading the real labels ("SET", "▲") is a later Muse Spark call.
 
-Usage:
-    export MODEL_API_KEY=...
+Usage (MODEL_API_KEY comes from the repo-root .env, or the environment):
     python vision/detect_controls.py panel.jpg               # controls -> panel.controls.json
     python vision/detect_controls.py panel.jpg --draw        # also panel.boxes.png to eyeball
     python vision/detect_controls.py panel.jpg --from-raw panel.sam_raw.json --draw
@@ -56,6 +55,22 @@ BOX_TOKEN = re.compile(r"<\|box;([^|]*)\|>")
 
 class ApiError(Exception):
     pass
+
+
+def load_dotenv():
+    """Read KEY=value lines from the repo-root .env (same as risk/scorer.py). Real env vars win."""
+    env_file = Path(__file__).resolve().parent.parent / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +314,7 @@ def main():
         raw_responses = json.loads(args.from_raw.read_text(encoding="utf-8"))
         print(f"Using saved responses from {args.from_raw}", file=sys.stderr)
     else:
+        load_dotenv()
         api_key = os.environ.get(API_KEY_ENV)
         if not api_key:
             raise SystemExit(f"{API_KEY_ENV} isn't set. export {API_KEY_ENV}=... (same key as the planner)")

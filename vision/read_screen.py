@@ -7,8 +7,7 @@ we just look at how bright / how red the pixels are.
 
 bbox is [x, y, w, h] in frame pixels, origin top-left, same as Control.bbox in shared/types.ts.
 
-Usage:
-    export MODEL_API_KEY=...
+Usage (MODEL_API_KEY comes from the repo-root .env, or the environment):
     python vision/read_screen.py frame.jpg --bbox 820,600,420,140                  # read a display
     python vision/read_screen.py frame.jpg --bbox 820,600,420,140 --expect "SV 80.0"  # PASS/FAIL
     python vision/read_screen.py frame.jpg --bbox 1330,460,48,48 --indicator       # LED on/off, no API call
@@ -38,7 +37,8 @@ MIN_SHORT_SIDE = 256  # upscale crops whose short side is smaller than this
 
 # LED thresholds, both 0..1. tune on real rig frames
 ON_THRESHOLD = 0.6  # mean brightness above this = on
-RED_THRESHOLD = 0.25  # mean (red - avg(green, blue)) above this = on, for a lit red LED that isn't very bright
+RED_THRESHOLD = 0.25  # mean (red - avg(green, blue)) above this = on. HEAT is a red LED
+GREEN_THRESHOLD = 0.25  # mean (green - avg(red, blue)) above this = on. COOL is a green LED
 
 PROMPT = (
     "This is a crop of a camera photo showing one display on a temperature controller. "
@@ -62,6 +62,22 @@ TIMEOUT_SECONDS = 60
 
 class ApiError(Exception):
     pass
+
+
+def load_dotenv():
+    """Read KEY=value lines from the repo-root .env (same as risk/scorer.py). Real env vars win."""
+    env_file = Path(__file__).resolve().parent.parent / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +287,9 @@ def read_screen(image_path, bbox, api_key=None, raw_log=None, draw_path=None):
 
 
 def read_indicator(image_path, bbox, draw_path=None):
-    """Is an LED on? No model call. Returns {"on": bool, "brightness": float, "redness": float}, both 0..1-ish.
+    """Is an LED on? No model call. Returns {"on": bool, "brightness": float, "redness": float,
+    "greenness": float}, all 0..1-ish (redness/greenness can go negative).
+    On if any of the three passes its threshold: HEAT is red, COOL is green.
     Exact bbox, no padding, so the panel around the LED doesn't water down the numbers."""
     image = open_rgb(image_path)
     box = padded_box(bbox, image.width, image.height, 0.0)
@@ -281,16 +299,24 @@ def read_indicator(image_path, bbox, draw_path=None):
 
     total_brightness = 0.0
     total_redness = 0.0
+    total_greenness = 0.0
     count = 0
     for red, green, blue in crop.getdata():
         total_brightness += (red + green + blue) / 3
         total_redness += red - (green + blue) / 2
+        total_greenness += green - (red + blue) / 2
         count += 1
 
     brightness = total_brightness / count / 255
     redness = total_redness / count / 255
-    on = brightness > ON_THRESHOLD or redness > RED_THRESHOLD
-    return {"on": on, "brightness": round(brightness, 4), "redness": round(redness, 4)}
+    greenness = total_greenness / count / 255
+    on = brightness > ON_THRESHOLD or redness > RED_THRESHOLD or greenness > GREEN_THRESHOLD
+    return {
+        "on": on,
+        "brightness": round(brightness, 4),
+        "redness": round(redness, 4),
+        "greenness": round(greenness, 4),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +357,7 @@ def main():
     parser.add_argument("--draw", action="store_true", help="save each crop next to the image to eyeball")
     parser.add_argument("--raw-out", type=Path, help="where to save raw API replies (default: <image>.read_raw.json)")
     args = parser.parse_args()
+    load_dotenv()
 
     image_path = args.image
     if not image_path.is_file():
@@ -362,7 +389,7 @@ def main():
         if kind == "indicator":
             result = read_indicator(image_path, bbox, draw_path=draw_path)
             print(f"{name}: {'ON' if result['on'] else 'off'} "
-                  f"(brightness {result['brightness']}, redness {result['redness']})", file=sys.stderr)
+                  f"(brightness {result['brightness']}, redness {result['redness']}, greenness {result['greenness']})", file=sys.stderr)
         else:
             print(f"{name}: reading the display...", file=sys.stderr)
             try:
