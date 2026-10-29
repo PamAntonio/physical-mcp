@@ -139,8 +139,8 @@
           "screen_text": null
         },
         "error": null,
-        "risk_tier": "low",
-        "risk_reason": "Enters menu only, no temperature change yet.",
+        "risk_tier": "medium",
+        "risk_reason": "Starts plan to heat to 80 °F, above current 72 °F",
         "risk_scored_by": "meta-models/muse-spark-open-1026"
       },
       {
@@ -168,7 +168,7 @@
         },
         "error": null,
         "risk_tier": "low",
-        "risk_reason": "Raises set point to requested 80 °F, within normal range, heating change is expected and reversible. No approval needed.",
+        "risk_reason": "Raises set point to 80°F in menu, heating not yet active.",
         "risk_scored_by": "meta-models/muse-spark-open-1026"
       },
       {
@@ -196,8 +196,8 @@
           "screen_text": null
         },
         "error": null,
-        "risk_tier": "low",
-        "risk_reason": "Saves 80°F as requested, normal range; heating on expected and safe. Inside-menu step never needs approval. Requires_wa:",
+        "risk_tier": "medium",
+        "risk_reason": "Commits 80°F set point, heating outlet will stay on.",
         "risk_scored_by": "meta-models/muse-spark-open-1026"
       },
       {
@@ -225,7 +225,7 @@
         },
         "error": null,
         "risk_tier": "low",
-        "risk_reason": "Read-only check of HEAT indicator, no physical change or actuation risk. (placeholder device). (placeholder device). (p.",
+        "risk_reason": "Read-only check, no physical change.",
         "risk_scored_by": "meta-models/muse-spark-open-1026"
       }
     ]

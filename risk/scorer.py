@@ -34,7 +34,7 @@ PROFILES_DIR = REPO_ROOT / "backend" / "devices"
 
 FALLBACK_REASON = "Couldn't score this step, treating it as high risk."
 TIERS = ["low", "medium", "high"]
-MAX_REASON_CHARS = 120
+MAX_REASON_CHARS = 90
 
 RISK_SCHEMA = {
     "type": "object",
@@ -61,14 +61,24 @@ Judge the step in context, never by the button's name alone:
   screen says 37.0), a step that starts or commits those settings is at least medium, even if the
   settings themselves are safe. The person needs to notice the mismatch. Say so in the reason.
 - If you can't tell what the step will do, rate it higher.
+- If the job hasn't run yet, assume the earlier planned steps will succeed as planned, and judge this
+  step from the screen they would leave behind (e.g. if an earlier step opens a menu, the menu is open).
+- If this step is gated for approval, it's gated for a reason (given as "Approval reason"). Weigh what
+  the whole plan does after this step, not just the press itself. E.g. entering a menu whose saved
+  settings will switch on a heating outlet is at least medium.
 
 Tiers:
 - low: nothing happens to the physical world, or the change is small, expected and easy to undo.
 - medium: changes the machine's state in a sane way, or something is slightly off and worth a look.
 - high: could damage samples, the device or people, or clearly doesn't match the request.
 
-risk_reason: ONE short line (under 15 words) a person can read in 2 seconds. Mention the actual value
-when it matters, e.g. "Starts heating to 90 °C, far above a normal incubator range."
+risk_reason: ONE short clause (under 12 words, under 90 characters) a person can read in 2 seconds.
+End it after that one clause, no extra sentences, brackets or notes. Mention the actual value when it
+matters. Describe the risk only: never mention approval, requires_approval, or the device being a
+placeholder or demo.
+
+Example reply:
+{"risk_tier": "high", "risk_reason": "Starts heating to 90 °C, far above a normal incubator range."}
 """
 
 JSON_ONLY_INSTRUCTIONS = (
@@ -164,12 +174,18 @@ def build_context(job, step):
     all_steps = (job.get("plan") or {}).get("steps") or []
     step_index = step.get("index", 0)
 
-    # steps that already ran, in order
+    # steps that already ran, in order, and earlier steps that are planned but haven't run yet
     done_steps = []
+    planned_steps = []
     for other in all_steps:
-        if other.get("index", 0) < step_index and other.get("status") == "succeeded":
+        if other.get("index", 0) >= step_index:
+            continue
+        if other.get("status") == "succeeded":
             done_steps.append(other)
+        else:
+            planned_steps.append(other)
     done_steps.sort(key=lambda s: s.get("index", 0))
+    planned_steps.sort(key=lambda s: s.get("index", 0))
 
     # what's on screen right before this press: what the last finished step left there,
     # else the device's idle screen
@@ -202,12 +218,33 @@ def build_context(job, step):
             lines.append(f"{done.get('index')}. {done.get('intent')}: {action_text} -> screen: {screen_after}")
     else:
         lines.append("Steps already done: none")
+    if planned_steps:
+        lines.append("Earlier steps planned but not run yet (assume they succeed):")
+        for planned in planned_steps:
+            action_text = describe_action(planned.get("action", {}), controls_by_id)
+            lines.append(f"{planned.get('index')}. {planned.get('intent')}: {action_text}")
     lines.append("")
     lines.append("Step to score:")
     lines.append(f"{step_index}. {step.get('intent')}: {describe_action(step.get('action', {}), controls_by_id)}")
     expect = step.get("expect") or {}
     if expect.get("text_contains"):
         lines.append(f"Expected screen afterwards contains: {expect['text_contains']}")
+    # only the reason goes in, never the requires_approval flag itself
+    if step.get("requires_approval") and step.get("approval_reason"):
+        lines.append(f"Approval reason: {step['approval_reason']}")
+    lines.append("")
+    lines.append("Rest of the plan after this step:")
+    later_steps = []
+    for other in all_steps:
+        if other.get("index", 0) > step_index:
+            later_steps.append(other)
+    later_steps.sort(key=lambda s: s.get("index", 0))
+    if later_steps:
+        for later in later_steps:
+            action_text = describe_action(later.get("action", {}), controls_by_id)
+            lines.append(f"{later.get('index')}. {later.get('intent')}: {action_text}")
+    else:
+        lines.append("none")
     return "\n".join(lines)
 
 
