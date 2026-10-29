@@ -2,7 +2,7 @@
 // USE_MOCK in config.ts picks the mock or the real one; nothing else in the app cares which.
 
 import type { ApprovalDecision, CreateJobRequest, Device, Job, JobEvent } from "@contract/types";
-import { BACKEND_URL, RISK_SCORER_URL, USE_MOCK } from "./config";
+import { BACKEND_URL, MOCK_INJECT_RETRY, RISK_SCORER_URL, USE_MOCK } from "./config";
 import { MockBackend } from "./mockBackend";
 import { scoreStep } from "./riskScorer";
 
@@ -192,8 +192,9 @@ export class HttpBackend implements JobBackend {
 
   frameUrl(path: string | null) {
     if (!path) return null;
-    // full urls (and data: urls from the mock server) are ready to use as is
-    if (path.startsWith("http") || path.startsWith("data:")) return path;
+    // full urls (and data: urls from the mock server) are ready to use as is.
+    // /mock/... is a placeholder still the mock server points at, served by this app from web/public
+    if (path.startsWith("http") || path.startsWith("data:") || path.startsWith("/mock/")) return path;
     return this.baseUrl + path;
   }
 }
@@ -207,6 +208,10 @@ export function createBackend(): JobBackend {
     const params = new URLSearchParams(window.location.search);
     failStepId = params.get("fail") ?? undefined;
   }
-  // approval steps get scored by the Python risk scorer, or fall back to "high, couldn't score"
-  return new MockBackend({ failStepId, scoreStep: (job, step) => scoreStep(RISK_SCORER_URL, job, step) });
+  // approval steps get scored by the Python risk scorer, or fall back to a "mock score"
+  return new MockBackend({
+    failStepId,
+    scoreStep: (job, step) => scoreStep(RISK_SCORER_URL, job, step),
+    injectRetry: MOCK_INJECT_RETRY,
+  });
 }

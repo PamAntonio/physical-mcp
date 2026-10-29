@@ -76,7 +76,10 @@ export default function ApprovalCard({ step, device, risk, paused, rejectBehavio
               <span aria-hidden>{RISK_ICONS[risk.tier]}</span> {risk.tier} risk
             </span>
             <p className="approval-risk-reason">{risk.reason}</p>
-            <p className="approval-risk-by">scored by {risk.scoredBy}</p>
+            <p className="approval-risk-by">
+              {/* the mock's stand-in when the risk scorer can't answer */}
+              {risk.scoredBy === "mock score" ? "mock score (risk scorer not reachable)" : `scored by ${risk.scoredBy}`}
+            </p>
           </>
         ) : (
           <>

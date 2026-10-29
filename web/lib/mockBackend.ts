@@ -5,11 +5,11 @@
 // Lets us build every UI state before Pam's server and the finger are ready.
 // Timings are made up, roughly what a servo press + screen read might take.
 
-import type { ApprovalDecision, BBox, CreateJobRequest, Device, Job, JobEvent, JobStatus, Plan, Step } from "@contract/types";
+import type { ApprovalDecision, BBox, CreateJobRequest, Device, Job, JobEvent, JobStatus, Plan, Retry, Step } from "@contract/types";
 import type { JobBackend, JobStreamHandlers } from "./backend";
 import { applyEvent, findControl } from "./jobReducer";
 import { mockFrameUrl } from "./mockFrame";
-import type { StepRisk } from "./riskScorer";
+import { scorerCouldNotScore, type StepRisk } from "./riskScorer";
 import sampleJson from "@contract/fixtures/jobSample.json";
 import inkbirdJson from "@contract/fixtures/inkbirdJobSample.json";
 
@@ -18,6 +18,11 @@ type MockScript = {
   firstScreen: string;
   doneMessage: string;
   screenAfter: (step: Step) => string; // for steps the fixture has no screen text for
+  // a still from web/public/mock/, or null to draw the incubator with mockFrameUrl
+  frameUrl: string | null;
+  // MOCK ONLY: retries the fixture doesn't have yet, so the retry UI shows up on this device.
+  // Behind NEXT_PUBLIC_MOCK_INJECT_RETRY, turn it off once Pam's backend sends real retries
+  injectedRetries: Record<string, Retry[]>;
 };
 
 const INKBIRD_SCREENS: Record<string, string> = {
@@ -33,6 +38,8 @@ const INCUBATOR: { job: Job; script: MockScript } = {
     firstScreen: "SET TEMP 25.0",
     doneMessage: "Job done. Incubator is running at 37.0 for 2 hours.",
     screenAfter: (step) => `${step.expect.text_contains} 37.0 02:00`, // only START hits this, good enough for a mock
+    frameUrl: null,
+    injectedRetries: {},
   },
 };
 
@@ -42,6 +49,19 @@ const INKBIRD: { job: Job; script: MockScript } = {
     firstScreen: "PV 72.0 SV 75.0",
     doneMessage: "Job done. SV is 80.0 °F and the HEAT light is on.",
     screenAfter: (step) => INKBIRD_SCREENS[step.step_id] ?? "PV 72.0 SV 80.0",
+    // served by Next from web/public, same origin as the app
+    frameUrl: "/mock/inkbird-01.svg",
+    injectedRetries: {
+      // s2 presses ▲ five times, one doesn't register, so the first read is one short
+      s2: [
+        {
+          attempt: 1,
+          screen_text: "TS 79.0",
+          problem: "expected TS 80.0, read TS 79.0",
+          correction: { type: "press", control_id: "btn_up", count: 1 },
+        },
+      ],
+    },
   },
 };
 
@@ -49,8 +69,21 @@ function fixtureFor(deviceId: string) {
   return deviceId === "inkbird-01" ? INKBIRD : INCUBATOR;
 }
 
-// stand-in camera frame with a blank LCD (the camera view paints the live screen text on top)
-const MOCK_FRAME_URL = mockFrameUrl(null);
+// a camera frame for this device. The incubator gets one drawn with the screen text and a ring
+// where the finger is about to press; the Inkbird still is the same every time
+function frameFor(script: MockScript, screenText: string | null, pressBox?: BBox): string {
+  return script.frameUrl ?? mockFrameUrl(screenText, pressBox);
+}
+
+// when the risk scorer can't answer in mock mode (no Baseten credits, scorer not running), use the
+// fixture's tier if it has one, else high, and say it's a mock score. Never low by default
+function mockScore(step: Step, sampleStep: Step): StepRisk {
+  return {
+    risk_tier: sampleStep.risk_tier ?? "high",
+    risk_reason: sampleStep.risk_reason ?? step.approval_reason ?? "Needs approval in the plan.",
+    risk_scored_by: "mock score",
+  };
+}
 
 class StoppedError extends Error {}
 
@@ -63,8 +96,9 @@ function now() {
 }
 
 export function sampleDevice(deviceId: string): Device {
-  const device = clone(fixtureFor(deviceId).job.device);
-  device.camera.latest_frame_url = MOCK_FRAME_URL;
+  const fixture = fixtureFor(deviceId);
+  const device = clone(fixture.job.device);
+  device.camera.latest_frame_url = frameFor(fixture.script, null); // blank LCD, the camera view paints the text
   return device;
 }
 
@@ -85,12 +119,17 @@ export class MockBackend implements JobBackend {
   private activeStep: Step | null = null;
   private failStepId: string | null;
   private scoreStep: ((job: Job, step: Step) => Promise<StepRisk>) | null;
+  private injectRetry: boolean;
 
   // scoreStep: called right before a step goes to awaiting_approval, its tier + reason
   // get attached to the step. Leave it out and steps go out unscored.
-  constructor(options: { failStepId?: string; scoreStep?: (job: Job, step: Step) => Promise<StepRisk> } = {}) {
+  // injectRetry: replay the mock-only retries in MockScript.injectedRetries (default on)
+  constructor(
+    options: { failStepId?: string; scoreStep?: (job: Job, step: Step) => Promise<StepRisk>; injectRetry?: boolean } = {},
+  ) {
     this.failStepId = options.failStepId ?? null;
     this.scoreStep = options.scoreStep ?? null;
+    this.injectRetry = options.injectRetry ?? true;
   }
 
   async getDevice(deviceId: string): Promise<Device> {
@@ -174,8 +213,9 @@ export class MockBackend implements JobBackend {
   }
 
   frameUrl(path: string | null) {
-    // mock frames are data: urls we drew ourselves. the sample's /frames/... paths don't exist, so skip those
-    if (path && path.startsWith("data:")) return path;
+    // mock frames are data: urls we drew ourselves or stills in web/public/mock/.
+    // the sample's /frames/... paths don't exist, so skip those
+    if (path && (path.startsWith("data:") || path.startsWith("/mock/"))) return path;
     return null;
   }
 
@@ -247,7 +287,8 @@ export class MockBackend implements JobBackend {
       const control = findControl(this.job ? this.job.device.controls : [], step.action.control_id);
       if (control && control.kind !== "screen") pressBox = control.bbox;
     }
-    step.evidence.before_frame_url = mockFrameUrl(screenBefore, pressBox);
+    const script = this.fixture.script;
+    step.evidence.before_frame_url = frameFor(script, screenBefore, pressBox);
     step.evidence.screen_text = screenBefore;
 
     if (step.requires_approval) {
@@ -255,7 +296,8 @@ export class MockBackend implements JobBackend {
       // the step stays gated whatever the scorer says
       if (this.scoreStep && this.job) {
         const jobIdBefore = this.jobId();
-        const risk = await this.scoreStep(clone(this.job), clone(step));
+        let risk = await this.scoreStep(clone(this.job), clone(step));
+        if (scorerCouldNotScore(risk)) risk = mockScore(step, sampleStep);
         // stopped, or a new job started while we were waiting on the scorer
         if (this.stopped || this.jobId() !== jobIdBefore) throw new StoppedError();
         step.risk_tier = risk.risk_tier;
@@ -316,7 +358,7 @@ export class MockBackend implements JobBackend {
       step.status = "failed";
       step.error = "Screen didn't change after the press. The finger may have missed the button.";
       step.finished_at = now();
-      step.evidence.after_frame_url = mockFrameUrl(screenBefore); // nothing changed, that's the problem
+      step.evidence.after_frame_url = frameFor(script, screenBefore); // nothing changed, that's the problem
       this.emitStep(step);
       this.emit({
         type: "job.finished",
@@ -327,8 +369,10 @@ export class MockBackend implements JobBackend {
       return false;
     }
 
-    // replay the sample's retries so the self-correction moment shows up
-    const sampleRetries = sampleStep.retries ?? [];
+    // replay the sample's retries so the self-correction moment shows up.
+    // no retries in the fixture? use the mock-only injected ones, if that's switched on
+    let sampleRetries = sampleStep.retries ?? [];
+    if (sampleRetries.length === 0 && this.injectRetry) sampleRetries = script.injectedRetries[step.step_id] ?? [];
     for (const retry of sampleRetries) {
       step.retries = [...(step.retries ?? []), retry];
       step.evidence.screen_text = retry.screen_text;
@@ -350,9 +394,9 @@ export class MockBackend implements JobBackend {
     } else {
       step.evidence.screen_text = this.fixture.script.screenAfter(step);
     }
-    step.evidence.after_frame_url = mockFrameUrl(step.evidence.screen_text);
+    step.evidence.after_frame_url = frameFor(script, step.evidence.screen_text);
     this.emitStep(step);
-    this.emit({ type: "frame", job_id: this.jobId(), ts: now(), frame_url: MOCK_FRAME_URL });
+    this.emit({ type: "frame", job_id: this.jobId(), ts: now(), frame_url: frameFor(script, null) });
     await this.sleep(300);
     return true;
   }

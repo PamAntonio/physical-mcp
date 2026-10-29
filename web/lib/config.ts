@@ -21,6 +21,10 @@ export const OPERATOR_NAME = process.env.NEXT_PUBLIC_OPERATOR_NAME || "operator"
 
 export const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "inkbird-01";
 
+// MOCK ONLY: add a fake retry where the fixture has none (Inkbird s2), so the retry UI shows up.
+// On unless set to "false". Turn it off once Pam's backend sends real retries
+export const MOCK_INJECT_RETRY = process.env.NEXT_PUBLIC_MOCK_INJECT_RETRY !== "false";
+
 // start the sample job as soon as the page loads. always on for the in-browser mock,
 // `npm run dev:mock` turns it on for the mock server too
 export const AUTO_START_SAMPLE = USE_MOCK || process.env.NEXT_PUBLIC_AUTO_START === "true";

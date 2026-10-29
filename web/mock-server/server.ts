@@ -17,7 +17,7 @@
 //
 // Steps that need approval get scored by the Python risk scorer first (python risk/server.py,
 // POST /score on :8091, or set RISK_SCORER_URL). If it isn't running they go out as
-// "high, couldn't score", so the approval card never has an empty risk slot.
+// a "mock score" (the fixture's tier, or high), so the approval card never has an empty risk slot.
 
 import http from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -27,6 +27,8 @@ import { DEFAULT_RISK_SCORER_URL, scoreStep } from "../lib/riskScorer";
 
 export const MOCK_PORT = Number(process.env.MOCK_PORT || 8787);
 const failStepId = process.env.MOCK_FAIL_STEP || undefined;
+// mock-only fake retry on Inkbird s2, same flag as the in-browser mock
+const injectRetry = process.env.NEXT_PUBLIC_MOCK_INJECT_RETRY !== "false";
 const riskScorerUrl = process.env.RISK_SCORER_URL || DEFAULT_RISK_SCORER_URL;
 
 async function scoreWithLog(job: Job, step: Step) {
@@ -36,7 +38,7 @@ async function scoreWithLog(job: Job, step: Step) {
   return risk;
 }
 
-const mock = new MockBackend({ failStepId, scoreStep: scoreWithLog });
+const mock = new MockBackend({ failStepId, scoreStep: scoreWithLog, injectRetry });
 let currentJobId: string | null = null;
 let sockets = new Set<WebSocket>();
 let streamStarted = false;

@@ -26,6 +26,12 @@ export function couldNotScore(): StepRisk {
   };
 }
 
+// the scorer's own fallback (risk/scorer.py) sends this same reason with its model id,
+// so match on the reason, not risk_scored_by
+export function scorerCouldNotScore(risk: StepRisk): boolean {
+  return risk.risk_reason === couldNotScore().risk_reason;
+}
+
 export async function scoreStep(scorerUrl: string, job: Job, step: Step): Promise<StepRisk> {
   try {
     const response = await fetch(`${scorerUrl}/score`, {

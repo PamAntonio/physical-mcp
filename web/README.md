@@ -19,6 +19,9 @@ npm run dev:mock   # mock server on :8787 + the app, over real HTTP + WebSocket
 `dev:mock` is the one to use when touching `lib/backend.ts`, since it runs the same client code the real backend will. Ctrl+C stops both servers.
 
 - `?fail=s4` (in-browser mock) or `MOCK_FAIL_STEP=s4 npm run dev:mock` makes step s4 fail
+- `NEXT_PUBLIC_MOCK_INJECT_RETRY` (default `true`) adds a **mock-only** retry on Inkbird s2: the first read is `TS 79.0`, it presses ▲ once more, then reads `TS 80.0`. Pam's Inkbird fixture has no retries yet, this is so the retry UI shows up. Set it to `false` once the real backend sends real retries (in `.env.local` for `npm run dev`, or `NEXT_PUBLIC_MOCK_INJECT_RETRY=false npm run dev:mock`)
+- The Inkbird camera frame is a placeholder still, `public/mock/inkbird-01.svg` (2560x1440, controls drawn at the fixture's bboxes so the boxes line up). Not a photo
+- Approval steps go to the risk scorer (`python risk/server.py`). If it can't answer (not running, Baseten down or out of credits) the mock uses the fixture's tier, or high when the fixture has none, and the card says "mock score"
 - `curl -X POST localhost:8787/debug/drop-sockets` cuts the WebSocket mid-run to watch the app reconnect and catch up
 - Reject on the approval card stops the job without pressing START
 - Stop retracts the finger (in the mock it just ends the job)
