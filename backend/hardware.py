@@ -11,8 +11,11 @@ Threading, since the real thing will block:
   (raise HardwareStopped) as soon as it can.
 """
 
+import os
 import threading
 import time
+
+from screen_numbers import find_number, replace_number
 
 
 class HardwareStopped(Exception):
@@ -33,9 +36,11 @@ class Hardware:
         """Retract the finger now. Called from another thread, see the note at the top."""
         raise NotImplementedError
 
-    def prepare_step(self, step):
-        """Heads up about the step that's about to run. Real hardware can ignore this,
-        FakeHardware uses it to know what the screen is supposed to say afterwards."""
+    def prepare_step(self, step, profile):
+        """Heads up about the step that's about to run, plus the device profile
+        (backend/devices/<id>.json, with each control's pan/tilt numbers and step_size).
+        Real hardware can ignore it or use the profile. FakeHardware uses it to know what
+        the screen is supposed to say afterwards."""
         pass
 
     def latest_frame_url(self, device_id):
@@ -46,25 +51,41 @@ class Hardware:
 
 
 class FakeHardware(Hardware):
-    """Pretends to press and always reads back exactly what the step expected.
-    Good for running the whole flow with no rig attached."""
+    """Pretends to press and reads back what the step expected.
+    Good for running the whole flow with no rig attached.
 
-    def __init__(self, seconds_per_press=0.2, seconds_per_read=0.3):
+    undershoot (or FAKE_UNDERSHOOT=1 in the env): the first time an up/down step runs, one
+    press "doesn't register", so the screen reads one step short and the backend's retry
+    kicks in. Only once per server run, so the demo shows exactly one self-correction."""
+
+    UP_DOWN = {"btn_up": 1, "btn_down": -1}  # which way each one moves the number
+
+    def __init__(self, seconds_per_press=0.2, seconds_per_read=0.3, undershoot=None):
         self.seconds_per_press = seconds_per_press
         self.seconds_per_read = seconds_per_read
+        if undershoot is None:
+            undershoot = os.environ.get("FAKE_UNDERSHOOT") == "1"
+        self.undershoot = undershoot
+        self.undershoot_done = False
         self.stop_requested = threading.Event()
         self.next_reads = {}  # control_id -> what the next read should say
         self.last_reads = {}  # control_id -> what it said last time
+        self.expected_read = None  # (control_id, text) the current step is after
+        self.step_size = None
 
-    def prepare_step(self, step):
+    def prepare_step(self, step, profile):
+        self.step_size = (profile or {}).get("step_size")
+        self.expected_read = None
         expect = step.get("expect") or {}
         control_id = expect.get("control_id")
         if not control_id:
             return
         if expect.get("indicator_on") is not None:
-            self.next_reads[control_id] = "ON" if expect["indicator_on"] else "OFF"
+            text = "ON" if expect["indicator_on"] else "OFF"
         else:
-            self.next_reads[control_id] = expect.get("text_contains") or ""
+            text = expect.get("text_contains") or ""
+        self.expected_read = (control_id, text)
+        self.next_reads[control_id] = text
 
     def press(self, control_id, count, hold_ms=None):
         # grab this press's flag now, stop() swaps in a fresh one for the next job
@@ -75,6 +96,24 @@ class FakeHardware(Hardware):
         # wait() returns True as soon as stop() sets the flag
         if stop_flag.wait(seconds):
             raise HardwareStopped(f"stopped while pressing {control_id}")
+
+        if not self.expected_read:
+            return
+        screen_id, wanted = self.expected_read
+        short_text = None
+        if self.undershoot and not self.undershoot_done and control_id in self.UP_DOWN and self.step_size:
+            # one press goes missing, so the number lands a step short of the target
+            found = find_number(wanted)
+            if found is not None:
+                short_value = found[0] - self.UP_DOWN[control_id] * self.step_size
+                short_text = replace_number(wanted, short_value)
+        if short_text is not None:
+            self.undershoot_done = True
+            self.next_reads[screen_id] = short_text
+            print(f"[fake hardware] dropped one {control_id} press, screen will say {short_text!r}", flush=True)
+        else:
+            # any other press (including a correction) lands where the step wanted
+            self.next_reads[screen_id] = wanted
 
     def read_screen(self, control_id):
         time.sleep(self.seconds_per_read)  # pretend the camera + vision call takes a moment

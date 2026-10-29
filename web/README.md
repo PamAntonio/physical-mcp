@@ -49,6 +49,8 @@ python backend/api.py              # http://127.0.0.1:8000
 
 Then point the app at it with the `.env.local` above (`NEXT_PUBLIC_USE_MOCK=false`, `NEXT_PUBLIC_BACKEND_URL=http://localhost:8000`) and restart `npm run dev`. Type a request (for the Inkbird: `Set the heater to turn on at 80 °F`) and hit Run job. Planning takes about 10 s. The approval card shows up right away as "not scored yet", and the risk tier fills in when the score lands (another 9 to 14 s).
 
+To show the self-correction on fake hardware, start it with `FAKE_UNDERSHOOT=1 python backend/api.py`: the first ▲/▼ step loses one press, the screen reads one short (`79.0`), and the backend presses ▲ once more and checks again. Once per server run.
+
 ## Where things live
 
 | File | What it does |

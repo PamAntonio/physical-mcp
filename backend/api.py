@@ -55,10 +55,14 @@ sys.path.insert(0, str(REPO_ROOT / "risk"))
 import scorer  # noqa: E402  importing it also loads the repo-root .env into os.environ
 import planner  # noqa: E402
 from hardware import FakeHardware, HardwareStopped  # noqa: E402
+from screen_numbers import find_number  # noqa: E402
 
 PLANNER_TIMEOUT_SECONDS = 90
 DEFAULT_PRESS_BUDGET = 30
 DEFAULT_MAX_ATTEMPTS = 3
+# a retry never presses more than this in one go. further off than that and something's
+# wrong (misread, wrong menu), so the step fails instead of guessing
+MAX_CORRECTION_PRESSES = 5
 SECONDS_BETWEEN_READS = 0.5
 FINISHED = ("succeeded", "failed", "stopped")
 # placeholder stills the web app serves itself, e.g. web/public/mock/inkbird-01.svg -> /mock/inkbird-01.svg
@@ -90,6 +94,7 @@ class JobRun:
         self.waiting_step_id = None
         self.active_step = None
         self.presses_used = 0
+        self.profile = {}  # backend/devices/<device_id>.json, loaded when the run starts
 
 
 runs = {}  # job_id -> JobRun
@@ -208,6 +213,59 @@ def describe_expect(expect):
     return repr(expect.get("text_contains") or "")
 
 
+def up_down_controls(device):
+    """(up_id, down_id) for the device's ▲/▼ buttons, either can be None."""
+    up_id = None
+    down_id = None
+    for control in device.get("controls", []):
+        if control.get("label") == "▲" or control.get("control_id") == "btn_up":
+            up_id = control["control_id"]
+        if control.get("label") == "▼" or control.get("control_id") == "btn_down":
+            down_id = control["control_id"]
+    return up_id, down_id
+
+
+def plan_correction(run, step, screen_text):
+    """What to press to fix an up/down step that landed on the wrong number.
+
+    Returns (correction, problem, error):
+    - correction: a press Action, or None when there's nothing safe to press (not an
+      up/down step, a number didn't parse, no step_size). Then we only re-read.
+    - problem: one plain line, "Screen says 79.0, wanted 80.0".
+    - error: set when it's off by more than one retry may fix. The step should fail.
+    """
+    action = step["action"]
+    up_id, down_id = up_down_controls(run.job["device"])
+    if action["type"] != "press" or action["control_id"] not in (up_id, down_id):
+        return None, None, None
+
+    on_screen = find_number(screen_text)
+    wanted = find_number(step["expect"].get("text_contains"))
+    step_size = run.profile.get("step_size")
+    if on_screen is None or wanted is None:
+        return None, None, None
+    if isinstance(step_size, bool) or not isinstance(step_size, (int, float)) or step_size <= 0:
+        return None, None, None
+
+    difference = wanted[0] - on_screen[0]
+    presses = round(abs(difference) / step_size)
+    if presses == 0:
+        return None, None, None  # off by less than one press, pressing won't help
+
+    problem = f"Screen says {on_screen[1]}, wanted {wanted[1]}"
+    if presses > MAX_CORRECTION_PRESSES:
+        error = (
+            f"{problem}: that's {presses} presses off, more than the {MAX_CORRECTION_PRESSES} "
+            "a retry may correct. Nothing pressed."
+        )
+        return None, problem, error
+
+    control_id = up_id if difference > 0 else down_id
+    if control_id is None:
+        return None, None, None
+    return {"type": "press", "control_id": control_id, "count": presses}, problem, None
+
+
 async def run_job(run):
     job = run.job
     device_id = job["device"]["device_id"]
@@ -229,7 +287,8 @@ async def run_job(run):
 
     emit_status(run, "running")
 
-    screen_text = planner.load_profile(device_id).get("current_screen")
+    run.profile = planner.load_profile(device_id)
+    screen_text = run.profile.get("current_screen")
     for step in plan["steps"]:
         keep_going = await run_step(run, step, screen_text)
         if not keep_going:
@@ -306,7 +365,7 @@ async def run_step(run, step, screen_before):
     emit_step(run, step)
 
     try:
-        hardware.prepare_step(copy.deepcopy(step))
+        hardware.prepare_step(copy.deepcopy(step), copy.deepcopy(run.profile))
         if action["type"] == "press":
             await on_hardware(hardware.press, action["control_id"], action["count"], action.get("hold_ms"))
             run.presses_used += action["count"]
@@ -317,17 +376,48 @@ async def run_step(run, step, screen_before):
         step["status"] = "verifying"
         emit_step(run, step)
 
-        # read a few times in case the screen is slow to update. no re-pressing yet,
-        # a blind re-press could overshoot the set point
         expect = step["expect"]
         max_attempts = step.get("max_attempts") or DEFAULT_MAX_ATTEMPTS
-        text = None
-        for read_number in range(max_attempts):
-            if read_number > 0:
+        text = await on_hardware(hardware.read_screen, expect["control_id"])
+        plain_reads = 1
+        while not screen_matches(expect, text):
+            correction, problem, error = plan_correction(run, step, text)
+            if error:
+                fail_step(run, step, error, text)
+                return False
+
+            if correction is None:
+                # nothing safe to press (no numbers to go on, or not an up/down step),
+                # so just look again in case the screen is slow. never a blind press
+                if plain_reads >= max_attempts:
+                    break
                 await asyncio.sleep(SECONDS_BETWEEN_READS)
-            text = await on_hardware(hardware.read_screen, expect["control_id"])
-            if screen_matches(expect, text):
+                text = await on_hardware(hardware.read_screen, expect["control_id"])
+                plain_reads += 1
+                continue
+
+            if step["attempts"] >= max_attempts:
                 break
+            if run.presses_used + correction["count"] > press_budget:
+                fail_step(run, step, f"{problem}, but fixing it would go over the press budget ({press_budget} per job).", text)
+                return False
+
+            # a self-correction: note what went wrong and what we're pressing about it
+            retries = step.get("retries") or []
+            retries.append({"attempt": step["attempts"], "screen_text": text, "problem": problem, "correction": correction})
+            step["retries"] = retries
+            step["attempts"] += 1
+            step["status"] = "running"
+            step["evidence"]["screen_text"] = text
+            emit_step(run, step)
+            log(f"{step['step_id']} retry: {problem}, pressing {correction['control_id']} x{correction['count']}")
+
+            await on_hardware(hardware.press, correction["control_id"], correction["count"], None)
+            run.presses_used += correction["count"]
+
+            step["status"] = "verifying"
+            emit_step(run, step)
+            text = await on_hardware(hardware.read_screen, expect["control_id"])
     except HardwareStopped:
         # usually the stop handler got there first and the job's already over,
         # but if the rig stopped itself, end the job here
@@ -338,7 +428,13 @@ async def run_step(run, step, screen_before):
         return False
 
     if not screen_matches(expect, text):
-        fail_step(run, step, f"Expected {describe_expect(expect)} on {expect['control_id']}, read {text!r}.", text)
+        error = f"Expected {describe_expect(expect)} on {expect['control_id']}, read {text!r}."
+        if step.get("retries"):
+            error = (
+                f"Still reads {text!r} after {step['attempts']} attempts, wanted {describe_expect(expect)}."
+                " Gave up so it doesn't overshoot."
+            )
+        fail_step(run, step, error, text)
         return False
 
     step["status"] = "succeeded"
