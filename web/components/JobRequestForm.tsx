@@ -5,11 +5,12 @@ import type { ApprovalMode } from "@contract/types";
 
 interface Props {
   busy: boolean;
+  defaultRequest: string; // starting text, matches the device (e.g. the Inkbird's 80 °F job)
   onSubmit: (request: string, approvalMode: ApprovalMode) => void;
 }
 
-export default function JobRequestForm({ busy, onSubmit }: Props) {
-  const [request, setRequest] = useState("Set the incubator to 37 °C and run it for 2 hours");
+export default function JobRequestForm({ busy, defaultRequest, onSubmit }: Props) {
+  const [request, setRequest] = useState(defaultRequest);
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>("risky_steps");
 
   return (

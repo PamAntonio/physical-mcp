@@ -129,7 +129,7 @@ export function findControl(controls: Control[], controlId: string): Control | n
   return null;
 }
 
-// "Press ▲ ×12", "Wait 5s", "Read Display"
+// "Press ▲ ×12", "Hold SET 3.0s", "Wait 5s", "Read Display"
 export function describeAction(step: Step, controls: Control[]): string {
   const action = step.action;
   if (action.type === "wait") return `Wait ${action.seconds}s`;
@@ -137,8 +137,19 @@ export function describeAction(step: Step, controls: Control[]): string {
   const control = findControl(controls, action.control_id);
   const label = control ? control.label : action.control_id;
   if (action.type === "read_screen") return `Read ${label}`;
-  if (action.count > 1) return `Press ${label} ×${action.count}`;
-  return `Press ${label}`;
+
+  // same wording as the step list, so a long press doesn't read like a tap
+  let text = `Press ${label}`;
+  if (action.hold_ms) text = `Hold ${label} ${(action.hold_ms / 1000).toFixed(1)}s`;
+  if (action.count > 1) text += ` ×${action.count}`;
+  return text;
+}
+
+// what the log says while a step is underway: "Pressing", "Reading" or "Waiting"
+function describeRunning(step: Step): string {
+  if (step.action.type === "read_screen") return "Reading";
+  if (step.action.type === "wait") return "Waiting";
+  return "Pressing";
 }
 
 // what a retry did about it: "Pressed ▲ once more."
@@ -206,7 +217,7 @@ function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | 
 
       if (previous && previous.status === step.status) return null; // no real change
 
-      if (step.status === "running") return { ...about, tone: "info", text: "Pressing" };
+      if (step.status === "running") return { ...about, tone: "info", text: describeRunning(step) };
       if (step.status === "verifying") return { ...about, tone: "info", text: "Reading the screen to check" };
       if (step.status === "succeeded") {
         return {

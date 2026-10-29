@@ -182,7 +182,8 @@ export default function Home() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <JobRequestForm busy={busy} onSubmit={startJob} />
+      {/* the device's sample request: the 80 °F heater job for inkbird-01, the incubator one otherwise */}
+      <JobRequestForm busy={busy} defaultRequest={sampleJob(DEVICE_ID).request} onSubmit={startJob} />
 
       <div className="layout">
         <div className="col-main">

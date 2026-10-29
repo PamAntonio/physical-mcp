@@ -61,6 +61,8 @@ DEFAULT_PRESS_BUDGET = 30
 DEFAULT_MAX_ATTEMPTS = 3
 SECONDS_BETWEEN_READS = 0.5
 FINISHED = ("succeeded", "failed", "stopped")
+# placeholder stills the web app serves itself, e.g. web/public/mock/inkbird-01.svg -> /mock/inkbird-01.svg
+MOCK_FRAMES_DIR = REPO_ROOT / "web" / "public" / "mock"
 
 # Pam: swap in the servo + camera class here
 hardware = FakeHardware()
@@ -378,6 +380,25 @@ def stop_run(run, message):
 # ---- routes ----
 
 
+def frame_url_for(device_id):
+    # a real camera frame wins. FALLBACK until there's a camera: the web app's placeholder
+    # still for this device, or "" (the app shows "No camera frame yet") if there isn't one
+    url = hardware.latest_frame_url(device_id)
+    if url:
+        return url
+    if (MOCK_FRAMES_DIR / f"{device_id}.svg").is_file():
+        return f"/mock/{device_id}.svg"
+    return ""
+
+
+def load_device_with_frame(device_id):
+    """The device from the fixture, with a camera frame the app can actually load.
+    Raises ValueError for an unknown device."""
+    device = planner.load_device(device_id)
+    device["camera"]["latest_frame_url"] = frame_url_for(device_id)
+    return device
+
+
 def get_run(job_id):
     run = runs.get(job_id)
     if run is None:
@@ -398,7 +419,7 @@ async def read_body(http_request):
 @app.get("/devices/{device_id}")
 async def get_device(device_id: str):
     try:
-        return planner.load_device(device_id)
+        return load_device_with_frame(device_id)
     except ValueError as err:
         raise HTTPException(status_code=404, detail=str(err))
 
@@ -412,7 +433,7 @@ async def create_job(http_request: Request):
     if not isinstance(device_id, str) or not isinstance(request_text, str) or not request_text.strip():
         raise HTTPException(status_code=400, detail="need device_id and request")
     try:
-        device = planner.load_device(device_id)
+        device = load_device_with_frame(device_id)
     except ValueError as err:
         raise HTTPException(status_code=404, detail=str(err))
 

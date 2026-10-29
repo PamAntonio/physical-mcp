@@ -38,6 +38,12 @@ class Hardware:
         FakeHardware uses it to know what the screen is supposed to say afterwards."""
         pass
 
+    def latest_frame_url(self, device_id):
+        """URL (or path on this backend) of the newest camera frame, or None with no camera.
+        While it's None, api.py falls back to the web app's placeholder still for the device.
+        The real camera class should override this."""
+        return None
+
 
 class FakeHardware(Hardware):
     """Pretends to press and always reads back exactly what the step expected.
