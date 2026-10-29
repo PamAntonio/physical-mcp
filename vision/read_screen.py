@@ -420,9 +420,10 @@ TIMER_PROMPT = (
     "so \"00:05 00\" means 0 hours, 5 minutes, 0 seconds. "
     "Unlit segments are faintly visible as light grey ghost segments, so every digit has a faint 8 behind it. "
     "Only read the dark, fully lit segments and ignore the ghost ones. "
+    "A 1 lights only the two right-hand segments, the rest of that digit stays ghost. "
     "Reply with one line per row, top to bottom, as HH:MM SS, using only 0-9, \":\" and spaces. "
     "Nothing else, no row labels like T1, no explanation. "
-    "If the display is blank or you can't read it, reply with an empty string."
+    "Always give your best read of the dark segments, never an empty reply."
 )
 
 DEVICE_SETTINGS = {
@@ -501,6 +502,7 @@ def matches_expectation(read_text, text_contains, confidence=None):
 def vote_reads(read_once, settings=None):
     """read_once() -> cleaned text of one read. Reads twice: agree = "high".
     Disagree = a third read, majority wins = "medium". All three differ = "low", first read.
+    An empty winner is always "low": agreeing on "nothing there" isn't a read we can trust.
     Then the sanity check, if the device has one: for the Inkbird a temperature outside
     32-212 °F = "low" whatever the vote said. settings = a DEVICE_SETTINGS entry, default Inkbird.
     Returns {"text", "parsed", "confidence", "reads", "out_of_range"}."""
@@ -519,6 +521,8 @@ def vote_reads(read_once, settings=None):
             text, confidence = reads[1], "medium"
         else:
             text, confidence = reads[0], "low"
+    if normalize_for_compare(text) == "":
+        confidence = "low"  # the model gave up, even if it gave up every time
 
     parsed = settings["parse"](text)
     bad = []

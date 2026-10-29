@@ -135,6 +135,26 @@ def test_vote_all_differ():
     assert matches_expectation(result["text"], "86.8", result["confidence"]) == "UNSURE"
 
 
+def test_vote_empty_is_low():
+    # two empty reads agree, but that's the model giving up, not a read
+    read_once, calls = stub_reader(["", ""])
+    result = vote_reads(read_once)
+    assert len(calls) == 2
+    assert result["confidence"] == "low", result
+    assert result["text"] == ""
+    assert matches_expectation(result["text"], "80", result["confidence"]) == "UNSURE"
+
+    # same on the timer, and when empty wins 2 of 3
+    read_once, calls = stub_reader(["", "00:10 00", ""])
+    result = vote_reads(read_once, DEVICE_SETTINGS["timer-01"])
+    assert len(calls) == 3
+    assert result["confidence"] == "low", result
+
+    # quotes or spaces only count as empty too (clean_reply strips quotes, this is what's left)
+    read_once, calls = stub_reader(["  ", " "])
+    assert vote_reads(read_once)["confidence"] == "low"
+
+
 def test_vote_out_of_range():
     # both reads agree, but 888 °F can't be right
     read_once, calls = stub_reader(["888", "888"])
@@ -388,6 +408,7 @@ def main():
         test_vote_agree,
         test_vote_two_of_three,
         test_vote_all_differ,
+        test_vote_empty_is_low,
         test_vote_out_of_range,
         test_clean_timer_reply,
         test_parse_timer,
