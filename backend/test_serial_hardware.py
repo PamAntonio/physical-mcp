@@ -162,6 +162,41 @@ class SerialHardwareTests(unittest.TestCase):
         rig.press("btn_up", 1)
         self.assertEqual(fake.commands[-1], "PRESS 1 1 250")
 
+    def test_read_screen_detail_keeps_vision_confidence(self):
+        rig, fake = make_rig(PER_BUTTON)
+        commands_before = list(fake.commands)
+        calls = []
+
+        # stand-in for vision/read_screen.py: no camera, no Muse Spark call
+        class FakeVision:
+            @staticmethod
+            def read_screen(path, control_id=None, device_id=None):
+                calls.append(("read_screen", path, control_id, device_id))
+                return {"text": "TS 80.0", "parsed": {"TS": 80.0}, "confidence": "medium", "reads": ["TS 80.0"]}
+
+            @staticmethod
+            def read_indicator(path, control_id=None, device_id=None):
+                calls.append(("read_indicator", path, control_id, device_id))
+                return {"on": True, "brightness": 0.8}
+
+        rig.save_frame = lambda path=None: Path("frame.jpg")
+        saved_module = sys.modules.get("read_screen")
+        sys.modules["read_screen"] = FakeVision
+        try:
+            self.assertEqual(rig.read_screen_detail("screen_pv"), {"text": "TS 80.0", "confidence": "medium"})
+            self.assertEqual(rig.read_screen("screen_pv"), "TS 80.0")  # plain read is unchanged
+            # an LED is a pixel check, no vote, so no confidence
+            self.assertEqual(rig.read_screen_detail("led_heat"), {"text": "ON", "confidence": None})
+        finally:
+            if saved_module is None:
+                sys.modules.pop("read_screen", None)
+            else:
+                sys.modules["read_screen"] = saved_module
+
+        self.assertEqual(calls[0], ("read_screen", "frame.jpg", "screen_pv", "test-device"))
+        self.assertEqual(calls[-1], ("read_indicator", "frame.jpg", "led_heat", "test-device"))
+        self.assertEqual(fake.commands, commands_before, "reading sends nothing to the ESP32")
+
     def test_reboot_mid_press_explains_brownout(self):
         rig, _ = make_rig(PER_BUTTON, reboot_on_press=True)
         with self.assertRaises(RigError) as ctx:

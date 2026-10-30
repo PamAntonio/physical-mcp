@@ -303,6 +303,11 @@ class SerialHardware(Hardware):
         return f"/frames/{path.name}?t={int(time.time() * 1000)}"
 
     def read_screen(self, control_id):
+        return self.read_screen_detail(control_id)["text"]
+
+    def read_screen_detail(self, control_id):
+        """{"text", "confidence"}: confidence is the vision vote ("high" / "medium" / "low").
+        An LED is a pixel check against its baseline, no vote, so its confidence is None."""
         if str(VISION_DIR) not in sys.path:
             sys.path.insert(0, str(VISION_DIR))
         import read_screen as vision  # Bhavisha's vision/read_screen.py
@@ -310,8 +315,9 @@ class SerialHardware(Hardware):
         path = self.save_frame()
         if control_id.startswith("led_"):
             result = vision.read_indicator(str(path), control_id=control_id, device_id=self.device_id)
-            return "ON" if result["on"] else "OFF"
-        return vision.read_screen(str(path), control_id=control_id, device_id=self.device_id)["text"]
+            return {"text": "ON" if result["on"] else "OFF", "confidence": None}
+        result = vision.read_screen(str(path), control_id=control_id, device_id=self.device_id)
+        return {"text": result["text"], "confidence": result.get("confidence")}
 
     def close(self):
         self._closed = True
