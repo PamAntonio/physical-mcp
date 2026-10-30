@@ -90,6 +90,10 @@ else:
 hardware_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="hardware")
 # scores take 9 to 14 s each, so run them side by side
 scoring_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="scoring")
+# the live camera frames get their own thread: the webcam and the ESP32 are separate USB
+# devices, so frames keep coming during a press. SerialHardware's camera lock keeps this
+# thread and read_screen from grabbing the webcam at the same time
+camera_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="camera")
 
 # the MCP tools reach the runs, the hardware and the approval flow through this module
 # (sys.modules, so it's this copy even when api.py runs as a script)
@@ -97,15 +101,15 @@ mcp_server.use_backend(sys.modules[__name__])
 
 async def keep_frames_fresh():
     """Real rig only: save a webcam frame about every FRAME_SECONDS so the web app's camera view
-    is live (it reloads web/public/frames/<device>-latest.jpg). Runs on the same single hardware
-    worker as press and read_screen, so it never runs during one. One save at a time, so during
-    a long hold it waits its turn instead of piling up behind it."""
+    is live (it reloads web/public/frames/<device>-latest.jpg). Runs on its own camera thread,
+    not the hardware worker, so it keeps going during a press. It never touches the serial port,
+    and the camera lock inside SerialHardware keeps it from grabbing while read_screen does."""
     loop = asyncio.get_running_loop()
     last_problem = None
     while True:
         started = loop.time()
         try:
-            await on_hardware(hardware.save_frame)
+            await loop.run_in_executor(camera_pool, hardware.save_frame)
             if last_problem is not None:
                 log("camera frames are coming in again")
                 last_problem = None

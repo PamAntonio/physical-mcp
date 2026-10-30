@@ -15,6 +15,7 @@ import argparse
 import math
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -35,8 +36,14 @@ class FakeCameraHardware(FakeHardware):
         self.device_id = device_id
         self.device = planner.load_device(device_id)
         self.frames_drawn = 0
+        # like SerialHardware: the camera thread and GET /devices can both save a frame
+        self.camera_lock = threading.RLock()
 
     def save_frame(self, path=None):
+        with self.camera_lock:
+            return self.draw_frame(path)
+
+    def draw_frame(self, path=None):
         from PIL import Image, ImageDraw, ImageFont
 
         width = self.device["camera"]["frame_width"]

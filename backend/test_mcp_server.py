@@ -39,6 +39,7 @@ class RecordingHardware(FakeHardware):
         self.finished = []  # the ones that ran to the end
         self.cut_short = []  # the ones stop() interrupted
         self.stops = 0
+        self.frames_saved_at = []
 
     def press(self, control_id, count, hold_ms=None):
         self.started.append((control_id, count, hold_ms))
@@ -53,6 +54,10 @@ class RecordingHardware(FakeHardware):
     def stop(self):
         self.stops += 1
         super().stop()
+
+    def save_frame(self, path=None):
+        # the live camera loop calls this. just note when, there's no camera
+        self.frames_saved_at.append(time.monotonic())
 
 
 def fixture_plan():
@@ -294,6 +299,31 @@ class McpLayerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.step(run, "s1")["status"], "skipped")
         self.assertEqual(self.hardware.finished, [])
         self.assertEqual(self.hardware.stops, 1)
+
+    async def test_live_frames_keep_coming_during_a_press(self):
+        """api.py's frame loop is on its own camera thread, not behind the hardware worker."""
+        self.hardware.hold_scale = 1  # the real 3 s hold on SET
+        run = self.manual_run("s3")  # s3 holds SET for 3 s, no approval needed
+        frames_task = asyncio.create_task(api.keep_frames_fresh())
+        try:
+            await asyncio.sleep(0.6)
+            started = time.monotonic()
+            async with Client(mcp_server.mcp) as client:
+                result = await client.call_tool("press", {
+                    "job_id": "job_test", "step_id": "s3", "control_id": "btn_set", "count": 1, "hold_ms": 3000,
+                })
+            ended = time.monotonic()
+        finally:
+            frames_task.cancel()
+        self.assertFalse(result.is_error, tool_error_text(result))
+        self.assertGreater(ended - started, 2.9)
+        during = 0
+        for moment in self.hardware.frames_saved_at:
+            if started <= moment <= ended:
+                during += 1
+        # one every 0.5 s for 3+ s. stuck behind the press it would be 0
+        self.assertGreaterEqual(during, 4, f"only {during} frames during a 3 s hold")
+        self.assertEqual(run.presses_used, 1)
 
     async def test_retry_self_corrects(self):
         self.hardware = RecordingHardware(undershoot=True)  # one up press goes missing, screen reads 79
