@@ -5,7 +5,9 @@
     python backend/api.py --port 9000
 
     POST /jobs                                  -> Job (status "planning")
+    GET  /jobs                                  -> [{job_id, created_at, status, request}]
     GET  /jobs/:job_id                          -> Job
+    GET  /jobs/:job_id/history                  -> every JobEvent so far (backend/record_run.py)
     POST /jobs/:job_id/steps/:step_id/approval  -> Job
     POST /jobs/:job_id/stop                     -> Job
     GET  /devices/:device_id                    -> Device
@@ -688,9 +690,26 @@ async def create_job(http_request: Request):
     return job
 
 
+@app.get("/jobs")
+async def list_jobs():
+    """Every job this server has seen, oldest first. record_run.py uses it to find the next job."""
+    jobs = []
+    for run in runs.values():
+        job = run.job
+        jobs.append({"job_id": job["job_id"], "created_at": job["created_at"], "status": job["status"], "request": job["request"]})
+    return jobs
+
+
 @app.get("/jobs/{job_id}")
 async def get_job(job_id: str):
     return get_run(job_id).job
+
+
+@app.get("/jobs/{job_id}/history")
+async def job_history(job_id: str):
+    """Every JobEvent the job has sent so far, in order: what the WebSocket sent, from the start.
+    (A socket that connects late only gets live events, this has all of them.)"""
+    return get_run(job_id).events
 
 
 @app.post("/jobs/{job_id}/steps/{step_id}/approval")

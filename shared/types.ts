@@ -20,6 +20,8 @@
 //   POST /jobs/:job_id/stop            immediate stop: servo retracts, job -> "stopped"
 //   GET  /devices/:device_id                                   -> Device (with controls)
 //   WS   /jobs/:job_id/events          stream of JobEvent
+//   GET  /jobs                         -> [{ job_id, created_at, status, request }]  (backend/record_run.py)
+//   GET  /jobs/:job_id/history         -> JobEvent[], everything sent so far (backend/record_run.py)
 
 export type JobStatus =
   | "queued"
