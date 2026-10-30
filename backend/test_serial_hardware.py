@@ -5,6 +5,7 @@ No board, camera or API key needed.  Run from the repo root:
 
 import queue
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -12,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import serial_hardware  # noqa: E402
 from hardware import HardwareStopped  # noqa: E402
 from serial_hardware import NotCalibrated, RigError, SerialHardware  # noqa: E402
 
@@ -202,6 +204,175 @@ class SerialHardwareTests(unittest.TestCase):
         with self.assertRaises(RigError) as ctx:
             rig.press("btn_up", 1)
         self.assertIn("external 5V", str(ctx.exception))
+
+
+class FakeWebcam:
+    """cv2.VideoCapture stand-in. Remembers if two grabs ever overlapped."""
+
+    def __init__(self):
+        self.frames_read = 0
+        self.inside = 0
+        self.overlapped = False
+        self._count_lock = threading.Lock()
+
+    def read(self):
+        with self._count_lock:
+            self.inside += 1
+            if self.inside > 1:
+                self.overlapped = True
+        time.sleep(0.002)  # a real read takes a moment, give an overlap the chance to happen
+        with self._count_lock:
+            self.inside -= 1
+            self.frames_read += 1
+        return True, "frame"
+
+    def release(self):
+        pass
+
+
+class FakeCv2:
+    """Just enough of cv2 for save_frame: imwrite writes a few bytes."""
+
+    @staticmethod
+    def imwrite(path, frame):
+        Path(path).write_bytes(b"not really a jpeg")
+        return True
+
+
+class CameraLoop:
+    """What api.py's live frame loop does, on its own thread: save_frame over and over."""
+
+    def __init__(self, rig, every=0.05):
+        self.rig = rig
+        self.every = every
+        self.saved_at = []
+        self.errors = []
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def _run(self):
+        while not self._stop.is_set():
+            try:
+                self.rig.save_frame()
+                self.saved_at.append(time.monotonic())
+            except Exception as exc:
+                self.errors.append(exc)
+            self._stop.wait(self.every)
+
+    def __enter__(self):
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc_info):
+        self._stop.set()
+        self._thread.join(timeout=5)
+
+    def saves_between(self, start, end):
+        count = 0
+        for moment in self.saved_at:
+            if start <= moment <= end:
+                count += 1
+        return count
+
+
+class CameraWithPressTests(unittest.TestCase):
+    """The webcam and the ESP32 are separate: frames keep coming during a press."""
+
+    def setUp(self):
+        global SPEED
+        SPEED = 1.0  # real-time holds, so a 3 s hold really takes 3 s
+        self.folder = tempfile.TemporaryDirectory()
+        self.saved_frames_dir = serial_hardware.FRAMES_DIR
+        serial_hardware.FRAMES_DIR = Path(self.folder.name)
+        self.saved_cv2 = sys.modules.get("cv2")
+        sys.modules["cv2"] = FakeCv2
+        self.rig, self.fake = make_rig(PER_BUTTON)
+        self.webcam = FakeWebcam()
+        self.rig._camera = self.webcam  # already "open", so _grab never calls VideoCapture
+
+    def tearDown(self):
+        global SPEED
+        SPEED = 0.01
+        serial_hardware.FRAMES_DIR = self.saved_frames_dir
+        if self.saved_cv2 is None:
+            sys.modules.pop("cv2", None)
+        else:
+            sys.modules["cv2"] = self.saved_cv2
+        self.folder.cleanup()
+
+    def test_frames_keep_coming_during_a_3s_press(self):
+        with CameraLoop(self.rig) as loop:
+            time.sleep(0.2)
+            started = time.monotonic()
+            self.rig.press("btn_set", 1, 3000)
+            ended = time.monotonic()
+        self.assertGreater(ended - started, 2.9, "the hold should really take 3 s here")
+        during = loop.saves_between(started, ended)
+        # every 0.05 s for 3 s is ~50 saves. a loop stuck behind the press would get 0 or 1
+        self.assertGreaterEqual(during, 20, f"only {during} frames saved during the hold")
+        self.assertEqual(loop.errors, [])
+        self.assertEqual(self.fake.commands[-2:], ["CAL 0 90 65", "PRESS 0 1 3000"])
+        for command in self.fake.commands:
+            self.assertFalse(command.startswith(("FRAME", "CAM")), "the camera never talks to the ESP32")
+
+    def test_stop_mid_hold_is_fast_with_the_camera_running(self):
+        errors = []
+
+        def hold():
+            try:
+                self.rig.press("btn_set", 1, 3000)
+            except HardwareStopped as exc:
+                errors.append(exc)
+
+        with CameraLoop(self.rig) as loop:
+            worker = threading.Thread(target=hold)
+            worker.start()
+            time.sleep(0.3)
+            stop_started = time.monotonic()
+            self.rig.stop()
+            stop_took = time.monotonic() - stop_started
+            worker.join(timeout=5)
+            saves_after_stop = len(loop.saved_at)
+            time.sleep(0.2)
+            self.assertGreater(len(loop.saved_at), saves_after_stop, "frames keep coming after a stop")
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(len(errors), 1)
+        self.assertLess(stop_took, 0.2, "stop() mustn't wait on the camera")
+        self.assertLess(time.monotonic() - stop_started, 1.5)
+        self.assertIn("REST", self.fake.commands)
+
+    def test_live_loop_and_read_screen_never_grab_at_once(self):
+        class FakeVision:
+            @staticmethod
+            def read_screen(path, control_id=None, device_id=None):
+                return {"text": "TS 80.0", "confidence": "high"}
+
+            @staticmethod
+            def read_indicator(path, control_id=None, device_id=None):
+                return {"on": False}
+
+        saved_vision = sys.modules.get("read_screen")
+        sys.modules["read_screen"] = FakeVision
+        reads = []
+        try:
+            with CameraLoop(self.rig, every=0.0) as loop:  # as fast as it can go
+                for _ in range(30):
+                    reads.append(self.rig.read_screen_detail("screen_pv"))
+                    reads.append(self.rig.read_screen_detail("led_heat"))
+        finally:
+            if saved_vision is None:
+                sys.modules.pop("read_screen", None)
+            else:
+                sys.modules["read_screen"] = saved_vision
+
+        self.assertEqual(len(reads), 60)
+        self.assertGreater(len(loop.saved_at), 5, "the loop ran alongside the reads")
+        self.assertFalse(self.webcam.overlapped, "two grabs hit the webcam at the same time")
+        self.assertEqual(loop.errors, [])
+        # read_screen grabs into its own file, the loop keeps -latest.jpg
+        self.assertTrue((serial_hardware.FRAMES_DIR / "test-device-read.jpg").is_file())
+        self.assertTrue((serial_hardware.FRAMES_DIR / "test-device-latest.jpg").is_file())
 
 
 if __name__ == "__main__":

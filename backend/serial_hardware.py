@@ -18,7 +18,8 @@ Two rig layouts are supported, per control:
         (those are the defaults if "rig" is missing)
 
 Camera frames are written to web/public/frames/<device_id>-latest.jpg so the Next.js
-dev server can show them, and read_screen() hands the same frame to vision/read_screen.py.
+dev server can show them. read_screen() grabs its own frame into <device_id>-read.jpg and
+hands that to vision/read_screen.py. Every webcam grab goes through one camera lock.
 
 Env:
     SERIAL_PORT     e.g. /dev/cu.usbserial-0001 (default: auto-detect the ESP32)
@@ -97,7 +98,10 @@ class SerialHardware(Hardware):
         self.camera_index = camera_index
         self.camera_size = camera_size
         self._camera = None
-        self._camera_lock = threading.Lock()
+        # the one camera lock: every webcam grab and frame-file write holds it (the live frame
+        # loop, read_screen, save_frame). press and stop never take it, the camera and the
+        # ESP32 are separate USB devices. RLock because save_frame holds it around _grab
+        self._camera_lock = threading.RLock()
         self._write_lock = threading.Lock()
         self._lines = queue.Queue()
         self._stop_flag = threading.Event()
@@ -288,10 +292,12 @@ class SerialHardware(Hardware):
 
         FRAMES_DIR.mkdir(parents=True, exist_ok=True)
         path = Path(path) if path else FRAMES_DIR / f"{self.device_id}-latest.jpg"
-        frame = self._grab()
-        tmp = path.with_name(path.stem + ".tmp.jpg")
-        cv2.imwrite(str(tmp), frame)
-        os.replace(tmp, path)  # the web app never sees a half-written file
+        # grab and write under the camera lock, so two savers never share the .tmp file
+        with self._camera_lock:
+            frame = self._grab()
+            tmp = path.with_name(path.stem + ".tmp.jpg")
+            cv2.imwrite(str(tmp), frame)
+            os.replace(tmp, path)  # the web app never sees a half-written file
         return path
 
     def latest_frame_url(self, device_id):
@@ -312,7 +318,9 @@ class SerialHardware(Hardware):
             sys.path.insert(0, str(VISION_DIR))
         import read_screen as vision  # Bhavisha's vision/read_screen.py
 
-        path = self.save_frame()
+        # its own file, not -latest.jpg: the live frame loop keeps replacing that one, and on
+        # Windows the swap fails while vision has it open
+        path = self.save_frame(FRAMES_DIR / f"{self.device_id}-read.jpg")
         if control_id.startswith("led_"):
             result = vision.read_indicator(str(path), control_id=control_id, device_id=self.device_id)
             return {"text": "ON" if result["on"] else "OFF", "confidence": None}
@@ -353,7 +361,7 @@ def main(argv=None):
         rig.camera_index = int(os.environ.get("CAMERA_INDEX", "0"))
         rig.camera_size = (int(os.environ.get("CAMERA_WIDTH", "2560")),
                            int(os.environ.get("CAMERA_HEIGHT", "1440")))
-        rig._camera, rig._camera_lock = None, threading.Lock()
+        rig._camera, rig._camera_lock = None, threading.RLock()  # same lock as __init__
         print(rig.save_frame(args.out) if args.cmd == "frame" else rig.read_screen(args.control_id))
         return 0
 

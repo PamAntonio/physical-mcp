@@ -4,31 +4,115 @@
 // bbox is [x, y, width, height] in camera pixels (1280x720 for the incubator), so each box
 // is placed as a % of the frame size. The frame and the boxes scale together at any width,
 // while labels keep a normal font size so they're still readable on a phone.
+//
+// Live: on the real rig the backend keeps overwriting web/public/frames/<device>-latest.jpg,
+// so while `live` is on we reload it about every 0.5 s with a fresh ?t= so the browser
+// doesn't hand back a cached copy. Each new frame loads off-screen first and only gets shown
+// once it's fully loaded, so there's no flicker and no half-drawn or broken frame.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Control, Device, Step } from "@contract/types";
+
+const REFRESH_MS = 500;
 
 interface Props {
   device: Device;
   currentStep: Step | null;
   frameSrc: string | null;
+  // keep reloading the frame (a job is running, or no job yet). off = show the last frame
+  live: boolean;
   // mock frames are a still image, so we paint what the screen "says" on top. null = don't
   screenOverlay: string | null;
   selectedControlId: string | null; // picked in the step list
 }
 
-export default function CameraView({ device, currentStep, frameSrc, screenOverlay, selectedControlId }: Props) {
-  const [showBoxes, setShowBoxes] = useState(true);
-  const [frameBroken, setFrameBroken] = useState(false);
+// mock frames never change: data: urls (the in-browser mock) and the /mock/ placeholder stills.
+// reloading those is pointless, and a ?t= on a data: url would break it
+function isLiveCamera(url: string): boolean {
+  return !url.startsWith("data:") && !url.includes("/mock/");
+}
 
-  // new frame url, give it another chance to load
+function withFreshTimestamp(url: string): string {
+  const fresh = new URL(url, window.location.href);
+  fresh.searchParams.set("t", String(Date.now()));
+  return fresh.toString();
+}
+
+// The frame to show: the last one that fully loaded, or null if none ever has.
+function useLiveFrame(frameSrc: string | null, live: boolean, frameWidth: number, frameHeight: number) {
+  const [shownSrc, setShownSrc] = useState<string | null>(null);
+  const shownRef = useRef<string | null>(null); // same thing, readable inside the effect
+  shownRef.current = shownSrc;
+  const warnedAboutSize = useRef(false);
+
   useEffect(() => {
-    setFrameBroken(false);
-  }, [frameSrc]);
+    if (!frameSrc) return;
+    const src = frameSrc;
+    // job's over: keep the frame we have. reloading frameSrc would jump back to the old one
+    if (!live && isLiveCamera(src) && shownRef.current) return;
+    const keepRefreshing = live && isLiveCamera(src);
+    let cancelled = false;
+    let timer: number | undefined;
+    let loader: HTMLImageElement | null = null;
+
+    function next() {
+      if (cancelled || !keepRefreshing) return;
+      timer = window.setTimeout(() => load(withFreshTimestamp(src)), REFRESH_MS);
+    }
+
+    function load(url: string) {
+      const image = new Image();
+      loader = image;
+      image.onload = () => {
+        if (cancelled) return;
+        // boxes are placed in device.camera pixels, so a frame with another shape won't line up
+        const ratioOff = Math.abs(image.naturalWidth / image.naturalHeight - frameWidth / frameHeight);
+        if (ratioOff > 0.02 && !warnedAboutSize.current) {
+          warnedAboutSize.current = true;
+          console.warn(
+            `camera frame is ${image.naturalWidth}x${image.naturalHeight} but the device says ` +
+              `${frameWidth}x${frameHeight}, so the control boxes won't line up`,
+          );
+        }
+        // decode before swapping so the new frame paints in one go
+        image
+          .decode()
+          .catch(() => {})
+          .then(() => {
+            if (cancelled) return;
+            setShownSrc(url);
+            next();
+          });
+      };
+      // a bad frame (half-written file, camera hiccup): keep the last good one, try again next tick
+      image.onerror = () => next();
+      image.src = url;
+    }
+
+    load(src);
+
+    // job finished, new url, or unmounted: stop the timer and drop any load in flight
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      if (loader) {
+        loader.onload = null;
+        loader.onerror = null;
+        loader.src = "";
+      }
+    };
+  }, [frameSrc, live, frameWidth, frameHeight]);
+
+  return shownSrc;
+}
+
+export default function CameraView({ device, currentStep, frameSrc, live, screenOverlay, selectedControlId }: Props) {
+  const [showBoxes, setShowBoxes] = useState(true);
 
   const frameWidth = device.camera.frame_width;
   const frameHeight = device.camera.frame_height;
-  const hasFrame = frameSrc !== null && !frameBroken;
+  const shownSrc = useLiveFrame(frameSrc, live, frameWidth, frameHeight);
+  const hasFrame = shownSrc !== null;
 
   // which control is the current step about to press (or read)?
   let targetId: string | null = null;
@@ -67,12 +151,7 @@ export default function CameraView({ device, currentStep, frameSrc, screenOverla
       <div className="camera-frame" style={{ aspectRatio: `${frameWidth} / ${frameHeight}` }}>
         {hasFrame ? (
           // eslint-disable-next-line @next/next/no-img-element -- frames come from the backend at runtime
-          <img
-            src={frameSrc!}
-            alt={`Camera view of ${device.name}`}
-            className="camera-img"
-            onError={() => setFrameBroken(true)}
-          />
+          <img src={shownSrc} alt={`Camera view of ${device.name}`} className="camera-img" />
         ) : (
           <div className="camera-empty">No camera frame yet</div>
         )}
