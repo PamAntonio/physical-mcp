@@ -32,6 +32,12 @@ class Hardware:
         For an indicator light, return "ON" or "OFF"."""
         raise NotImplementedError
 
+    def read_screen_detail(self, control_id):
+        """read_screen plus how sure the read is: {"text", "confidence"}. confidence is the
+        vision vote ("high" / "medium" / "low"), or None when this hardware doesn't report one.
+        The MCP read_screen tool calls this. Override it to pass the vision confidence through."""
+        return {"text": self.read_screen(control_id), "confidence": None}
+
     def stop(self):
         """Retract the finger now. Called from another thread, see the note at the top."""
         raise NotImplementedError
