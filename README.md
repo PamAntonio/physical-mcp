@@ -54,6 +54,7 @@ More detail (mock flags, env vars, where each file lives) is in `web/README.md`.
 ## Safety rules for the approval layer
 - If the scorer fails for any reason (no key, timeout, bad reply) the step is marked high. It never falls back to low
 - The scorer only adds a tier and a reason. It can't turn approval off for a step that needs it
+- A step that turns something on (the Inkbird's heating outlet, an incubator's START) always needs a press-and-hold, whatever the tier. The backend refuses a tap for it
 - Reject stops the job before the risky press happens
 ## Team
 - **Pam** ([@PamAntonio](https://github.com/PamAntonio)): MCP server, servo hardware, Muse Spark orchestration, backend

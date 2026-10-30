@@ -135,6 +135,7 @@
         "expect": { "control_id": "screen_main", "text_contains": "RUN" },
         "requires_approval": true,
         "approval_reason": "Starts the machine: changes its physical state",
+        "turns_on_output": true,
         "status": "awaiting_approval",
         "attempts": 0,
         "started_at": null,

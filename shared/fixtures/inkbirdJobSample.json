@@ -37,6 +37,7 @@
         "expect": { "control_id": "screen_pv", "text_contains": "TS" },
         "requires_approval": true,
         "approval_reason": "This plan will turn on the heating outlet: SV 80 °F is above PV 72 °F",
+        "turns_on_output": true,
         "status": "awaiting_approval",
         "attempts": 0,
         "started_at": null,

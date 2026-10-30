@@ -17,7 +17,7 @@
     "btn_down": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
     "btn_enter": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
     "btn_timer": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
-    "btn_start": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_start": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null, "turns_on_output": true },
     "screen_main": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null }
   }
 }

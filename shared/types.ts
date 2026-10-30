@@ -113,6 +113,10 @@ export interface Step {
   expect: Expectation;
   requires_approval: boolean;
   approval_reason?: string;
+  // the step switches something on (the Inkbird's heating outlet, an incubator's START).
+  // Its approval is always a press-and-hold, whatever risk_tier says, and it always has
+  // requires_approval. The backend refuses a tap approval for it. Missing = false
+  turns_on_output?: boolean;
   // PROPOSED, not locked with Pam yet. Filled in before a step is shown for approval.
   // The scorer only adds these; it never changes requires_approval.
   risk_tier?: RiskTier;

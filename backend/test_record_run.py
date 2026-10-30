@@ -109,7 +109,7 @@ class RecordRunTests(unittest.TestCase):
         job_id = job["job_id"]
         self.wait_for_status(job_id, ("awaiting_approval",))
         time.sleep(1.2)  # a couple of frames while the card is up
-        post_json(f"{self.backend}/jobs/{job_id}/steps/s1/approval", {"decision": "approve"})
+        post_json(f"{self.backend}/jobs/{job_id}/steps/s1/approval", {"decision": "approve", "approval_type": "hold"})
         self.wait_for_status(job_id, ("succeeded", "failed", "stopped"))
         recorder.join(timeout=20)
         self.assertFalse(recorder.is_alive(), "the recorder should stop by itself when the job finishes")

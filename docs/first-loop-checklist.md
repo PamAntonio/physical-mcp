@@ -33,41 +33,43 @@ set -a; source .env; set +a
 
 ## 2. Bench checks, in this order
 
+**Servo angles first.** Every angle in `backend/devices/inkbird-01.json` is still `null`, so
+every press fails until they're filled in. Find them with `angle` (see `firmware/README.md`),
+then write `servo` + `rest_deg` + `press_deg` (or the `pan_deg` / `tilt_*` set) for `btn_set`,
+`btn_up`, `btn_down`.
+
 ```bash
 .venv/bin/python backend/serial_hardware.py ping                # expect: PONG: the ESP32 is answering
+.venv/bin/python backend/serial_hardware.py angle 0 90          # step down until the button just clicks
 .venv/bin/python backend/serial_hardware.py frame               # saves web/public/frames/inkbird-01-latest.jpg
 open web/public/frames/inkbird-01-latest.jpg                    # is it the Inkbird, sharp, whole panel in view?
-```
-
-**Servo angles.** Every angle in `backend/devices/inkbird-01.json` is still `null`, so presses
-fail until they're filled in. Find them with `angle` (see `firmware/README.md`), then write
-`servo` + `rest_deg` + `press_deg` (or the `pan_deg` / `tilt_*` set) for `btn_set`, `btn_up`,
-`btn_down`:
-
-```bash
-.venv/bin/python backend/serial_hardware.py angle 0 90          # step down until the button just clicks
-```
-
-**Vision boxes.** `vision/calibration/inkbird-01.boxes.json` still has the placeholder's boxes,
-so screen reads would look in the wrong place. Calibrate on the rig frame you just saved. It
-asks SAM, then you press Enter to keep each box or type `x,y,w,h`. Say `y` to "all LEDs OFF"
-only if HEAT and COOL are both dark right now.
-
-```bash
-.venv/bin/python vision/read_screen.py web/public/frames/inkbird-01-latest.jpg --calibrate inkbird-01 --draw
-open web/public/frames/inkbird-01-latest.calibration.png        # boxes on PV, SV, SET, up, down, both LEDs?
-```
-
-(Optional, for later: `.venv/bin/python backend/calibrate.py --reference web/public/frames/inkbird-01-latest.jpg inkbird-01`
-saves the panel corners, so if the camera moves you can re-fit all the boxes with 4 clicks.)
-
-Then press and read:
-
-```bash
 .venv/bin/python backend/serial_hardware.py press btn_set --hold 3000   # PV should show TS (set-point menu)
 # don't touch anything for 10 s: the menu closes on its own without saving
-.venv/bin/python backend/serial_hardware.py read screen_pv              # should print what PV shows, e.g. 72.0
 ```
+
+**Two frames for Bhavi (the vision boxes).** The Inkbird's boxes in
+`vision/calibration/inkbird-01.boxes.json` are still the placeholder drawing's, so screen
+reads look in the wrong place, and they can't be fixed from your side. Take two frames and send
+them to Bhavi:
+
+```bash
+# 1. webcam pointed straight at the Inkbird, whole panel in view
+.venv/bin/python backend/serial_hardware.py frame --out ~/Desktop/inkbird-straight.jpg
+# 2. webcam back on the rig mount, exactly where it stays tonight, HEAT and COOL both dark
+.venv/bin/python backend/serial_hardware.py frame --out ~/Desktop/inkbird-rig.jpg
+```
+
+Bhavi makes the boxes and the LED-off baselines from these (the baselines need the right boxes,
+so they come from the rig frame too) and pushes them. **Don't move the camera after frame 2.**
+When Bhavi says it's pushed:
+
+```bash
+git pull
+.venv/bin/python backend/serial_hardware.py read screen_pv      # should print what PV shows, e.g. 72.0
+```
+
+(Don't run `read_screen.py --calibrate` after the pull: it offers SAM's guesses for every box,
+and Enter would write them over Bhavi's.)
 
 ## 3. Start everything (3 terminals)
 
@@ -95,8 +97,9 @@ NEXT_PUBLIC_USE_MOCK=false NEXT_PUBLIC_BACKEND_URL=http://localhost:8000 npm run
 Type `Set the heater to turn on at 80 F`, hit **Run job**. What should happen:
 
 - [ ] The plan shows up in about 10 s, something like: enter menu, up to 80, save, check HEAT
-- [ ] Step 1 (hold SET) stops at an approval card. If the risk score isn't in yet or comes back
-      high, it's **press and hold 1.5 s**. Medium/low is a normal tap
+- [ ] Step 1 (hold SET, the one that turns the heater on) stops at an approval card. It's
+      always **press and hold 1.5 s**, whatever the risk tier says: anything that turns
+      something on is a hold. A tap won't do it
 - [ ] The finger doesn't move until you approve
 - [ ] The camera view keeps moving during every press, including the 3 s SET holds
 - [ ] After each press the screen gets read and the step turns green ("verified")
@@ -140,4 +143,4 @@ The web app stays as it is. For B-roll, film single presses from the bench:
 | `press refused` / `Planning failed` mentioning `hold_ms` (e.g. `needs a hold of 3000 ms but hold_ms is ...`) | Make the hold match in `backend/devices/inkbird-01.json`: `btn_set.hold_ms` and `timed_menu.hold_ms` (same number), restart `api.py` |
 | `Can't open camera 0`, or the frame shows your face | `CAMERA_INDEX=1` (then 2) in `.env`, `source` it again, re-run `frame`. Also System Settings > Privacy & Security > Camera: allow Terminal |
 | `'btn_set' has no servo position yet` | Fill in its angles in `inkbird-01.json` (section 2) |
-| A step fails with `Expected 'TS' on screen_pv, read '...'` | Open `web/public/frames/inkbird-01-read.jpg`. Box in the wrong place: redo the vision calibration (section 2) |
+| A step fails with `Expected 'TS' on screen_pv, read '...'` | Open `web/public/frames/inkbird-01-read.jpg`. Did the camera move since the rig frame? Send it to Bhavi, who fixes the boxes |

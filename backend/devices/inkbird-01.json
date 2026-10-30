@@ -10,7 +10,7 @@
     "Hold SET for 3 s again to save and exit the menu.",
     "If no button is pressed for 10 s the menu exits WITHOUT saving, so nothing that waits (wait steps, approvals) may sit inside the menu.",
     "When the set point is above the current temperature, the heating outlet turns on and led_heat lights.",
-    "Approval: if the plan will turn on the heating outlet, the FIRST step (entering the menu) gets requires_approval with a reason; never require approval for a step inside the menu."
+    "Approval: if the plan will turn on the heating outlet, the FIRST step (entering the menu) gets requires_approval and turns_on_output true, with a reason; never require approval for a step inside the menu."
   ],
   "timed_menu": {
     "enter_control_id": "btn_set",

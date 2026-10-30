@@ -721,6 +721,18 @@ async def decide(job_id: str, step_id: str, http_request: Request):
         raise HTTPException(status_code=400, detail='decision must be "approve" or "reject"')
     if run.decision is None or run.decision.done() or run.waiting_step_id != step_id:
         raise HTTPException(status_code=409, detail=f"step {step_id} isn't waiting for approval")
+    # a step that switches something on needs a press-and-hold, not a tap, whatever its risk
+    # tier. the web app knows (it reads turns_on_output), this is so nothing else can skip it
+    waiting_step = None
+    for step in (run.job.get("plan") or {}).get("steps") or []:
+        if step["step_id"] == step_id:
+            waiting_step = step
+    if (decision == "approve" and waiting_step is not None and waiting_step.get("turns_on_output")
+            and body.get("approval_type") != "hold"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"step {step_id} turns something on: approve it with a press-and-hold (approval_type \"hold\")",
+        )
 
     what = decision
     if decision == "reject":

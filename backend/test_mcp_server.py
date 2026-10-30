@@ -60,9 +60,10 @@ class RecordingHardware(FakeHardware):
         self.frames_saved_at.append(time.monotonic())
 
 
-def fixture_plan():
+def fixture_plan(turns_on_output=True):
     """The Inkbird fixture's steps, built the same way make_plan builds Muse Spark's reply:
-    s1 hold SET (needs approval), s2 up x5 to 80, s3 hold SET to save, s4 check the HEAT light."""
+    s1 hold SET (needs approval, turns the heater on), s2 up x5 to 80, s3 hold SET to save,
+    s4 check the HEAT light. turns_on_output=False drops that mark, to test a plain approval."""
     fixture = json.loads((REPO_ROOT / "shared" / "fixtures" / "inkbirdJobSample.json").read_text(encoding="utf-8"))
     raw = {"summary": fixture["plan"]["summary"], "steps": []}
     for step in fixture["plan"]["steps"]:
@@ -74,6 +75,8 @@ def fixture_plan():
         }
         if step.get("approval_reason"):
             raw_step["approval_reason"] = step["approval_reason"]
+        if turns_on_output and step.get("turns_on_output"):
+            raw_step["turns_on_output"] = True
         raw["steps"].append(raw_step)
     device = planner.load_device("inkbird-01")
     profile = planner.load_profile("inkbird-01")
@@ -85,6 +88,16 @@ def fixture_plan():
 def stub_score(job, step):
     time.sleep(0.05)  # a real score takes 9 to 14 s and never beats the card
     return {"risk_tier": "high", "risk_reason": "test score", "risk_scored_by": "test"}, {}
+
+
+def scored(tier):
+    """A stub scorer that always says `tier`."""
+
+    def score(job, step):
+        time.sleep(0.05)
+        return {"risk_tier": tier, "risk_reason": f"test score, {tier}", "risk_scored_by": "test"}, {}
+
+    return score
 
 
 class FakeRequest:
@@ -186,7 +199,7 @@ class McpLayerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.step(run, "s1")["status"], "awaiting_approval")
         self.assertEqual(self.hardware.started, [])
 
-        await self.decide(run, {"decision": "approve"})
+        await self.decide(run, {"decision": "approve", "approval_type": "hold"})
         await self.wait_for_finish(run)
 
         self.assertEqual(run.job["status"], "succeeded", run.job["result"])
@@ -284,7 +297,7 @@ class McpLayerTests(unittest.IsolatedAsyncioTestCase):
         self.hardware.hold_scale = 1  # the real 3 s hold on SET
         run = await self.start_job()
         await self.wait_for_card(run)
-        await self.decide(run, {"decision": "approve"})
+        await self.decide(run, {"decision": "approve", "approval_type": "hold"})
         await self.wait_until(lambda: len(self.hardware.started) == 1)
 
         started = time.monotonic()
@@ -325,12 +338,90 @@ class McpLayerTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(during, 4, f"only {during} frames during a 3 s hold")
         self.assertEqual(run.presses_used, 1)
 
+    async def wait_for_score(self, run, step_id="s1"):
+        await self.wait_until(lambda: self.step(run, step_id).get("risk_tier") is not None)
+
+    async def test_heater_step_needs_a_hold_whatever_the_tier(self):
+        """The 80 F job's first step turns the heating outlet on: a hold even when scored medium or low."""
+        from fastapi import HTTPException
+
+        for tier in ("medium", "low"):
+            with self.subTest(tier=tier):
+                self.hardware = RecordingHardware()
+                api.hardware = self.hardware
+                api.scorer.score_step_with_raw = scored(tier)
+                run = await self.start_job()
+                await self.wait_for_card(run)
+                await self.wait_for_score(run)
+                first = self.step(run, "s1")
+                self.assertEqual(first["risk_tier"], tier)
+                # the score only added a tier, the approval and the output mark are untouched
+                self.assertIs(first["requires_approval"], True)
+                self.assertIs(first["turns_on_output"], True)
+
+                # a tap is refused, nothing moves, the card stays up
+                with self.assertRaises(HTTPException) as refused:
+                    await self.decide(run, {"decision": "approve", "approval_type": "tap"})
+                self.assertEqual(refused.exception.status_code, 400)
+                self.assertIn("press-and-hold", refused.exception.detail)
+                with self.assertRaises(HTTPException):
+                    await self.decide(run, {"decision": "approve"})  # no approval_type at all
+                self.assertEqual(run.waiting_step_id, "s1")
+                self.assertEqual(self.hardware.started, [])
+
+                # a hold goes through
+                await self.decide(run, {"decision": "approve", "approval_type": "hold"})
+                await self.wait_for_finish(run)
+                self.assertEqual(run.job["status"], "succeeded", run.job["result"])
+
+    async def test_step_that_turns_nothing_on_follows_the_tier(self):
+        api.make_plan = lambda device_id, request: fixture_plan(turns_on_output=False)
+        api.scorer.score_step_with_raw = scored("low")
+        run = await self.start_job()
+        await self.wait_for_card(run)
+        await self.wait_for_score(run)
+        first = self.step(run, "s1")
+        self.assertNotIn("turns_on_output", first)
+        self.assertIs(first["requires_approval"], True)
+        # low risk, nothing switched on: a normal tap is fine
+        await self.decide(run, {"decision": "approve", "approval_type": "tap"})
+        await self.wait_for_finish(run)
+        self.assertEqual(run.job["status"], "succeeded", run.job["result"])
+
+    def test_planner_marks_outputs(self):
+        # the profile marks the incubator's START: the plan gets the mark and an approval even
+        # though the model said no approval
+        device = planner.load_device("incubator-01")
+        profile = planner.load_profile("incubator-01")
+        start = {"intent": "Start the run", "action": {"type": "press", "control_id": "btn_start", "count": 1},
+                 "expect": {"control_id": "screen_main", "text_contains": "RUN"}, "requires_approval": False}
+        plan, errors = planner.validate_and_build_plan({"summary": "start", "steps": [start]}, device, profile)
+        self.assertEqual(errors, [])
+        self.assertIs(plan["steps"][0]["turns_on_output"], True)
+        self.assertIs(plan["steps"][0]["requires_approval"], True)
+
+        # a non-boolean mark is refused
+        bad = dict(start, turns_on_output="yes")
+        _, errors = planner.validate_and_build_plan({"summary": "start", "steps": [bad]}, device, profile)
+        self.assertTrue(any("turns_on_output" in error for error in errors), errors)
+
+        # and it can't sit inside the Inkbird's timed menu (that would mean waiting in the menu)
+        fixture = fixture_plan()
+        raw_steps = []
+        for step in fixture["steps"]:
+            raw_steps.append({"intent": step["intent"], "action": step["action"], "expect": step["expect"],
+                              "requires_approval": step["requires_approval"]})
+        raw_steps[1]["turns_on_output"] = True  # s2, the up presses inside the menu
+        _, errors = planner.validate_and_build_plan(
+            {"summary": "x", "steps": raw_steps}, planner.load_device("inkbird-01"), planner.load_profile("inkbird-01"))
+        self.assertTrue(any("inside a timed menu" in error for error in errors), errors)
+
     async def test_retry_self_corrects(self):
         self.hardware = RecordingHardware(undershoot=True)  # one up press goes missing, screen reads 79
         api.hardware = self.hardware
         run = await self.start_job()
         await self.wait_for_card(run)
-        await self.decide(run, {"decision": "approve"})
+        await self.decide(run, {"decision": "approve", "approval_type": "hold"})
         await self.wait_for_finish(run)
 
         self.assertEqual(run.job["status"], "succeeded", run.job["result"])

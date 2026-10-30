@@ -108,6 +108,12 @@ def is_risky(control, profile):
     return bool(isinstance(entry, dict) and entry.get("risky"))
 
 
+def control_turns_on_output(control_id, profile):
+    """The profile marks this control as switching something on (e.g. an incubator's START)."""
+    entry = profile_controls(profile).get(control_id)
+    return bool(isinstance(entry, dict) and entry.get("turns_on_output"))
+
+
 def required_hold_ms(control_id, profile):
     entry = profile_controls(profile).get(control_id)
     if isinstance(entry, dict):
@@ -134,6 +140,8 @@ def reachable_device(device, profile):
                 merged["hold_ms"] = entry["hold_ms"]
             if entry.get("risky"):
                 merged["risky"] = True
+            if entry.get("turns_on_output"):
+                merged["turns_on_output"] = True
         annotated.append(merged)
     filtered["controls"] = annotated
     return filtered
@@ -192,13 +200,18 @@ def build_messages(device, profile, request):
         '      "expect": {"control_id": "<screen control_id>", "text_contains": "<text the screen must contain afterwards>"}\n'
         '                | {"control_id": "<indicator control_id>", "text_contains": "", "indicator_on": true},\n'
         '      "requires_approval": true | false,\n'
-        '      "approval_reason": "<reason; include only when requires_approval is true>"\n'
+        '      "approval_reason": "<reason; include only when requires_approval is true>",\n'
+        '      "turns_on_output": true | false\n'
         "    }\n"
         "  ]\n"
         "}\n"
         "hold_ms on a press is optional; include it only for a long press. "
+        "Set turns_on_output to true on the step that makes the machine switch an "
+        "output on (a heater, a motor, a pump), as the device notes describe, or "
+        "that presses a control marked turns_on_output; that step also needs "
+        "requires_approval true. Every other step has turns_on_output false. "
         "Use only the planning fields above (intent, action, expect, "
-        "requires_approval, approval_reason). Do not include runtime fields such "
+        "requires_approval, approval_reason, turns_on_output). Do not include runtime fields such "
         "as step_id, index, status, attempts, timestamps, evidence, or error."
     )
     return [
@@ -392,6 +405,19 @@ def validate_and_build_plan(raw, device, profile=None):
             errors.append(f"{label}: 'requires_approval' must be a boolean")
             requires_approval = False
 
+        # A step that switches an output on (heater, motor...) always waits for a human, and
+        # that approval is a press-and-hold whatever the risk score says. The plan can mark
+        # it (per the device notes) or the profile can, per control. Either one only ever adds
+        # an approval, never takes one away.
+        turns_on_output = raw_step.get("turns_on_output", False)
+        if not isinstance(turns_on_output, bool):
+            errors.append(f"{label}: 'turns_on_output' must be a boolean")
+            turns_on_output = False
+        if action_type == "press" and control_turns_on_output(action.get("control_id"), profile):
+            turns_on_output = True
+        if turns_on_output:
+            requires_approval = True
+
         # Any step that presses a risky control must require approval.
         if action_type == "press":
             control = controls.get(action.get("control_id"))
@@ -432,6 +458,8 @@ def validate_and_build_plan(raw, device, profile=None):
         approval_reason = raw_step.get("approval_reason")
         if isinstance(approval_reason, str) and approval_reason.strip():
             step["approval_reason"] = approval_reason
+        if turns_on_output:
+            step["turns_on_output"] = True
         step.update(
             {
                 "status": "pending",
