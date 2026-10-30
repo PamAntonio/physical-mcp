@@ -1,5 +1,5 @@
 {
-  "_comment": "PLACEHOLDER: Inkbird ITC-308 (non-WiFi) is on order and not here yet. Values below are from the manual/datasheet and must be confirmed when the device arrives.",
+  "_comment": "Inkbird ITC-308 (non-WiFi) arrived Oct 29. Menu behaviour is from the manual; step size and every servo angle are still to be confirmed on the rig. Per control, fill in either servo + rest_deg + press_deg (one servo per button) or pan_deg + tilt_up_deg + tilt_press_deg (one finger on pan/tilt, channels in an optional \"rig\" block). backend/serial_hardware.py reads these.",
   "device_id": "inkbird-01",
   "current_screen": "PV 72.0 SV 75.0",
   "step_size": 1.0,
