@@ -191,6 +191,7 @@ export default function Home() {
             device={device}
             currentStep={currentStep}
             frameSrc={frameSrc}
+            live={!finished}
             screenOverlay={isMock ? screenText : null}
             selectedControlId={selectedControlId}
           />

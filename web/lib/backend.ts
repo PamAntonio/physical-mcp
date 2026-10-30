@@ -193,8 +193,12 @@ export class HttpBackend implements JobBackend {
   frameUrl(path: string | null) {
     if (!path) return null;
     // full urls (and data: urls from the mock server) are ready to use as is.
-    // /mock/... is a placeholder still the mock server points at, served by this app from web/public
-    if (path.startsWith("http") || path.startsWith("data:") || path.startsWith("/mock/")) return path;
+    // /mock/... is a placeholder still the mock server points at, and /frames/... is the rig's
+    // latest webcam frame (backend/serial_hardware.py writes it into web/public/frames). Both are
+    // served by this app from web/public, not by the backend
+    if (path.startsWith("http") || path.startsWith("data:") || path.startsWith("/mock/") || path.startsWith("/frames/")) {
+      return path;
+    }
     return this.baseUrl + path;
   }
 }

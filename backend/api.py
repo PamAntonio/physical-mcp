@@ -41,6 +41,7 @@ import os
 import secrets
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -72,6 +73,11 @@ FINISHED = ("succeeded", "failed", "stopped")
 # placeholder stills the web app serves itself, e.g. web/public/mock/inkbird-01.svg -> /mock/inkbird-01.svg
 MOCK_FRAMES_DIR = REPO_ROOT / "web" / "public" / "mock"
 
+# how often the real rig's webcam frame gets refreshed for the web app's camera view.
+# only the real rig has a webcam; on FakeHardware the camera view stays the mock still
+FRAME_SECONDS = 0.5
+LIVE_FRAMES = os.environ.get("HARDWARE") == "serial"
+
 # HARDWARE=serial (env or repo-root .env) drives the real ESP32 finger + webcam, see
 # backend/serial_hardware.py. Anything else keeps the fake, so the demo runs with no rig.
 if os.environ.get("HARDWARE") == "serial":
@@ -89,7 +95,41 @@ scoring_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="scoring")
 # (sys.modules, so it's this copy even when api.py runs as a script)
 mcp_server.use_backend(sys.modules[__name__])
 
-app = FastAPI(title="Physical MCP backend")
+async def keep_frames_fresh():
+    """Real rig only: save a webcam frame about every FRAME_SECONDS so the web app's camera view
+    is live (it reloads web/public/frames/<device>-latest.jpg). Runs on the same single hardware
+    worker as press and read_screen, so it never runs during one. One save at a time, so during
+    a long hold it waits its turn instead of piling up behind it."""
+    loop = asyncio.get_running_loop()
+    last_problem = None
+    while True:
+        started = loop.time()
+        try:
+            await on_hardware(hardware.save_frame)
+            if last_problem is not None:
+                log("camera frames are coming in again")
+                last_problem = None
+        except Exception as err:
+            # a missing camera would say this twice a second, so only log when it changes
+            problem = f"{type(err).__name__}: {err}"
+            if problem != last_problem:
+                log(f"couldn't save a camera frame, will keep trying: {problem}")
+                last_problem = problem
+        await asyncio.sleep(max(0.0, FRAME_SECONDS - (loop.time() - started)))
+
+
+@asynccontextmanager
+async def lifespan(app):
+    frames_task = None
+    if LIVE_FRAMES:
+        frames_task = asyncio.create_task(keep_frames_fresh())
+        log(f"live camera: saving a frame every {FRAME_SECONDS} s")
+    yield
+    if frames_task:
+        frames_task.cancel()
+
+
+app = FastAPI(title="Physical MCP backend", lifespan=lifespan)
 # the web app runs on :3000, let the browser call us
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
