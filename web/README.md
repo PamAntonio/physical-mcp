@@ -4,7 +4,7 @@ The human side of Physical MCP: type a job, watch the camera view with detected 
 
 > Built during the Meta Global AI Developer Hackathon, Oct 27 to Nov 4, 2026
 
-Web app and approval layer by Bhavi. Backend, vision, MCP server and servo hardware by Pam.
+Vision, web app and approval layer by Bhavi. Backend, MCP server and servo hardware by Pam.
 
 ## Run it on mock data
 
@@ -68,10 +68,3 @@ To show the self-correction on fake hardware, start it with `FAKE_UNDERSHOOT=1 p
 | `components/HoldToApprove.tsx` | **Parked**, not rendered. Hold button for high-risk steps |
 | `components/StepList.tsx` | Plan with every step state, retries shown inline |
 | `components/ActionLog.tsx` | Newest-first log: step, action, screen read, before/after frames (click to enlarge) |
-
-## Not done yet
-
-- Risk tier and reason slots are empty until the Spark Open scorer is wired in (Thursday)
-- Hold-to-approve is parked in `HoldToApprove.tsx`, not shown on the card yet
-- The mock only acts out `risky_steps`; `every_step` and `plan` modes need backend support
-- Rubber-stamp detection (Saturday, on the cut list)
