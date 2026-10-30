@@ -7,8 +7,11 @@
 // Proposed (not locked with Pam yet): Step.risk_tier / risk_reason / risk_scored_by,
 // JobStatus "paused", ApprovalDecision.decided_by / decided_at / on_reject.
 //
-// The web app never speaks MCP. MCP is how the planner (Muse Spark) drives the
-// machine through backend tools such as get_controls, press, read_screen.
+// The web app never speaks MCP. Muse Spark makes one JSON plan, and the step runner in
+// backend/api.py is the MCP client: every action reaches the machine through the tools in
+// backend/mcp_server.py (get_controls, press, read_screen, get_frame, stop), connected in
+// memory in the same process. press is the approval gate: it waits for approval and
+// charges the press budget before the finger moves.
 // The web app talks to the backend over plain HTTP + a WebSocket:
 //
 //   POST /jobs                         body: CreateJobRequest  -> Job

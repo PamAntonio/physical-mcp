@@ -3,3 +3,5 @@ fastapi
 uvicorn
 # uvicorn needs this for WebSockets (per the FastAPI docs)
 websockets
+# the MCP server the step runner goes through (needs Python 3.11+)
+mcp

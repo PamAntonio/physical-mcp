@@ -18,9 +18,11 @@ risk scorer and a Hardware object (backend/hardware.py) doing the pressing:
    Spark for a plan, then plan.ready goes out.
 2. Every requires_approval step goes to the risk scorer (risk/scorer.py) right away, all at
    once, in the background. Each score lands as a step.updated. Nothing waits on them.
-3. Steps run one at a time on the hardware. A requires_approval step stops at
-   awaiting_approval until a decision comes in. If its score isn't back yet, the card shows
-   up anyway with the tier pending, and the score fills in when it lands.
+3. Steps run one at a time. The runner here is the MCP client: every press and read goes
+   through the tools in mcp_server.py (in memory, same process). press is the approval gate:
+   a requires_approval step stops at awaiting_approval inside press until a decision comes in,
+   and every press is charged to the press budget. If a step's score isn't back yet, the card
+   shows up anyway with the tier pending, and the score fills in when it lands.
 4. Stop calls hardware.stop() and ends the job as "stopped".
 
 Jobs live in memory. One finger, so a new job stops the one before it, like the mock.
@@ -45,6 +47,7 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, WebSocketException, status
 from fastapi.middleware.cors import CORSMiddleware
+from mcp import Client
 from openai import OpenAI
 
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -54,6 +57,7 @@ sys.path.insert(0, str(REPO_ROOT / "risk"))
 
 import scorer  # noqa: E402  importing it also loads the repo-root .env into os.environ
 import planner  # noqa: E402
+import mcp_server  # noqa: E402
 from hardware import FakeHardware, HardwareStopped  # noqa: E402
 from screen_numbers import find_number  # noqa: E402
 
@@ -81,6 +85,10 @@ hardware_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="hardware")
 # scores take 9 to 14 s each, so run them side by side
 scoring_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="scoring")
 
+# the MCP tools reach the runs, the hardware and the approval flow through this module
+# (sys.modules, so it's this copy even when api.py runs as a script)
+mcp_server.use_backend(sys.modules[__name__])
+
 app = FastAPI(title="Physical MCP backend")
 # the web app runs on :3000, let the browser call us
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -98,6 +106,7 @@ class JobRun:
         self.scoring_tasks = []
         self.decision = None  # future that POST .../approval resolves
         self.waiting_step_id = None
+        self.approved_step_ids = set()  # so a retry press doesn't ask again
         self.active_step = None
         self.presses_used = 0
         self.profile = {}  # backend/devices/<device_id>.json, loaded when the run starts
@@ -295,11 +304,13 @@ async def run_job(run):
 
     run.profile = planner.load_profile(device_id)
     screen_text = run.profile.get("current_screen")
-    for step in plan["steps"]:
-        keep_going = await run_step(run, step, screen_text)
-        if not keep_going:
-            return
-        screen_text = step["evidence"]["screen_text"] or screen_text
+    # every press and read goes through the MCP tools, in memory in this same process
+    async with Client(mcp_server.mcp) as client:
+        for step in plan["steps"]:
+            keep_going = await run_step(run, client, step, screen_text)
+            if not keep_going:
+                return
+            screen_text = step["evidence"]["screen_text"] or screen_text
 
     finish(run, "succeeded", f"Job done, all {len(plan['steps'])} steps verified.", screen_text)
 
@@ -349,42 +360,61 @@ def fail_step(run, step, error, screen_text):
     finish(run, "failed", f"Job failed at step {step['index']}: {error}", screen_text)
 
 
-async def run_step(run, step, screen_before):
-    """Returns False if the job should end here."""
-    run.active_step = step
-    step["evidence"]["screen_text"] = screen_before
-
-    if step.get("requires_approval"):
-        approved = await wait_for_approval(run, step, screen_before)
-        if not approved:
-            return False
-
-    action = step["action"]
-    press_budget = run.job.get("press_budget") or DEFAULT_PRESS_BUDGET
-    if action["type"] == "press" and run.presses_used + action["count"] > press_budget:
-        fail_step(run, step, f"Would go over the press budget ({press_budget} per job), nothing pressed.", screen_before)
-        return False
-
+def start_step(run, step):
+    """A step's first go: running, attempt 1, and a heads-up to the hardware about it.
+    The press tool calls this right before a step's first press, the runner before a
+    wait or read step."""
     step["status"] = "running"
     step["attempts"] = 1
     step["started_at"] = now()
     emit_step(run, step)
+    hardware.prepare_step(copy.deepcopy(step), copy.deepcopy(run.profile))
+
+
+async def read_through_mcp(client, control_id):
+    result = await mcp_server.call(client, "read_screen", {"control_id": control_id})
+    return result["text"]
+
+
+async def run_step(run, client, step, screen_before):
+    """Returns False if the job should end here. Presses and reads go through the MCP
+    tools on `client`; the approval card and the press budget live inside press."""
+    run.active_step = step
+    step["evidence"]["screen_text"] = screen_before
+    action = step["action"]
 
     try:
-        hardware.prepare_step(copy.deepcopy(step), copy.deepcopy(run.profile))
         if action["type"] == "press":
-            await on_hardware(hardware.press, action["control_id"], action["count"], action.get("hold_ms"))
-            run.presses_used += action["count"]
-        elif action["type"] == "wait":
-            await asyncio.sleep(action["seconds"])
-        # read_screen: nothing to press, the read below is the whole step
+            # press waits for approval if the step needs it, charges the budget, then presses
+            arguments = {
+                "job_id": run.job["job_id"],
+                "step_id": step["step_id"],
+                "control_id": action["control_id"],
+                "count": action["count"],
+                "hold_ms": action.get("hold_ms"),
+            }
+            try:
+                await mcp_server.call(client, "press", arguments)
+            except mcp_server.ToolRefused as err:
+                if is_finished(run):
+                    return False  # rejected with abort, or stopped while the card was up
+                fail_step(run, step, str(err), screen_before)
+                return False
+        else:
+            # nothing to press, but a step that needs approval still waits for it (same gate as press)
+            if not await mcp_server.ensure_approved(run, step):
+                return False
+            start_step(run, step)
+            if action["type"] == "wait":
+                await asyncio.sleep(action["seconds"])
+            # read_screen: the read below is the whole step
 
         step["status"] = "verifying"
         emit_step(run, step)
 
         expect = step["expect"]
         max_attempts = step.get("max_attempts") or DEFAULT_MAX_ATTEMPTS
-        text = await on_hardware(hardware.read_screen, expect["control_id"])
+        text = await read_through_mcp(client, expect["control_id"])
         plain_reads = 1
         while not screen_matches(expect, text):
             correction, problem, error = plan_correction(run, step, text)
@@ -398,15 +428,12 @@ async def run_step(run, step, screen_before):
                 if plain_reads >= max_attempts:
                     break
                 await asyncio.sleep(SECONDS_BETWEEN_READS)
-                text = await on_hardware(hardware.read_screen, expect["control_id"])
+                text = await read_through_mcp(client, expect["control_id"])
                 plain_reads += 1
                 continue
 
             if step["attempts"] >= max_attempts:
                 break
-            if run.presses_used + correction["count"] > press_budget:
-                fail_step(run, step, f"{problem}, but fixing it would go over the press budget ({press_budget} per job).", text)
-                return False
 
             # a self-correction: note what went wrong and what we're pressing about it
             retries = step.get("retries") or []
@@ -418,18 +445,33 @@ async def run_step(run, step, screen_before):
             emit_step(run, step)
             log(f"{step['step_id']} retry: {problem}, pressing {correction['control_id']} x{correction['count']}")
 
-            await on_hardware(hardware.press, correction["control_id"], correction["count"], None)
-            run.presses_used += correction["count"]
+            # through the same gate as every other press (so it's charged to the budget too)
+            arguments = {
+                "job_id": run.job["job_id"],
+                "step_id": step["step_id"],
+                "control_id": correction["control_id"],
+                "count": correction["count"],
+                "hold_ms": None,
+            }
+            try:
+                await mcp_server.call(client, "press", arguments)
+            except mcp_server.ToolRefused as err:
+                if is_finished(run):
+                    return False
+                fail_step(run, step, f"{problem}, but the correction press was refused: {err}", text)
+                return False
 
             step["status"] = "verifying"
             emit_step(run, step)
-            text = await on_hardware(hardware.read_screen, expect["control_id"])
+            text = await read_through_mcp(client, expect["control_id"])
     except HardwareStopped:
         # usually the stop handler got there first and the job's already over,
         # but if the rig stopped itself, end the job here
         stop_run(run, "Stopped: the hardware stopped mid-step.")
         return False
     except Exception as err:
+        if is_finished(run):
+            return False
         fail_step(run, step, f"Hardware error: {err}", screen_before)
         return False
 
@@ -477,6 +519,14 @@ def stop_run(run, message):
         step["finished_at"] = now()
         emit_step(run, step)
     finish(run, "stopped", message, None)
+
+
+async def stop_job_now(run, message):
+    """Stop button and the stop tool: end the job, then retract the finger."""
+    stop_run(run, message)
+    # only the current job can have the finger, don't yank it out from under another one
+    if run is current_run:
+        await asyncio.to_thread(hardware.stop)
 
 
 # ---- routes ----
@@ -597,10 +647,7 @@ async def decide(job_id: str, step_id: str, http_request: Request):
 @app.post("/jobs/{job_id}/stop")
 async def stop_job(job_id: str):
     run = get_run(job_id)
-    stop_run(run, "Stopped by you. Finger retracted.")
-    # only the current job can have the finger, don't yank it out from under another one
-    if run is current_run:
-        await asyncio.to_thread(hardware.stop)
+    await stop_job_now(run, "Stopped by you. Finger retracted.")
     return run.job
 
 
