@@ -344,6 +344,31 @@ class McpLayerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(("btn_up", 1, None), self.hardware.finished)
         self.assertEqual(run.presses_used, 8)
 
+    async def test_web_app_gets_the_calibrated_boxes(self):
+        """GET /devices (and get_controls) use vision/calibration/<device>.boxes.json over the fixture."""
+        import tempfile
+
+        saved_dir = api.CALIBRATION_DIR
+        with tempfile.TemporaryDirectory() as folder:
+            api.CALIBRATION_DIR = Path(folder)
+            try:
+                # no file: the fixture's boxes, like before
+                fixture_box = api.load_device_with_frame("inkbird-01")["controls"][0]["bbox"]
+                (Path(folder) / "inkbird-01.boxes.json").write_text(json.dumps({
+                    "frame_size": [1280, 720],
+                    "boxes": {"btn_set": [410, 490, 70, 36]},
+                }), encoding="utf-8")
+                device = api.load_device_with_frame("inkbird-01")
+            finally:
+                api.CALIBRATION_DIR = saved_dir
+        boxes = {}
+        for control in device["controls"]:
+            boxes[control["control_id"]] = control["bbox"]
+        self.assertEqual(fixture_box, [820, 980, 140, 72])
+        self.assertEqual(boxes["btn_set"], [410, 490, 70, 36])
+        self.assertEqual(boxes["btn_up"], [1000, 980, 100, 72], "controls not in the file keep the fixture's box")
+        self.assertEqual((device["camera"]["frame_width"], device["camera"]["frame_height"]), (1280, 720))
+
     async def test_read_controls_and_frame(self):
         async with Client(mcp_server.mcp) as client:
             result = await client.call_tool("get_controls", {"device_id": "inkbird-01"})

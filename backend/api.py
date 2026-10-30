@@ -37,6 +37,7 @@ scorer. Only approval_mode "risky_steps" is acted out for now, same as the mock.
 import argparse
 import asyncio
 import copy
+import json
 import os
 import secrets
 import sys
@@ -72,6 +73,8 @@ SECONDS_BETWEEN_READS = 0.5
 FINISHED = ("succeeded", "failed", "stopped")
 # placeholder stills the web app serves itself, e.g. web/public/mock/inkbird-01.svg -> /mock/inkbird-01.svg
 MOCK_FRAMES_DIR = REPO_ROOT / "web" / "public" / "mock"
+# control boxes for this camera (backend/calibrate.py, vision/read_screen.py --calibrate)
+CALIBRATION_DIR = REPO_ROOT / "vision" / "calibration"
 
 # how often the real rig's webcam frame gets refreshed for the web app's camera view.
 # only the real rig has a webcam; on FakeHardware the camera view stays the mock still
@@ -587,10 +590,34 @@ def frame_url_for(device_id):
     return ""
 
 
+def apply_calibration(device):
+    """Boxes from vision/calibration/<device>.boxes.json win over the fixture's, so the web app
+    draws them where they are on this camera. The frame size comes along, since boxes are in
+    that frame's pixels. No file (or a broken one) = the fixture's boxes, like before."""
+    path = CALIBRATION_DIR / f"{device['device_id']}.boxes.json"
+    if not path.is_file():
+        return device
+    try:
+        calibration = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as err:
+        log(f"ignoring {path.name}, it isn't valid JSON: {err}")
+        return device
+    boxes = calibration.get("boxes") or {}
+    for control in device["controls"]:
+        box = boxes.get(control["control_id"])
+        if box is not None:
+            control["bbox"] = list(box)
+    frame_size = calibration.get("frame_size")
+    if frame_size:
+        device["camera"]["frame_width"] = frame_size[0]
+        device["camera"]["frame_height"] = frame_size[1]
+    return device
+
+
 def load_device_with_frame(device_id):
-    """The device from the fixture, with a camera frame the app can actually load.
-    Raises ValueError for an unknown device."""
-    device = planner.load_device(device_id)
+    """The device from the fixture, with the calibrated boxes and a camera frame the app can
+    actually load. Raises ValueError for an unknown device."""
+    device = apply_calibration(planner.load_device(device_id))
     device["camera"]["latest_frame_url"] = frame_url_for(device_id)
     return device
 
