@@ -23,3 +23,6 @@ risk/out/*
 
 # live webcam frames written by backend/serial_hardware.py
 web/public/frames/
+
+# calibrate.py backs the old boxes up before overwriting, and draws a picture of the new ones
+vision/calibration/*.bak.json
