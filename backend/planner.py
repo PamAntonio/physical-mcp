@@ -243,6 +243,19 @@ def _contains(expected, shown):
     return " ".join((expected or "").split()) in " ".join(shown.split())
 
 
+def plan_check_start(readings, profile):
+    """The time the plan check starts from: the plan_check screen's real read before planning,
+    in seconds. None when there's no plan_check, or the read failed, was empty or was low."""
+    rules = (profile or {}).get("plan_check")
+    if not isinstance(rules, dict):
+        return None
+    start = None
+    for reading in readings or []:
+        if reading.get("control_id") == rules.get("screen") and not reading.get("error") and reading.get("confidence") != "low":
+            start = parse_hms(reading.get("text"))
+    return start
+
+
 def check_plan(plan, readings, request, profile):
     """None if the plan lines up with the screen, else a plain reason to refuse it.
 
@@ -261,12 +274,9 @@ def check_plan(plan, readings, request, profile):
     name = screen.replace("screen_", "").upper() if screen else "the screen"
 
     # where we start: the real read, never the profile's guess
-    start = None
-    for reading in readings or []:
-        if reading.get("control_id") == screen and not reading.get("error") and reading.get("confidence") != "low":
-            start = parse_hms(reading.get("text"))
+    start = plan_check_start(readings, profile)
     if start is None:
-        return (f"I couldn't read {name} before planning, so I can't check the plan against it. "
+        return (f"Couldn't read {name} before planning, so I can't check the plan against it. "
                 "Check the camera and try again.")
 
     target = requested_seconds(request)
