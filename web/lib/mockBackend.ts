@@ -1,7 +1,7 @@
 // Fake backend that replays one of Pam's fixtures as a stream of JobEvents, the same ones
 // the real WebSocket sends (job.status, controls.updated, plan.ready, step.updated, frame,
-// job.finished). inkbird-01 replays shared/fixtures/inkbirdJobSample.json, any other device
-// replays jobSample.json. Retries in the fixture get replayed, approval steps wait for you.
+// job.finished). inkbird-01 replays shared/fixtures/inkbirdJobSample.json, timer-01
+// timerJobSample.json, any other device replays jobSample.json. Retries in the fixture get replayed, approval steps wait for you.
 // Lets us build every UI state before Pam's server and the finger are ready.
 // Timings are made up, roughly what a servo press + screen read might take.
 
@@ -12,6 +12,7 @@ import { mockFrameUrl } from "./mockFrame";
 import { scorerCouldNotScore, type StepRisk } from "./riskScorer";
 import sampleJson from "@contract/fixtures/jobSample.json";
 import inkbirdJson from "@contract/fixtures/inkbirdJobSample.json";
+import timerJson from "@contract/fixtures/timerJobSample.json";
 
 // the fixtures only have the screen text Pam wrote down, so the mock fills in the rest
 type MockScript = {
@@ -65,8 +66,28 @@ const INKBIRD: { job: Job; script: MockScript } = {
   },
 };
 
+// the timer's rows, after each step of the T2 job (the overlay paints it on every row, so say which one)
+const TIMER_SCREENS: Record<string, string> = {
+  s1: "T2 00:00 00",
+  s2: "T2 00:05 00",
+  s3: "T2 00:04 58",
+};
+
+const TIMER: { job: Job; script: MockScript } = {
+  job: timerJson as unknown as Job,
+  script: {
+    firstScreen: "T2 00:00 00",
+    doneMessage: "Job done. T2 is counting down from 5 minutes.",
+    screenAfter: (step) => TIMER_SCREENS[step.step_id] ?? "T2 00:04 58",
+    frameUrl: "/mock/timer-01.svg",
+    injectedRetries: {},
+  },
+};
+
 function fixtureFor(deviceId: string) {
-  return deviceId === "inkbird-01" ? INKBIRD : INCUBATOR;
+  if (deviceId === "inkbird-01") return INKBIRD;
+  if (deviceId === "timer-01") return TIMER;
+  return INCUBATOR;
 }
 
 // a camera frame for this device. The incubator gets one drawn with the screen text and a ring

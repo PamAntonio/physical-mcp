@@ -5,6 +5,7 @@ Usage:
     python backend/planner.py [--device DEVICE_ID] "<request>"
     python backend/planner.py --device incubator-01 "Set the incubator to 37 °C and run it for 2 hours"
     python backend/planner.py --device inkbird-01 "Set the heater to turn on at 80 °F"
+    python backend/planner.py --device timer-01 "Set T2 to 5 minutes and start it"
 
 Reads the device (with its controls) from the matching fixture in
 shared/fixtures/ and the device profile from backend/devices/<device_id>.json,
@@ -33,7 +34,13 @@ OUT_DIR = BACKEND_DIR / "out"
 FIXTURES = {
     "incubator-01": REPO_ROOT / "shared" / "fixtures" / "jobSample.json",
     "inkbird-01": REPO_ROOT / "shared" / "fixtures" / "inkbirdJobSample.json",
+    "timer-01": REPO_ROOT / "shared" / "fixtures" / "timerJobSample.json",
 }
+
+# step marks that always mean a press-and-hold approval, whatever the risk tier:
+# turns_on_output (switches a heater, motor... on) and destructive (wipes something someone
+# set or is counting, like RESET on a running timer). Same rules for both
+HOLD_MARKS = ("turns_on_output", "destructive")
 
 SYSTEM_PROMPT = (
     "You are the planner for an agent that operates a physical device by pressing "
@@ -108,10 +115,19 @@ def is_risky(control, profile):
     return bool(isinstance(entry, dict) and entry.get("risky"))
 
 
-def control_turns_on_output(control_id, profile):
-    """The profile marks this control as switching something on (e.g. an incubator's START)."""
+def control_has_mark(control_id, profile, mark):
+    """The profile marks this control turns_on_output (an incubator's START) or destructive
+    (the timer's RESET)."""
     entry = profile_controls(profile).get(control_id)
-    return bool(isinstance(entry, dict) and entry.get("turns_on_output"))
+    return bool(isinstance(entry, dict) and entry.get(mark))
+
+
+def needs_hold(step):
+    """True if the step's approval has to be a press-and-hold, whatever the tier."""
+    for mark in HOLD_MARKS:
+        if step.get(mark):
+            return True
+    return False
 
 
 def required_hold_ms(control_id, profile):
@@ -140,8 +156,9 @@ def reachable_device(device, profile):
                 merged["hold_ms"] = entry["hold_ms"]
             if entry.get("risky"):
                 merged["risky"] = True
-            if entry.get("turns_on_output"):
-                merged["turns_on_output"] = True
+            for mark in HOLD_MARKS:
+                if entry.get(mark):
+                    merged[mark] = True
         annotated.append(merged)
     filtered["controls"] = annotated
     return filtered
@@ -201,7 +218,8 @@ def build_messages(device, profile, request):
         '                | {"control_id": "<indicator control_id>", "text_contains": "", "indicator_on": true},\n'
         '      "requires_approval": true | false,\n'
         '      "approval_reason": "<reason; include only when requires_approval is true>",\n'
-        '      "turns_on_output": true | false\n'
+        '      "turns_on_output": true | false,\n'
+        '      "destructive": true | false\n'
         "    }\n"
         "  ]\n"
         "}\n"
@@ -210,8 +228,12 @@ def build_messages(device, profile, request):
         "output on (a heater, a motor, a pump), as the device notes describe, or "
         "that presses a control marked turns_on_output; that step also needs "
         "requires_approval true. Every other step has turns_on_output false. "
+        "Set destructive to true on a step that wipes something someone set or is "
+        "counting (like resetting a running timer), as the device notes describe, or "
+        "that presses a control marked destructive; that step also needs "
+        "requires_approval true. Every other step has destructive false. "
         "Use only the planning fields above (intent, action, expect, "
-        "requires_approval, approval_reason, turns_on_output). Do not include runtime fields such "
+        "requires_approval, approval_reason, turns_on_output, destructive). Do not include runtime fields such "
         "as step_id, index, status, attempts, timestamps, evidence, or error."
     )
     return [
@@ -405,18 +427,21 @@ def validate_and_build_plan(raw, device, profile=None):
             errors.append(f"{label}: 'requires_approval' must be a boolean")
             requires_approval = False
 
-        # A step that switches an output on (heater, motor...) always waits for a human, and
-        # that approval is a press-and-hold whatever the risk score says. The plan can mark
-        # it (per the device notes) or the profile can, per control. Either one only ever adds
-        # an approval, never takes one away.
-        turns_on_output = raw_step.get("turns_on_output", False)
-        if not isinstance(turns_on_output, bool):
-            errors.append(f"{label}: 'turns_on_output' must be a boolean")
-            turns_on_output = False
-        if action_type == "press" and control_turns_on_output(action.get("control_id"), profile):
-            turns_on_output = True
-        if turns_on_output:
-            requires_approval = True
+        # A step that switches an output on (heater, motor...) or wipes something (RESET on a
+        # running timer) always waits for a human, and that approval is a press-and-hold
+        # whatever the risk score says. The plan can mark it (per the device notes) or the
+        # profile can, per control. Either one only ever adds an approval, never takes one away.
+        marks = {}
+        for mark in HOLD_MARKS:
+            value = raw_step.get(mark, False)
+            if not isinstance(value, bool):
+                errors.append(f"{label}: '{mark}' must be a boolean")
+                value = False
+            if action_type == "press" and control_has_mark(action.get("control_id"), profile, mark):
+                value = True
+            if value:
+                requires_approval = True
+            marks[mark] = value
 
         # Any step that presses a risky control must require approval.
         if action_type == "press":
@@ -458,8 +483,9 @@ def validate_and_build_plan(raw, device, profile=None):
         approval_reason = raw_step.get("approval_reason")
         if isinstance(approval_reason, str) and approval_reason.strip():
             step["approval_reason"] = approval_reason
-        if turns_on_output:
-            step["turns_on_output"] = True
+        for mark in HOLD_MARKS:
+            if marks[mark]:
+                step[mark] = True
         step.update(
             {
                 "status": "pending",

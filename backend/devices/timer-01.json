@@ -1,0 +1,38 @@
+{
+  "_comment": "PLACEHOLDER: 4-channel kitchen timer. Every pan/tilt angle is null, fill them in on the rig (see firmware/README.md). One finger on pan/tilt: Pam presses with ANGLE 0, so servo 0 tilts (presses) and servo 1 pans. Control ids match vision/calibration/timer-01.boxes.json. Anything in the notes marked UNVERIFIED hasn't been checked on the real timer.",
+  "device_id": "timer-01",
+  "current_screen": "T1 00:00 00, T2 00:00 00, T3 00:00 00, T4 00:00 00 (all stopped)",
+  "rig": { "pan_servo": 1, "tilt_servo": 0 },
+  "notes": [
+    "Four channels, T1 to T4. Each has its own LCD row (screen_t1 to screen_t4) showing HH:MM SS, so 00:05 00 is 5 minutes.",
+    "The current screen above is a fixed starting point, not read from the camera, so a channel may already be running.",
+    "Press T1, T2, T3 or T4 to pick that channel. H, M, S, 10M, 5M, 10S, ST/SP and RESET act on the picked channel.",
+    "UNVERIFIED: what pressing T1 to T4 shows (a flashing row or digit), and which channel is picked after power-on.",
+    "Set the time with H, M and S. UNVERIFIED: each press adds 1 hour, 1 minute or 1 second, and what happens past 59 (or 23 hours).",
+    "10M, 5M and 10S are shortcuts. UNVERIFIED: each press adds 10 minutes, 5 minutes or 10 seconds to the time already set (rather than setting it to that value).",
+    "ST/SP starts the picked channel, or stops it if it is running.",
+    "UNVERIFIED: a started channel counts down from the set time (so 00:05 00 reads 00:04 59 a second later), and what it does at 00:00 00 (beeps, counts up).",
+    "To check a channel really started, expect the time it shows after it has started counting (for 5 minutes, expect 00:04), never the time that was set: that is on screen even if ST/SP did nothing.",
+    "RESET clears the picked channel.",
+    "UNVERIFIED: RESET clears to 00:00 00 (not back to the last set time), and whether it works on a running channel or needs ST/SP to stop it first.",
+    "Approval: the step that presses ST/SP gets requires_approval true with a reason (it starts or stops a channel). The step that presses RESET gets requires_approval true and destructive true: on a running channel it wipes the time someone is counting. Picking a channel or setting the time needs no approval."
+  ],
+  "controls": {
+    "btn_t1": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_t2": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_t3": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_t4": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_h": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_m": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_s": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_10m": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_5m": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_10s": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_reset": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null, "risky": true, "destructive": true },
+    "btn_stsp": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null, "risky": true },
+    "screen_t1": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "screen_t2": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "screen_t3": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "screen_t4": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null }
+  }
+}

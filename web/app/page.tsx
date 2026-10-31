@@ -4,7 +4,7 @@ import { useEffect, useReducer, useRef, useState } from "react";
 import type { ApprovalDecision, ApprovalMode, Control, Device, RejectBehavior, Step } from "@contract/types";
 import { createBackend, type ConnectionState, type JobBackend } from "@/lib/backend";
 import { sampleDevice, sampleJob } from "@/lib/mockBackend";
-import { AUTO_START_SAMPLE, DEVICE_ID, OPERATOR_NAME, REJECT_BEHAVIOR } from "@/lib/config";
+import { AUTO_START_SAMPLE, DEVICE_ID, DEVICES, OPERATOR_NAME, REJECT_BEHAVIOR } from "@/lib/config";
 import { emptyJobState, findControl, findCurrentStep, jobReducer } from "@/lib/jobReducer";
 import { riskFromStep } from "@/lib/risk";
 import CameraView from "@/components/CameraView";
@@ -32,7 +32,9 @@ export default function Home() {
   const backendRef = useRef<JobBackend | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const [state, dispatch] = useReducer(jobReducer, emptyJobState);
+  const [deviceId, setDeviceId] = useState(DEVICE_ID); // picked next to the request box
   const [idleDevice, setIdleDevice] = useState<Device>(sampleDevice(DEVICE_ID));
+  const pickedRef = useRef(DEVICE_ID); // so a slow getDevice for the old pick can't win
   const [isMock, setIsMock] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null); // clicked in the step list
@@ -56,7 +58,7 @@ export default function Home() {
     backend
       .getDevice(DEVICE_ID)
       .then((device) => {
-        if (!cancelled) setIdleDevice(device);
+        if (!cancelled && pickedRef.current === DEVICE_ID) setIdleDevice(device);
       })
       .catch((err) => setError(`Couldn't load the device: ${err.message}`));
 
@@ -111,13 +113,34 @@ export default function Home() {
     setError(null);
     if (unsubscribeRef.current) unsubscribeRef.current();
     try {
-      const newJob = await backend.createJob({ device_id: DEVICE_ID, request, approval_mode: approvalMode });
+      const newJob = await backend.createJob({ device_id: deviceId, request, approval_mode: approvalMode });
       dispatch({ kind: "reset", job: newJob });
       setSelectedStepId(null);
       listenTo(backend, newJob.job_id);
     } catch (err) {
       setError(`Couldn't start the job: ${(err as Error).message}`);
     }
+  }
+
+  // switch devices: drop the old (finished) job and show the new device's panel
+  function pickDevice(newDeviceId: string) {
+    const backend = backendRef.current;
+    if (busy || newDeviceId === deviceId) return;
+    if (unsubscribeRef.current) unsubscribeRef.current();
+    unsubscribeRef.current = null;
+    pickedRef.current = newDeviceId;
+    setDeviceId(newDeviceId);
+    dispatch({ kind: "clear" });
+    setSelectedStepId(null);
+    setError(null);
+    setIdleDevice(sampleDevice(newDeviceId)); // something to show until the backend answers
+    if (!backend) return;
+    backend
+      .getDevice(newDeviceId)
+      .then((device) => {
+        if (pickedRef.current === newDeviceId) setIdleDevice(device);
+      })
+      .catch((err) => setError(`Couldn't load the device: ${err.message}`));
   }
 
   async function handleDecision(decision: "approve" | "reject", info: DecisionInfo) {
@@ -182,8 +205,17 @@ export default function Home() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      {/* the device's sample request: the 80 °F heater job for inkbird-01, the incubator one otherwise */}
-      <JobRequestForm busy={busy} defaultRequest={sampleJob(DEVICE_ID).request} onSubmit={startJob} />
+      {/* the device's sample request: the 80 °F heater job for inkbird-01, T2 for 5 minutes for
+          timer-01, the incubator one otherwise. keyed on the device so the text swaps with it */}
+      <JobRequestForm
+        key={deviceId}
+        busy={busy}
+        devices={DEVICES}
+        deviceId={deviceId}
+        onDeviceChange={pickDevice}
+        defaultRequest={sampleJob(deviceId).request}
+        onSubmit={startJob}
+      />
 
       <div className="layout">
         <div className="col-main">

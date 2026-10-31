@@ -162,6 +162,8 @@ class ControlInfo(TypedDict):
     confidence: float
     reachable: bool
     risky: bool
+    turns_on_output: bool
+    destructive: bool
 
 
 class Controls(TypedDict):
@@ -197,7 +199,8 @@ class Stopped(TypedDict):
 @mcp.tool()
 async def get_controls(device_id: str) -> Controls:
     """The device's buttons, screens and lights, with where they are in the camera frame.
-    reachable is false for a control the finger can't press on this rig."""
+    reachable is false for a control the finger can't press on this rig. risky = pressing it
+    needs approval. turns_on_output / destructive = that approval is always a press-and-hold."""
     try:
         device = backend.load_device_with_frame(device_id)
     except ValueError as err:
@@ -217,6 +220,8 @@ async def get_controls(device_id: str) -> Controls:
             "confidence": control.get("confidence", 0.0),
             "reachable": planner.is_reachable(control, profile),
             "risky": planner.is_risky(control, profile),
+            "turns_on_output": planner.control_has_mark(control["control_id"], profile, "turns_on_output"),
+            "destructive": planner.control_has_mark(control["control_id"], profile, "destructive"),
         })
     return {"device_id": device_id, "controls": controls}
 
