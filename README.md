@@ -204,11 +204,11 @@ TODO: cost per job (planner, screen reads, scorer) compared with the alternative
 
 ## Team
 
-- **Pam** ([@PamAntonio](https://github.com/PamAntonio)): hardware. The servos, the ESP32 firmware, the serial protocol in `backend/serial_hardware.py`, and the rig, including finding the timer's press angles
-- **Bhavi** ([@Bhavishaahuja](https://github.com/Bhavishaahuja)): the MCP server, the planner hookup, the backend, vision, the risk scorer, the web app, calibration, the live camera, and the plan check
-
-<!-- TODO: git shows Pam also started the shared contract (shared/types.ts, sample jobs), the first backend/planner.py and the incubator + Inkbird profiles on Oct 27. Decide how to credit that. -->
+- **Pam** ([@PamAntonio](https://github.com/PamAntonio)): the idea, the first contract (`shared/types.ts` and the first sample jobs, incubator and Inkbird), the first planner and the first device profiles (incubator, Inkbird), the ESP32 firmware, the serial protocol in `backend/serial_hardware.py`, and the rig, including the timer's press angles
+- **Bhavi** ([@Bhavishaahuja](https://github.com/Bhavishaahuja)): the MCP server, the planner hookup and later planner work (pre-plan reads, the plan check), the backend runner, vision, the risk scorer, the web app, calibration, and the live camera
 
 ## Built during the hackathon
 
 Everything in this repo was written during the hackathon, from Oct 27, except the very first commit: the README was created on Oct 26 (`b06e0dc`, Pam). `web/` started from `create-next-app`.
+
+We used Claude Code as a coding assistant. The Co-Authored-By trailers in the commit history show which commits.
