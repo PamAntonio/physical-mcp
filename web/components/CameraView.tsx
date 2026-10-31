@@ -23,6 +23,8 @@ interface Props {
   live: boolean;
   // mock frames are a still image, so we paint what the screen "says" on top. null = don't
   screenOverlay: string | null;
+  // which screen that text was read from (a 4-row timer has 4 screens). null = every screen
+  screenOverlayControlId?: string | null;
   selectedControlId: string | null; // picked in the step list
 }
 
@@ -106,7 +108,15 @@ function useLiveFrame(frameSrc: string | null, live: boolean, frameWidth: number
   return shownSrc;
 }
 
-export default function CameraView({ device, currentStep, frameSrc, live, screenOverlay, selectedControlId }: Props) {
+export default function CameraView({
+  device,
+  currentStep,
+  frameSrc,
+  live,
+  screenOverlay,
+  screenOverlayControlId = null,
+  selectedControlId,
+}: Props) {
   const [showBoxes, setShowBoxes] = useState(true);
 
   const frameWidth = device.camera.frame_width;
@@ -167,7 +177,9 @@ export default function CameraView({ device, currentStep, frameSrc, live, screen
                 isTarget={control.control_id === targetId}
                 isSelected={control.control_id === selectedControlId}
                 waitingForApproval={waitingForApproval}
-                screenOverlay={screenOverlay}
+                screenOverlay={
+                  screenOverlayControlId === null || screenOverlayControlId === control.control_id ? screenOverlay : null
+                }
                 labelBelow={moreRoomBelow(control, device.controls, frameHeight)}
               />
             ))}
@@ -261,7 +273,11 @@ function ControlBox({
         {control.label}
         <span className="ctl-conf"> {confidence}%</span>
       </span>
-      {control.kind === "screen" && screenOverlay && <span className="ctl-screen-text">{screenOverlay}</span>}
+      {control.kind === "screen" && screenOverlay && (
+        <span className="ctl-screen-text">
+          <span className="ctl-screen-text-chip">{screenOverlay}</span>
+        </span>
+      )}
     </div>
   );
 }

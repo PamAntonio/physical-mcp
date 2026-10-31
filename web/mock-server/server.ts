@@ -3,6 +3,7 @@
 //   POST /jobs                                  -> Job
 //   GET  /jobs/:job_id                          -> Job (current state)
 //   POST /jobs/:job_id/steps/:step_id/approval  -> Job
+//   POST /jobs/:job_id/resume                   -> Job (after a low-confidence read pause)
 //   POST /jobs/:job_id/stop                     -> Job
 //   GET  /devices/:device_id                    -> Device
 //   WS   /jobs/:job_id/events                   -> stream of JobEvent
@@ -157,6 +158,15 @@ async function handle(request: http.IncomingMessage, response: http.ServerRespon
       log("replan requested (no replanner in the mock yet, holding like a pause)");
     }
     await mock.decide(jobId, parts[3], body as ApprovalDecision);
+    return sendJson(response, 200, await mock.getJob(jobId));
+  }
+
+  // POST /jobs/:job_id/resume (after a pause for a low-confidence read)
+  if (method === "POST" && parts.length === 3 && parts[2] === "resume") {
+    const body = (await readJson(request)) as { decided_by?: string } | null;
+    const decidedBy = (body && body.decided_by) || "you";
+    log(`resume (by ${decidedBy}), reading the screen again`);
+    await mock.resume(jobId, decidedBy);
     return sendJson(response, 200, await mock.getJob(jobId));
   }
 

@@ -1,10 +1,25 @@
 "use client";
 
 // Everything that happened, newest on top. Step entries show the action, what the
-// screen read afterwards, and before/after frames. Click a frame to see it big.
+// screen read afterwards (with vision's confidence badge), and before/after frames. Click a
+// frame to see it big. Entries the backend labelled (note.kind) each get their own chip, icon and
+// color, so a retry, a rejection, a refusal and an unclear read look different at a glance.
 
 import { useEffect, useRef, useState } from "react";
+import type { NoteKind } from "@contract/types";
 import type { LogEntry } from "@/lib/jobReducer";
+import ConfidenceBadge from "./ConfidenceBadge";
+
+// shape as well as color, so they still differ in a grey video frame
+const KIND_CHIPS: Record<NoteKind, { icon: string; label: string }> = {
+  screen_read: { icon: "◦", label: "read" },
+  retry: { icon: "↻", label: "retry" },
+  read_unclear: { icon: "?", label: "unclear read" },
+  resumed: { icon: "▶", label: "resumed" },
+  rejected: { icon: "✕", label: "rejected" },
+  step_skipped: { icon: "⤼", label: "skipped" },
+  planner_refused: { icon: "⊘", label: "refused" },
+};
 
 interface Props {
   log: LogEntry[];
@@ -43,7 +58,7 @@ export default function ActionLog({ log, frameUrl }: Props) {
           const stepName = entry.stepIndex !== undefined ? `Step ${entry.stepIndex}` : null;
 
           return (
-            <li key={entry.id} className={`log-entry log-${entry.tone}`}>
+            <li key={entry.id} className={`log-entry log-${entry.tone}${entry.kind ? ` log-kind-${entry.kind}` : ""}`}>
               <time dateTime={entry.ts}>{clockTime(entry.ts)}</time>
 
               <span className="log-step" title={entry.stepIntent}>
@@ -51,13 +66,22 @@ export default function ActionLog({ log, frameUrl }: Props) {
               </span>
 
               <div className="log-main">
-                <div className="log-text">{entry.text}</div>
-                {(entry.action || entry.screenText) && (
+                <div className="log-text">
+                  {entry.kind && KIND_CHIPS[entry.kind] && (
+                    <span className={`log-kind log-kind-chip-${entry.kind}`}>
+                      <span aria-hidden>{KIND_CHIPS[entry.kind].icon}</span> {KIND_CHIPS[entry.kind].label}
+                    </span>
+                  )}
+                  {entry.text}
+                </div>
+                {(entry.action || entry.screenText || entry.detail) && (
                   <div className="log-detail">
+                    {entry.detail && <span>{entry.detail}</span>}
                     {entry.action && <span>{entry.action}</span>}
                     {entry.screenText && (
-                      <span>
+                      <span className="log-read">
                         screen read <span className="log-screen">“{entry.screenText}”</span>
+                        <ConfidenceBadge confidence={entry.screenConfidence} />
                       </span>
                     )}
                   </div>

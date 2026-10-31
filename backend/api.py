@@ -476,22 +476,26 @@ def planning_note(readings):
         else:
             good.append(reading)
     parts = []
-    for reading in good:
-        parts.append(describe_read(reading))
+    if good:
+        reads = []
+        for reading in good:
+            reads.append(describe_read(reading))
+        parts.append("Planned from " + "; ".join(reads))
     if failed:
-        parts.append(f"couldn't read {', '.join(failed)}, planned from the profile's guess for it")
+        parts.append(f"Couldn't read {', '.join(failed)}, planned from the profile's guess for it")
     if not parts:
         return None
     read = None
     if good:
         read = {"control_id": good[0]["control_id"], "text": good[0]["text"], "confidence": good[0]["confidence"]}
-    return make_note("screen_read", "Planned from " + "; ".join(parts), read)
+    return make_note("screen_read", ". ".join(parts), read)
 
 
 async def run_job(run):
     job = run.job
     device_id = job["device"]["device_id"]
     run.profile = planner.load_profile(device_id)
+    await on_hardware(hardware.prepare_job, copy.deepcopy(run.profile))
     # every press and read goes through the MCP tools, in memory in this same process
     async with Client(mcp_server.mcp) as client:
         readings = await read_screens_for_planning(run, client, job["device"], run.profile)

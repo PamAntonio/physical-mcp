@@ -12,6 +12,7 @@ import StepList from "@/components/StepList";
 import ApprovalCard, { type DecisionInfo } from "@/components/ApprovalCard";
 import ActionLog from "@/components/ActionLog";
 import JobRequestForm from "@/components/JobRequestForm";
+import PausePanel from "@/components/PausePanel";
 
 const REJECT_LOG_SUFFIX: Record<RejectBehavior, string> = {
   abort: ", stopping the job",
@@ -98,14 +99,26 @@ export default function Home() {
   const finished = job !== null && (job.status === "succeeded" || job.status === "failed" || job.status === "stopped");
   const busy = job !== null && !finished;
 
-  // what the screen says right now: current step's reading, else the last one we got
+  // what the screen says right now: current step's reading, else the last one we got,
+  // and which screen it was read from (the timer has 4, the text goes on that row only)
   let screenText: string | null = null;
+  let screenTextControlId: string | null = null;
   if (job && job.plan) {
     for (const step of job.plan.steps) {
-      if (step.evidence.screen_text) screenText = step.evidence.screen_text;
+      if (step.evidence.screen_text) {
+        screenText = step.evidence.screen_text;
+        screenTextControlId = step.expect.control_id;
+      }
       if (step === currentStep) break;
     }
   }
+
+  // two kinds of pause. a step rejected with "pause" stays on its approval card (approving it
+  // carries on). anything else is the backend pausing on a read it wasn't sure of: that one
+  // gets the pause panel and Resume
+  const paused = job !== null && job.status === "paused";
+  const approvalPause = paused && currentStep !== null && currentStep.status === "awaiting_approval";
+  const readPause = paused && !approvalPause;
 
   async function startJob(request: string, approvalMode: ApprovalMode) {
     const backend = backendRef.current;
@@ -170,6 +183,18 @@ export default function Home() {
     }
   }
 
+  async function resumeJob() {
+    const backend = backendRef.current;
+    if (!backend || !job) return;
+    dispatch({ kind: "note", ts: new Date().toISOString(), tone: "you", text: "You resumed, reading the screen again" });
+    try {
+      await backend.resume(job.job_id, OPERATOR_NAME);
+    } catch (err) {
+      setError(`Couldn't resume: ${(err as Error).message}`);
+      throw err;
+    }
+  }
+
   async function stopJob() {
     const backend = backendRef.current;
     if (!backend || !job) return;
@@ -181,6 +206,10 @@ export default function Home() {
   }
 
   const frameSrc = backendRef.current ? backendRef.current.frameUrl(device.camera.latest_frame_url) : null;
+  // a placeholder still (the in-browser mock, the mock server, or the real backend on FakeHardware)
+  // shows a blank LCD, so the screen text gets painted on. never on a real camera photo
+  const latestFrame = device.camera.latest_frame_url || "";
+  const placeholderFrame = latestFrame.startsWith("/mock/") || latestFrame.startsWith("data:");
 
   return (
     <main className="app">
@@ -197,7 +226,8 @@ export default function Home() {
         </div>
         <div className="topbar-right">
           {job && <span className={`status status-${job.status}`}>{job.status.replace("_", " ")}</span>}
-          <button className="btn btn-stop" onClick={stopJob} disabled={!busy}>
+          {/* always on screen: the top bar sticks, so STOP is there mid-scroll and during approval */}
+          <button className="btn btn-stop" onClick={stopJob} disabled={!busy} aria-label="Stop the job now">
             Stop
           </button>
         </div>
@@ -224,19 +254,25 @@ export default function Home() {
             currentStep={currentStep}
             frameSrc={frameSrc}
             live={!finished}
-            screenOverlay={isMock ? screenText : null}
+            screenOverlay={isMock || placeholderFrame ? screenText : null}
+            screenOverlayControlId={screenTextControlId}
             selectedControlId={selectedControlId}
           />
         </div>
         <div className="col-side">
+          {readPause && job && (
+            <PausePanel reason={job.pause_reason ?? null} step={currentStep} frameSrc={frameSrc} onResume={resumeJob} />
+          )}
           {currentStep && currentStep.status === "awaiting_approval" && (
             <ApprovalCard
               key={currentStep.step_id}
               step={currentStep}
               device={device}
               risk={riskFromStep(currentStep)}
-              paused={job !== null && job.status === "paused"}
+              paused={approvalPause}
+              pauseReason={job ? job.pause_reason ?? null : null}
               rejectBehavior={REJECT_BEHAVIOR}
+              frameUrl={(path) => (backendRef.current ? backendRef.current.frameUrl(path) : null)}
               onDecide={handleDecision}
             />
           )}

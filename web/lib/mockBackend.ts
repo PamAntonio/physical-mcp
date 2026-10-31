@@ -5,7 +5,22 @@
 // Lets us build every UI state before Pam's server and the finger are ready.
 // Timings are made up, roughly what a servo press + screen read might take.
 
-import type { ApprovalDecision, BBox, CreateJobRequest, Device, Job, JobEvent, JobStatus, Plan, Retry, Step } from "@contract/types";
+import type {
+  ApprovalDecision,
+  BBox,
+  CreateJobRequest,
+  Device,
+  EventNote,
+  Job,
+  JobEvent,
+  JobStatus,
+  NoteKind,
+  Plan,
+  ReadConfidence,
+  Retry,
+  ScreenRead,
+  Step,
+} from "@contract/types";
 import type { JobBackend, JobStreamHandlers } from "./backend";
 import { applyEvent, findControl } from "./jobReducer";
 import { mockFrameUrl } from "./mockFrame";
@@ -24,6 +39,16 @@ type MockScript = {
   // MOCK ONLY: retries the fixture doesn't have yet, so the retry UI shows up on this device.
   // Behind NEXT_PUBLIC_MOCK_INJECT_RETRY, turn it off once Pam's backend sends real retries
   injectedRetries: Record<string, Retry[]>;
+  // how sure the mock's reads are. null = no vision vote, so no badge (the fixtures for the
+  // Inkbird and the incubator have none, and the mock doesn't make one up)
+  confidence: ReadConfidence | null;
+  // the screen the planner reads first (the timer's plan_reads), or null to skip that read
+  planningScreen: string | null;
+  // one read comes back low after this step's press: the job pauses until Resume, then the
+  // re-read is clear. Shows the backend's read_unclear pause with no backend
+  lowRead?: { stepId: string; screenText: string };
+  // what the backend's planner would refuse on this rig, or null to plan it
+  refuse?: (request: string) => string | null;
 };
 
 const INKBIRD_SCREENS: Record<string, string> = {
@@ -41,6 +66,8 @@ const INCUBATOR: { job: Job; script: MockScript } = {
     screenAfter: (step) => `${step.expect.text_contains} 37.0 02:00`, // only START hits this, good enough for a mock
     frameUrl: null,
     injectedRetries: {},
+    confidence: null,
+    planningScreen: null,
   },
 };
 
@@ -63,25 +90,44 @@ const INKBIRD: { job: Job; script: MockScript } = {
         },
       ],
     },
+    confidence: null,
+    planningScreen: null,
   },
 };
 
-// the timer's rows, after each step of the T1 2-hour job (the overlay paints it on every row, so
-// say which one). s2's first H misses, the fixture's retry replays that
+// what screen_t1 reads after each step of the T1 2-hour job (the same HH:MM SS the backend's
+// vision returns). s2's first H misses, the fixture's retry replays that
 const TIMER_SCREENS: Record<string, string> = {
-  s1: "T1 01:00 00",
-  s2: "T1 02:00 00",
-  s3: "T1 01:59 58",
+  s1: "01:00 00",
+  s2: "02:00 00",
+  s3: "01:59 58",
 };
+
+// the rig only has fingers on H and ST/SP (backend/devices/timer-01.json), so like the real
+// planner the mock refuses anything that needs another channel or another time button
+function refuseOnTimer(request: string): string | null {
+  if (/\bT\s*[234]\b/i.test(request)) {
+    return "Can't do this on this rig: only T1 can be used (no finger on T1 to T4 to pick another channel). Nothing was pressed.";
+  }
+  if (/\b(minute|minutes|min|second|seconds|sec)\b/i.test(request)) {
+    return "Can't do this on this rig: only whole hours can be set (H is the only time button with a finger). Nothing was pressed.";
+  }
+  return null;
+}
 
 const TIMER: { job: Job; script: MockScript } = {
   job: timerJson as unknown as Job,
   script: {
-    firstScreen: "T1 00:00 00",
+    firstScreen: "00:00 00",
     doneMessage: "Job done. T1 is counting down from 2 hours.",
-    screenAfter: (step) => TIMER_SCREENS[step.step_id] ?? "T1 01:59 58",
+    screenAfter: (step) => TIMER_SCREENS[step.step_id] ?? "01:59 58",
     frameUrl: "/mock/timer-01.svg",
     injectedRetries: {},
+    confidence: "high",
+    planningScreen: "screen_t1",
+    // the check after the first H: three reads disagreed, so vision says low and the job waits
+    lowRead: { stepId: "s1", screenText: "01:08 00" },
+    refuse: refuseOnTimer,
   },
 };
 
@@ -99,15 +145,33 @@ function frameFor(script: MockScript, screenText: string | null, pressBox?: BBox
 
 // when the risk scorer can't answer in mock mode (no Baseten credits, scorer not running), use the
 // fixture's tier if it has one, else high, and say it's a mock score. Never low by default
+// A fixture that carries a real score the scorer gave earlier (the timer's ST/SP) says which
+// model gave it, marked as recorded so nobody takes it for a live call
 function mockScore(step: Step, sampleStep: Step): StepRisk {
+  let scoredBy = "mock score";
+  if (sampleStep.risk_tier && sampleStep.risk_scored_by && sampleStep.risk_scored_by !== "fixture") {
+    scoredBy = `${sampleStep.risk_scored_by} (recorded score, scorer not running)`;
+  }
   return {
     risk_tier: sampleStep.risk_tier ?? "high",
     risk_reason: sampleStep.risk_reason ?? step.approval_reason ?? "Needs approval in the plan.",
-    risk_scored_by: "mock score",
+    risk_scored_by: scoredBy,
   };
 }
 
 class StoppedError extends Error {}
+
+// an EventNote like backend/api.py's make_note
+function note(kind: NoteKind, message: string, read?: ScreenRead): EventNote {
+  const made: EventNote = { kind, message };
+  if (read) made.read = { ...read };
+  return made;
+}
+
+// "screen_t1 reads '01:00 00' (high)", the backend's describe_read
+function describeRead(read: ScreenRead): string {
+  return `${read.control_id} reads '${read.text}' (${read.confidence ?? "no vision vote"})`;
+}
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -136,6 +200,7 @@ export class MockBackend implements JobBackend {
   private stopped = false;
   private running = false;
   private waitingForApproval: ((decision: ApprovalDecision) => void) | null = null;
+  private waitingForResume: ((decidedBy: string) => void) | null = null;
   private job: Job | null = null; // kept up to date with every event we send, so getJob is current
   private fixture = INCUBATOR; // picked by device_id in createJob
   private activeStep: Step | null = null;
@@ -172,6 +237,7 @@ export class MockBackend implements JobBackend {
     job.status = "queued";
     job.plan = null;
     job.result = null;
+    job.pause_reason = null;
     job.device = sampleDevice(request.device_id); // swaps in the mock frame
     this.job = job;
     return clone(job);
@@ -210,11 +276,20 @@ export class MockBackend implements JobBackend {
     }
   }
 
+  async resume(_jobId: string, decidedBy: string) {
+    if (this.waitingForResume) {
+      const resolve = this.waitingForResume;
+      this.waitingForResume = null;
+      resolve(decidedBy);
+    }
+  }
+
   async stop(_jobId: string) {
     this.stopped = true;
     for (const timer of this.timers) clearTimeout(timer);
     this.timers = [];
     this.waitingForApproval = null;
+    this.waitingForResume = null;
 
     // whatever step was mid-press gets marked, so the UI doesn't spin forever
     const step = this.activeStep;
@@ -242,13 +317,35 @@ export class MockBackend implements JobBackend {
   }
 
   // ---- the fake run ----
+  // Sends the same notes, confidences and pauses as backend/api.py, so every log kind, the
+  // confidence badges and the read_unclear pause all show up with no backend running.
 
   private async run() {
     const sample = this.fixture.job;
     const script = this.fixture.script;
     await this.sleep(400);
     this.emitStatus("planning");
+
+    // the planner's first read (the timer's plan_reads: screen_t1)
+    let planningRead: ScreenRead | null = null;
+    if (script.planningScreen) {
+      await this.sleep(500);
+      planningRead = { control_id: script.planningScreen, text: script.firstScreen, confidence: script.confidence };
+    }
     await this.sleep(800);
+
+    // the real planner refuses what the rig can't do. nothing gets planned or pressed
+    const refusal = script.refuse && this.job ? script.refuse(this.job.request) : null;
+    if (refusal) {
+      this.emit({
+        type: "job.finished",
+        job_id: this.jobId(),
+        ts: now(),
+        result: { outcome: "failed", message: refusal, final_screen_text: null },
+        note: note("planner_refused", refusal),
+      });
+      return;
+    }
 
     // pretend SAM just re-scanned the panel and found the same buttons
     const controls = sampleDevice(sample.device.device_id).controls;
@@ -270,22 +367,26 @@ export class MockBackend implements JobBackend {
         attempts: 0,
         started_at: null,
         finished_at: null,
-        evidence: { before_frame_url: null, after_frame_url: null, screen_text: null },
+        evidence: { before_frame_url: null, after_frame_url: null, screen_text: null, screen_confidence: null },
         error: null,
         retries: undefined,
       });
     }
     const plan: Plan = { planner: sample.plan!.planner, summary: sample.plan!.summary, steps };
-    this.emit({ type: "plan.ready", job_id: this.jobId(), ts: now(), plan: clone(plan) });
+    let planNote: EventNote | undefined;
+    if (planningRead) planNote = note("screen_read", `Planned from ${describeRead(planningRead)}`, planningRead);
+    this.emit({ type: "plan.ready", job_id: this.jobId(), ts: now(), plan: clone(plan), note: planNote });
     this.emitStatus("running");
 
     let lastScreenText = script.firstScreen;
+    let lastConfidence: ReadConfidence | null = planningRead ? planningRead.confidence : null;
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       const sampleStep = sample.plan!.steps[i];
-      const keepGoing = await this.runStep(step, sampleStep, lastScreenText);
+      const keepGoing = await this.runStep(step, sampleStep, lastScreenText, lastConfidence);
       if (!keepGoing) return;
       lastScreenText = step.evidence.screen_text ?? lastScreenText;
+      lastConfidence = step.evidence.screen_confidence ?? null;
     }
 
     this.emit({
@@ -301,7 +402,12 @@ export class MockBackend implements JobBackend {
   }
 
   // returns false if the job should stop here
-  private async runStep(step: Step, sampleStep: Step, screenBefore: string): Promise<boolean> {
+  private async runStep(
+    step: Step,
+    sampleStep: Step,
+    screenBefore: string,
+    confidenceBefore: ReadConfidence | null,
+  ): Promise<boolean> {
     this.activeStep = step;
     // "before" frame: the screen as it is now, with a ring where the finger is about to press
     let pressBox: BBox | undefined;
@@ -310,8 +416,11 @@ export class MockBackend implements JobBackend {
       if (control && control.kind !== "screen") pressBox = control.bbox;
     }
     const script = this.fixture.script;
+    const screenId = step.expect.control_id;
     step.evidence.before_frame_url = frameFor(script, screenBefore, pressBox);
+    // what the approval card shows: the last read of this screen, with how sure it was
     step.evidence.screen_text = screenBefore;
+    step.evidence.screen_confidence = confidenceBefore;
 
     if (step.requires_approval) {
       // score it before anyone sees the approval card. this only adds tier + reason,
@@ -335,12 +444,16 @@ export class MockBackend implements JobBackend {
       let decision = await this.waitForDecision();
       while (decision.decision === "reject") {
         const behavior = decision.on_reject ?? "pause"; // contract default
+        // the rejection is one entry, what happens to the step after it is another
+        let rejected = `Step ${step.index} rejected by ${decision.decided_by ?? "you"} (${behavior})`;
+        if (decision.note) rejected += `: ${decision.note}`;
+        this.emitStep(step, note("rejected", rejected));
 
         if (behavior === "abort") {
           step.status = "skipped";
           step.error = decision.note ?? "Rejected at approval";
           step.finished_at = now();
-          this.emitStep(step);
+          this.emitStep(step, note("step_skipped", `Step ${step.index} skipped, the finger never moved`));
           this.emit({
             type: "job.finished",
             job_id: this.jobId(),
@@ -357,7 +470,10 @@ export class MockBackend implements JobBackend {
         // "pause", and "replan" for now (no replanner in the mock, so it holds like a pause).
         // the step stays awaiting_approval: approving it later resumes, Stop ends the job.
         // (the mock server logs "replan requested", the action log shows it too)
-        this.emitStatus("paused");
+        this.emitStatus(
+          "paused",
+          `Step ${step.index} was rejected, holding here. Nothing was pressed. Approve it to carry on, or Stop.`,
+        );
         decision = await this.waitForDecision();
       }
       this.emitStatus("running");
@@ -391,6 +507,21 @@ export class MockBackend implements JobBackend {
       return false;
     }
 
+    // a read vision isn't sure of: pause, nothing pressed, until Resume. then read it again
+    if (script.lowRead && script.lowRead.stepId === step.step_id) {
+      const unclear: ScreenRead = { control_id: screenId, text: script.lowRead.screenText, confidence: "low" };
+      const reason =
+        `Couldn't read ${screenId} clearly (step ${step.index}): low confidence, read '${unclear.text}'. ` +
+        "Nothing was pressed. Check the camera and the screen, then resume to read it again.";
+      step.evidence.screen_text = unclear.text;
+      step.evidence.screen_confidence = "low";
+      this.emitStep(step);
+      this.emitStatus("paused", reason, note("read_unclear", reason, unclear));
+      const decidedBy = await this.waitForResume();
+      this.emitStatus("running", undefined, note("resumed", `Resumed by ${decidedBy}, reading ${screenId} again`));
+      await this.sleep(900);
+    }
+
     // replay the sample's retries so the self-correction moment shows up.
     // no retries in the fixture? use the mock-only injected ones, if that's switched on
     let sampleRetries = sampleStep.retries ?? [];
@@ -398,9 +529,11 @@ export class MockBackend implements JobBackend {
     for (const retry of sampleRetries) {
       step.retries = [...(step.retries ?? []), retry];
       step.evidence.screen_text = retry.screen_text;
+      step.evidence.screen_confidence = retry.screen_confidence ?? script.confidence;
       step.status = "running";
       step.attempts += 1;
-      this.emitStep(step);
+      const read: ScreenRead = { control_id: screenId, text: retry.screen_text, confidence: step.evidence.screen_confidence };
+      this.emitStep(step, note("retry", `Retry: ${retry.problem}`, read));
       await this.sleep(900);
 
       step.status = "verifying";
@@ -416,8 +549,10 @@ export class MockBackend implements JobBackend {
     } else {
       step.evidence.screen_text = this.fixture.script.screenAfter(step);
     }
+    step.evidence.screen_confidence = script.confidence;
     step.evidence.after_frame_url = frameFor(script, step.evidence.screen_text);
-    this.emitStep(step);
+    const read: ScreenRead = { control_id: screenId, text: step.evidence.screen_text, confidence: script.confidence };
+    this.emitStep(step, note("screen_read", `Verified: ${describeRead(read)}`, read));
     this.emit({ type: "frame", job_id: this.jobId(), ts: now(), frame_url: frameFor(script, null) });
     await this.sleep(300);
     return true;
@@ -428,6 +563,12 @@ export class MockBackend implements JobBackend {
   private waitForDecision(): Promise<ApprovalDecision> {
     return new Promise((resolve) => {
       this.waitingForApproval = resolve;
+    });
+  }
+
+  private waitForResume(): Promise<string> {
+    return new Promise((resolve) => {
+      this.waitingForResume = resolve;
     });
   }
 
@@ -444,6 +585,7 @@ export class MockBackend implements JobBackend {
     this.timers = [];
     this.listeners = [];
     this.waitingForApproval = null;
+    this.waitingForResume = null;
     this.running = false;
     this.stopped = false;
   }
@@ -452,12 +594,18 @@ export class MockBackend implements JobBackend {
     return this.job ? this.job.job_id : "job_mock";
   }
 
-  private emitStatus(status: JobStatus) {
-    this.emit({ type: "job.status", job_id: this.jobId(), ts: now(), status });
+  // reason: only for "paused", why (the backend's job.status reason). note: what it is for the log
+  private emitStatus(status: JobStatus, reason?: string, eventNote?: EventNote) {
+    const event: JobEvent = { type: "job.status", job_id: this.jobId(), ts: now(), status };
+    if (reason !== undefined) event.reason = reason;
+    if (eventNote !== undefined) event.note = eventNote;
+    this.emit(event);
   }
 
-  private emitStep(step: Step) {
-    this.emit({ type: "step.updated", job_id: this.jobId(), ts: now(), step: clone(step) });
+  private emitStep(step: Step, eventNote?: EventNote) {
+    const event: JobEvent = { type: "step.updated", job_id: this.jobId(), ts: now(), step: clone(step) };
+    if (eventNote !== undefined) event.note = eventNote;
+    this.emit(event);
   }
 
   private emit(event: JobEvent) {

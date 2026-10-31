@@ -2,9 +2,12 @@
 
 // Press-and-hold approve button for high-risk steps, so they can't be rubber-stamped with
 // one tap. Hold for holdMs (1.5s) and it fires; the fill shows how far along you are.
-// Let go early and it resets to empty. Works with mouse, touch/pen and keyboard (hold Space or Enter).
+// Let go early and it resets to empty: no approval. Works with mouse, touch/pen and keyboard
+// (hold Space or Enter). On a phone: pointer events with capture (a wobble isn't a let-go), no
+// long-press menu, no text selection or drag on the button (CSS .btn-hold does the rest).
 
 import { useEffect, useRef, useState } from "react";
+import { formatSeconds } from "@/lib/jobReducer";
 
 const DEFAULT_HOLD_MS = 1500;
 
@@ -57,8 +60,8 @@ export default function HoldToApprove({ holdMs = DEFAULT_HOLD_MS, onComplete }: 
     };
   }, []);
 
-  const seconds = (holdMs / 1000).toFixed(1);
-  let label = `Hold ${seconds}s to approve`;
+  const seconds = formatSeconds(holdMs); // "1.5", shown as "1.5 s"
+  let label = `Hold ${seconds} s to approve`;
   if (progress > 0 && progress < 1) label = "Keep holding…";
   if (progress >= 1) label = "Approved";
 
@@ -71,6 +74,9 @@ export default function HoldToApprove({ holdMs = DEFAULT_HOLD_MS, onComplete }: 
         aria-label={`Approve: press and hold for ${seconds} seconds`}
         onPointerDown={(e) => {
           if (e.button !== 0) return; // left click / touch / pen only
+          // no text selection or iOS magnifier from the press itself
+          e.preventDefault();
+          e.currentTarget.focus(); // preventDefault skips focus, keyboard users still need it
           // keep getting pointer events for this press, so a finger wobble doesn't count as letting go
           e.currentTarget.setPointerCapture(e.pointerId);
           begin();
@@ -79,6 +85,12 @@ export default function HoldToApprove({ holdMs = DEFAULT_HOLD_MS, onComplete }: 
         onPointerCancel={release}
         onLostPointerCapture={release}
         onContextMenu={(e) => e.preventDefault()} // long-press on touch would open a menu
+        // a held finger still ends in a synthesized click at the spot it started. if the page
+        // moved under the finger meanwhile (new log lines, a status change), that click lands on
+        // whatever is there now, on a phone that's Reject right below. cancel it at the source
+        onTouchEnd={(e) => e.preventDefault()}
+        onDragStart={(e) => e.preventDefault()}
+        draggable={false}
         onKeyDown={(e) => {
           if (e.key !== " " && e.key !== "Enter") return;
           e.preventDefault(); // no click, no page scroll
@@ -96,7 +108,7 @@ export default function HoldToApprove({ holdMs = DEFAULT_HOLD_MS, onComplete }: 
         </span>
       </button>
       <span className="hold-hint" aria-live="polite">
-        {letGoEarly ? `Let go too early. Hold for the full ${seconds}s.` : ""}
+        {letGoEarly ? `Let go too early. Hold for the full ${seconds} s.` : ""}
       </span>
     </div>
   );
