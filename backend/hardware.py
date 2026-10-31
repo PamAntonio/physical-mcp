@@ -11,6 +11,7 @@ Threading, since the real thing will block:
   (raise HardwareStopped) as soon as it can.
 """
 
+import json
 import os
 import threading
 import time
@@ -123,7 +124,17 @@ class FakeHardware(Hardware):
         # what the screens show before anything's pressed (timer-01: every row 00:00 00), so the
         # read before planning returns real text. only screens we haven't shown yet: after a
         # job the screen keeps what that job left on it, like the real timer
-        fake_screens = (profile or {}).get("fake_screens") or {}
+        fake_screens = dict((profile or {}).get("fake_screens") or {})
+        # FAKE_SCREENS='{"screen_t1": "01:59 00"}' starts a screen somewhere else, e.g. to film
+        # the planner refusing a target it can't reach. same rule: never over what's on screen
+        if os.environ.get("FAKE_SCREENS"):
+            try:
+                override = json.loads(os.environ["FAKE_SCREENS"])
+            except ValueError:
+                raise ValueError(f"FAKE_SCREENS should be JSON like {{\"screen_t1\": \"01:59 00\"}}, not {os.environ['FAKE_SCREENS']!r}")
+            if not isinstance(override, dict):
+                raise ValueError("FAKE_SCREENS should be a JSON object of control_id -> screen text")
+            fake_screens.update(override)
         for control_id, text in fake_screens.items():
             if control_id not in self.last_reads and control_id not in self.next_reads:
                 self.last_reads[control_id] = text

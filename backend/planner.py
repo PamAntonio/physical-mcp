@@ -20,6 +20,7 @@ backend/out/plan-<device_id>.json.
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -180,6 +181,146 @@ def retries_if_unchanged(control_id, profile):
     an unchanged screen afterwards means press it again. See api.plan_repeat."""
     entry = profile_controls(profile).get(control_id)
     return bool(isinstance(entry, dict) and entry.get("retry_if_unchanged"))
+
+
+# ---- checking a plan against the screen, in code ----
+# The model can get the arithmetic wrong (T1 at 01:59 00, "set it to 2 hours": one H press ends
+# at 02:59 00). For a device whose profile has a plan_check, the plan is simulated from the real
+# read before planning, and refused if any expect or the final time doesn't line up.
+
+NUMBER_WORDS = {
+    "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+    "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+}
+HMS = re.compile(r"(\d{1,2}):(\d{2})(?:\s+(\d{2}))?")
+# "2 hours", "2h", "90 min". a number word needs a space and a whole unit ("two hours"), so "as"
+# never reads as "a s" (1 second)
+DURATION = re.compile(
+    r"\b(?:(\d+)\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)"
+    r"|(" + "|".join(NUMBER_WORDS) + r")\s+(hours?|minutes?|seconds?))\b",
+    re.IGNORECASE,
+)
+
+
+def parse_hms(text):
+    """'01:59 00' -> 7140 s, '02:00' -> 7200 s. None if there's no time in it."""
+    match = HMS.search(text or "")
+    if not match:
+        return None
+    seconds = int(match.group(3)) if match.group(3) else 0
+    return int(match.group(1)) * 3600 + int(match.group(2)) * 60 + seconds
+
+
+def format_hms(seconds):
+    """7200 -> '02:00 00', the timer's HH:MM SS."""
+    return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d} {seconds % 60:02d}"
+
+
+def requested_seconds(request):
+    """The time the request asks for, from its words: 'Set T1 to 2 hours' -> 7200,
+    'one hour 30 minutes' -> 5400. None if it names no time ('Start T1')."""
+    total = 0
+    found = False
+    for match in DURATION.finditer(request or ""):
+        if match.group(1):
+            number = int(match.group(1))
+            unit = match.group(2).lower()
+        else:
+            number = NUMBER_WORDS[match.group(3).lower()]
+            unit = match.group(4).lower()
+        if unit.startswith("h"):
+            total += number * 3600
+        elif unit.startswith("m"):
+            total += number * 60
+        else:
+            total += number
+        found = True
+    return total if found else None
+
+
+def _contains(expected, shown):
+    # the same "screen contains the expect" test the runner verifies with, spaces evened out
+    return " ".join((expected or "").split()) in " ".join(shown.split())
+
+
+def check_plan(plan, readings, request, profile):
+    """None if the plan lines up with the screen, else a plain reason to refuse it.
+
+    Only for a profile with plan_check, e.g. timer-01:
+        "plan_check": {"screen": "screen_t1", "add_seconds": {"btn_h": 3600}, "start": "btn_stsp"}
+    Simulates every step from the real read of `screen` before planning: each press of an
+    add_seconds control adds that much (H = +1 hour), `start` starts the countdown. Every expect on
+    `screen` has to match the simulated screen, and the time set before starting has to be what
+    the request asks for (when it names a time)."""
+    rules = (profile or {}).get("plan_check")
+    if not isinstance(rules, dict):
+        return None
+    screen = rules.get("screen")
+    adds = rules.get("add_seconds") or {}
+    start_control = rules.get("start")
+    name = screen.replace("screen_", "").upper() if screen else "the screen"
+
+    # where we start: the real read, never the profile's guess
+    start = None
+    for reading in readings or []:
+        if reading.get("control_id") == screen and not reading.get("error") and reading.get("confidence") != "low":
+            start = parse_hms(reading.get("text"))
+    if start is None:
+        return (f"I couldn't read {name} before planning, so I can't check the plan against it. "
+                "Check the camera and try again.")
+
+    target = requested_seconds(request)
+    add_names = ", ".join(sorted(adds)) or "nothing"
+    # can adding whole steps (H = 1 hour) get from the screen to the target at all?
+    if target is not None:
+        step_sizes = [size for size in adds.values() if isinstance(size, int) and size > 0]
+        reachable = False
+        for size in step_sizes:
+            if target >= start and (target - start) % size == 0:
+                reachable = True
+        if not reachable:
+            hours_only = step_sizes == [3600]
+            how = "add whole hours with H" if hours_only else f"only add time with {add_names}"
+            return (f"{name} shows {format_hms(start)}. I can {how} and there's no finger on RESET, "
+                    f"so I can't get to {format_hms(target)}. Reset the timer by hand and try again.")
+
+    value = start
+    set_value = None  # the time when ST/SP started it
+    running = False
+    for step in plan.get("steps") or []:
+        action = step.get("action") or {}
+        if action.get("type") == "press":
+            control_id = action.get("control_id")
+            if control_id in adds:
+                if running:
+                    return f"Step {step['index']} presses {control_id} after {name} was started."
+                value += adds[control_id] * int(action.get("count") or 1)
+            elif control_id == start_control:
+                if value <= 0:
+                    return f"Step {step['index']} starts {name} at {format_hms(value)}: there's no time on it to count down."
+                running = True
+                set_value = value
+            else:
+                return f"Step {step['index']} presses {control_id}, which the plan check doesn't know how to follow."
+
+        expect = step.get("expect") or {}
+        if expect.get("control_id") != screen:
+            continue
+        if running and action.get("control_id") != start_control:
+            continue  # counting down, the exact time isn't known any more
+        # once started it's counting down, a second later it already shows one second less
+        shown = format_hms(value - 1 if running else value)
+        if not _contains(expect.get("text_contains"), shown):
+            return (f"Step {step['index']} expects {expect.get('text_contains')!r} on {screen}, but from "
+                    f"{format_hms(start)} the screen would show {shown} by then. The plan doesn't add up, "
+                    "so I won't run it.")
+
+    if set_value is None:
+        set_value = value
+    if target is not None and set_value != target:
+        return (f"The plan would set {name} to {format_hms(set_value)}, but you asked for "
+                f"{format_hms(target)} (it shows {format_hms(start)} now).")
+    return None
 
 
 def refusal_reason(raw):

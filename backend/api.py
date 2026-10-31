@@ -257,6 +257,11 @@ def make_plan(device_id, request, screen_readings=None):
     plan, errors = planner.validate_and_build_plan(raw, device, profile)
     if errors:
         raise ValueError("plan failed validation: " + "; ".join(errors))
+    # the model's arithmetic gets checked in code: simulate the plan from the real read before
+    # planning (timer-01: H = +1 hour), refuse it if an expect or the final time doesn't add up
+    problem = planner.check_plan(plan, screen_readings, request, profile)
+    if problem:
+        raise PlanRefused(problem)
     return plan
 
 
@@ -503,7 +508,10 @@ async def run_job(run):
             plan = await asyncio.to_thread(make_plan, device_id, job["request"], readings)
         except PlanRefused as err:
             log(f"planner refused: {err}")
-            message = f"Can't do this on this rig: {err} Nothing was pressed."
+            reason = str(err).strip()
+            if reason and reason[-1] not in ".!?":
+                reason += "."  # the model's reasons don't always end in one
+            message = f"Can't do this on this rig: {reason} Nothing was pressed."
             finish(run, "failed", message, None, note=make_note("planner_refused", message))
             return
         except Exception as err:

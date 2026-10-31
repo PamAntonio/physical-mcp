@@ -446,17 +446,140 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         fresh.prepare_job(planner.load_profile("inkbird-01"))
         self.assertEqual(fresh.read_screen("screen_pv"), "")
 
-    async def test_empty_read_before_planning_still_falls_back_to_the_guess(self):
-        # hardware that really reads nothing (no fake_screens, a dead camera feed): planning goes on
-        # from the profile's guess, marked as one, and the job still runs
+    async def test_empty_read_before_planning_is_refused_not_run_on_the_guess(self):
+        # hardware that really reads nothing (no fake_screens, a dead camera feed): the planner
+        # still gets the profile's guess, marked as one, but the plan check has no real T1 to
+        # simulate from, so the plan is refused instead of pressing on a guess
         self.hardware = ReadingHardware()
         self.hardware.prepare_job = lambda profile: None
         self.hardware.last_reads.clear()
         api.hardware = self.hardware
-        await self.run_two_hours()
+        planner.call_model = timer_model(self.prompts)
+        run = await self.start_job(TWO_HOURS)
+        await self.wait_until(lambda: api.is_finished(run))
         self.assertIn("screen_t1 (T1 time): couldn't read it (empty read)", self.prompts[0])
         self.assertIn("NOT read from the camera", self.prompts[0])
-        self.assertEqual(self.hardware.finished, [("btn_h", 1, 1000), ("btn_h", 1, 1000), ("btn_stsp", 1, 1000)])
+        self.assertEqual(run.job["status"], "failed")
+        self.assertIn("I couldn't read T1 before planning", run.job["result"]["message"])
+        self.assertEqual(self.events(run, "job.finished")[0]["note"]["kind"], "planner_refused")
+        self.assertEqual(self.hardware.started, [])
+
+    # ---- the plan is checked against the screen, in code ----
+
+    def plan_from(self, raw_steps):
+        plan, errors = self.validate(raw_steps)
+        self.assertEqual(errors, [])
+        return plan
+
+    def t1_read(self, text, confidence="high"):
+        return [{"control_id": "screen_t1", "label": "T1 time", "text": text, "confidence": confidence, "error": None}]
+
+    def two_hours_steps(self, *h_expects, start_expect="01:59"):
+        steps = []
+        for text in h_expects:
+            steps.append(press_step("Add an hour", "btn_h", text))
+        steps.append(press_step("Start T1", "btn_stsp", start_expect, True, "Starts T1"))
+        return steps
+
+    def test_plan_check_passes_plans_that_add_up(self):
+        profile = planner.load_profile(DEVICE)
+        # from 00:00 00: H, H, ST/SP
+        plan = self.plan_from(self.two_hours_steps("01:00 00", "02:00 00"))
+        self.assertIsNone(planner.check_plan(plan, self.t1_read("00:00 00"), TWO_HOURS, profile))
+        # from 01:00 00: one H, ST/SP. short expects ("02:00") pass too, the runner checks "contains"
+        plan = self.plan_from(self.two_hours_steps("02:00"))
+        self.assertIsNone(planner.check_plan(plan, self.t1_read("01:00 00"), TWO_HOURS, profile))
+        # one step with count 2 adds two hours
+        plan = self.plan_from([dict(press_step("Add two hours", "btn_h", "02:00 00"),
+                                    action={"type": "press", "control_id": "btn_h", "count": 2}),
+                               press_step("Start T1", "btn_stsp", "01:59", True, "Starts T1")])
+        self.assertIsNone(planner.check_plan(plan, self.t1_read("00:00 00"), TWO_HOURS, profile))
+        # no time in the request: only the expects are checked
+        plan = self.plan_from([press_step("Start T1", "btn_stsp", "00:59", True, "Starts T1")])
+        self.assertIsNone(planner.check_plan(plan, self.t1_read("01:00 00"), "Start T1", profile))
+        # a device without plan_check isn't checked at all
+        self.assertIsNone(planner.check_plan(plan, [], TWO_HOURS, planner.load_profile("inkbird-01")))
+
+    def test_plan_check_refuses_what_cant_be_reached(self):
+        profile = planner.load_profile(DEVICE)
+        plan = self.plan_from(self.two_hours_steps("02:00 00"))
+        reason = planner.check_plan(plan, self.t1_read("01:59 00"), TWO_HOURS, profile)
+        self.assertEqual(reason, "T1 shows 01:59 00. I can add whole hours with H and there's no finger on "
+                                 "RESET, so I can't get to 02:00 00. Reset the timer by hand and try again.")
+        # already past the target: H can't go down
+        reason = planner.check_plan(plan, self.t1_read("03:00 00"), TWO_HOURS, profile)
+        self.assertIn("T1 shows 03:00 00", reason)
+        self.assertIn("can't get to 02:00 00", reason)
+        # minutes can't be added at all
+        reason = planner.check_plan(plan, self.t1_read("00:00 00"), "Set T1 to 1 hour 30 minutes", profile)
+        self.assertIn("can't get to 01:30 00", reason)
+
+    def test_plan_check_rejects_wrong_expects_and_wrong_totals(self):
+        profile = planner.load_profile(DEVICE)
+        # the planner didn't refuse, but step 2 expects 03:00 00 where H gets to 02:00 00
+        plan = self.plan_from(self.two_hours_steps("01:00 00", "03:00 00"))
+        reason = planner.check_plan(plan, self.t1_read("00:00 00"), TWO_HOURS, profile)
+        self.assertEqual(reason, "Step 2 expects '03:00 00' on screen_t1, but from 00:00 00 the screen would "
+                                 "show 02:00 00 by then. The plan doesn't add up, so I won't run it.")
+        # every expect lines up, but one H only gets to 1 hour
+        plan = self.plan_from(self.two_hours_steps("01:00 00", start_expect="00:59"))
+        reason = planner.check_plan(plan, self.t1_read("00:00 00"), TWO_HOURS, profile)
+        self.assertEqual(reason, "The plan would set T1 to 01:00 00, but you asked for 02:00 00 (it shows 00:00 00 now).")
+        # starting at 00:00 00, or a countdown expect that isn't what starting shows
+        plan = self.plan_from([press_step("Start T1", "btn_stsp", "00:00", True, "Starts T1")])
+        self.assertIn("there's no time on it", planner.check_plan(plan, self.t1_read("00:00 00"), "Start T1", profile))
+        plan = self.plan_from(self.two_hours_steps("01:00 00", "02:00 00", start_expect="02:00 00"))
+        self.assertIn("would show 01:59 59", planner.check_plan(plan, self.t1_read("00:00 00"), TWO_HOURS, profile))
+        # no real read to start from (failed, or low): refused, never simulated from a guess
+        for reading in (self.t1_read("", None), self.t1_read("01:00 00", "low"),
+                        [{"control_id": "screen_t1", "text": "", "confidence": None, "error": "camera"}]):
+            self.assertIn("couldn't read T1 before planning", planner.check_plan(plan, reading, TWO_HOURS, profile))
+
+    async def test_two_hours_from_0159_is_refused_with_the_reason(self):
+        # timer_model is the model's mistake from the live run: from 01:59 it presses H once
+        self.hardware = ReadingHardware(screens={"screen_t1": "01:59 00"})
+        api.hardware = self.hardware
+        planner.call_model = timer_model(self.prompts)
+        run = await self.start_job(TWO_HOURS)
+        await self.wait_until(lambda: api.is_finished(run))
+
+        self.assertEqual(t1_reading_in(self.prompts[0]), "01:59 00")
+        self.assertEqual(run.job["status"], "failed")
+        self.assertIsNone(run.job["plan"], "a refused plan never goes out")
+        finished = self.events(run, "job.finished")[0]
+        self.assertEqual(finished["note"]["kind"], "planner_refused")
+        self.assertEqual(finished["result"]["message"],
+                         "Can't do this on this rig: T1 shows 01:59 00. I can add whole hours with H and there's no "
+                         "finger on RESET, so I can't get to 02:00 00. Reset the timer by hand and try again. "
+                         "Nothing was pressed.")
+        self.assertEqual(self.hardware.started, [])
+
+    async def test_wrong_expect_is_refused_even_if_the_planner_did_not(self):
+        planner.call_model = canned_model(self.prompts, {"summary": "T1 to 2 hours", "steps": self.two_hours_steps(
+            "01:00 00", "03:00 00")})
+        run = await self.start_job(TWO_HOURS)
+        await self.wait_until(lambda: api.is_finished(run))
+        self.assertEqual(run.job["status"], "failed")
+        self.assertEqual(self.events(run, "job.finished")[0]["note"]["kind"], "planner_refused")
+        self.assertIn("Step 2 expects '03:00 00'", run.job["result"]["message"])
+        self.assertEqual(self.hardware.started, [])
+
+    def test_prompt_says_h_only_adds_and_reset_is_unreachable(self):
+        prompt = planner.build_messages(planner.load_device(DEVICE), planner.load_profile(DEVICE), TWO_HOURS,
+                                        self.t1_read("01:59 00"))[1]["content"]
+        self.assertIn("H only ever adds time, and RESET has no finger", prompt)
+        self.assertIn("T1 shows 01:59 00 and 2 hours is asked", prompt)
+        self.assertIn("refuse", prompt)
+
+    def test_fake_screens_env_starts_t1_elsewhere(self):
+        with mock.patch.dict(os.environ, {"FAKE_SCREENS": '{"screen_t1": "01:59 00"}'}):
+            fake = FakeHardware(seconds_per_press=0.0, seconds_per_read=0.0)
+            fake.prepare_job(planner.load_profile(DEVICE))
+        self.assertEqual(fake.read_screen("screen_t1"), "01:59 00")
+        self.assertEqual(fake.read_screen("screen_t2"), "00:00 00")
+        with mock.patch.dict(os.environ, {"FAKE_SCREENS": "01:59"}):
+            with self.assertRaises(ValueError):
+                FakeHardware(seconds_per_press=0.0, seconds_per_read=0.0).prepare_job(planner.load_profile(DEVICE))
 
     # ---- jobs: things the rig can't do ----
 
@@ -724,6 +847,8 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         finished = self.events(run, "job.finished")[0]
         self.assertEqual(finished["note"]["kind"], "planner_refused")
         self.assertEqual(finished["note"]["message"], finished["result"]["message"])
+        # the canned reason has no full stop, the runner adds one before "Nothing was pressed."
+        self.assertEqual(finished["result"]["message"], "Can't do this on this rig: T2 can't be picked on this rig. Nothing was pressed.")
         # a plain planning failure isn't marked a refusal
         planner.call_model = canned_model(self.prompts, {"summary": "x", "steps": [press_step("x", "btn_t2", "x")]})
         run = await self.start_job("Set T2 to 5 minutes")
