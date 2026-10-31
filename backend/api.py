@@ -495,6 +495,7 @@ async def run_job(run):
     job = run.job
     device_id = job["device"]["device_id"]
     run.profile = planner.load_profile(device_id)
+    await on_hardware(hardware.prepare_job, copy.deepcopy(run.profile))
     # every press and read goes through the MCP tools, in memory in this same process
     async with Client(mcp_server.mcp) as client:
         readings = await read_screens_for_planning(run, client, job["device"], run.profile)

@@ -422,10 +422,35 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(run.job["plan"]["steps"]), 2)
         self.assertEqual(self.hardware.reads, ["screen_t1", "screen_t1", "screen_t1"])
 
-    async def test_plain_fake_hardware_still_plans(self):
-        # the stock FakeHardware has never been told what a screen shows, so every pre-plan read
-        # comes back empty: the planner gets the profile's guess and the job still runs
+    async def test_stock_fake_hardware_reads_real_screen_text_first(self):
+        # FakeHardware as `python backend/api.py` runs it (RecordingHardware only adds press
+        # records): its first read before planning is the profile's fake_screens, T1 at 00:00 00
+        self.hardware = RecordingHardware()
+        api.hardware = self.hardware
+        await self.run_two_hours()
+        self.assertEqual(t1_reading_in(self.prompts[0]), "00:00 00")
+        self.assertNotIn("couldn't read", self.prompts[0])
+        self.assertNotIn("guess", self.prompts[0])
+        plan_note = self.events(run=api.current_run, event_type="plan.ready")[0]["note"]
+        self.assertEqual(plan_note["message"], "Planned from screen_t1 reads '00:00 00' (no vision vote)")
+        self.assertEqual(plan_note["read"]["text"], "00:00 00")
+
+    def test_fake_screens_never_overwrite_what_is_on_screen(self):
+        fake = FakeHardware(seconds_per_press=0.0, seconds_per_read=0.0)
+        fake.last_reads["screen_t1"] = "01:59 30"  # a job before this one left T1 counting
+        fake.prepare_job(planner.load_profile(DEVICE))
+        self.assertEqual(fake.read_screen("screen_t1"), "01:59 30")
+        self.assertEqual(fake.read_screen("screen_t2"), "00:00 00")
+        # no fake_screens in a profile (the Inkbird): nothing changes, reads stay empty
+        fresh = FakeHardware(seconds_per_press=0.0, seconds_per_read=0.0)
+        fresh.prepare_job(planner.load_profile("inkbird-01"))
+        self.assertEqual(fresh.read_screen("screen_pv"), "")
+
+    async def test_empty_read_before_planning_still_falls_back_to_the_guess(self):
+        # hardware that really reads nothing (no fake_screens, a dead camera feed): planning goes on
+        # from the profile's guess, marked as one, and the job still runs
         self.hardware = ReadingHardware()
+        self.hardware.prepare_job = lambda profile: None
         self.hardware.last_reads.clear()
         api.hardware = self.hardware
         await self.run_two_hours()

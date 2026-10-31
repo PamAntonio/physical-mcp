@@ -42,6 +42,12 @@ class Hardware:
         """Retract the finger now. Called from another thread, see the note at the top."""
         raise NotImplementedError
 
+    def prepare_job(self, profile):
+        """Heads up that a job is starting on this device (backend/devices/<id>.json), before the
+        screens are read for planning. Real hardware ignores it, FakeHardware uses the profile's
+        fake_screens so its first read shows real screen text."""
+        pass
+
     def prepare_step(self, step, profile):
         """Heads up about the step that's about to run, plus the device profile
         (backend/devices/<id>.json, with each control's pan/tilt numbers and step_size).
@@ -112,6 +118,15 @@ class FakeHardware(Hardware):
         self.last_reads = {}  # control_id -> what it said last time
         self.expected_read = None  # (control_id, text) the current step is after
         self.step_size = None
+
+    def prepare_job(self, profile):
+        # what the screens show before anything's pressed (timer-01: every row 00:00 00), so the
+        # read before planning returns real text. only screens we haven't shown yet: after a
+        # job the screen keeps what that job left on it, like the real timer
+        fake_screens = (profile or {}).get("fake_screens") or {}
+        for control_id, text in fake_screens.items():
+            if control_id not in self.last_reads and control_id not in self.next_reads:
+                self.last_reads[control_id] = text
 
     def prepare_step(self, step, profile):
         self.step_size = (profile or {}).get("step_size")
