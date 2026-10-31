@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="959" height="1280" viewBox="0 0 959 1280">
+<!-- Placeholder camera frame for timer-01, mock mode only. Not a photo. Controls are drawn
+     at the boxes in shared/fixtures/timerJobSample.json (same as vision/calibration/timer-01.boxes.json)
+     so the camera overlay lines up. -->
+<rect width="959" height="1280" fill="#16191c"/>
+<rect x="120" y="230" width="730" height="700" rx="40" fill="#e9e6df" stroke="#c9c4ba" stroke-width="4"/>
+<rect x="260" y="305" width="340" height="390" rx="10" fill="#b9c2ac" stroke="#8e9884" stroke-width="3"/>
+<rect x="288" y="324" width="292" height="76" rx="4" fill="#c8d0bb" stroke="#8e9884" stroke-width="2"/>
+<text x="250" y="374" font-family="Consolas, monospace" font-size="26" fill="#55585c" text-anchor="end">T1</text>
+<rect x="288" y="415" width="292" height="75" rx="4" fill="#c8d0bb" stroke="#8e9884" stroke-width="2"/>
+<text x="250" y="464" font-family="Consolas, monospace" font-size="26" fill="#55585c" text-anchor="end">T2</text>
+<rect x="288" y="504" width="292" height="77" rx="4" fill="#c8d0bb" stroke="#8e9884" stroke-width="2"/>
+<text x="250" y="554" font-family="Consolas, monospace" font-size="26" fill="#55585c" text-anchor="end">T3</text>
+<rect x="288" y="588" width="292" height="87" rx="4" fill="#c8d0bb" stroke="#8e9884" stroke-width="2"/>
+<text x="250" y="643" font-family="Consolas, monospace" font-size="26" fill="#55585c" text-anchor="end">T4</text>
+<rect x="697" y="289" width="81" height="81" rx="40" fill="#d24b3e" stroke="#9e362c" stroke-width="3"/>
+<text x="737.5" y="339" font-family="Consolas, monospace" font-size="28" fill="#ffffff" text-anchor="middle">T1</text>
+<rect x="700" y="386" width="82" height="81" rx="40" fill="#e0913a" stroke="#a96a26" stroke-width="3"/>
+<text x="741" y="436" font-family="Consolas, monospace" font-size="28" fill="#ffffff" text-anchor="middle">T2</text>
+<rect x="705" y="485" width="83" height="81" rx="40" fill="#4f9d5a" stroke="#387342" stroke-width="3"/>
+<text x="746.5" y="535" font-family="Consolas, monospace" font-size="28" fill="#ffffff" text-anchor="middle">T3</text>
+<rect x="710" y="585" width="85" height="83" rx="41" fill="#3f78c2" stroke="#2c5891" stroke-width="3"/>
+<text x="752.5" y="636" font-family="Consolas, monospace" font-size="28" fill="#ffffff" text-anchor="middle">T4</text>
+<rect x="163" y="731" width="94" height="69" rx="12" fill="#cfcac0" stroke="#a39d92" stroke-width="3"/>
+<text x="210" y="776" font-family="Consolas, monospace" font-size="28" fill="#333639" text-anchor="middle">H</text>
+<rect x="276" y="729" width="94" height="68" rx="12" fill="#cfcac0" stroke="#a39d92" stroke-width="3"/>
+<text x="323" y="773" font-family="Consolas, monospace" font-size="28" fill="#333639" text-anchor="middle">M</text>
+<rect x="389" y="727" width="93" height="69" rx="12" fill="#cfcac0" stroke="#a39d92" stroke-width="3"/>
+<text x="435.5" y="772" font-family="Consolas, monospace" font-size="28" fill="#333639" text-anchor="middle">S</text>
+<rect x="160" y="818" width="96" height="71" rx="12" fill="#cfcac0" stroke="#a39d92" stroke-width="3"/>
+<text x="208" y="864" font-family="Consolas, monospace" font-size="26" fill="#333639" text-anchor="middle">10M</text>
+<rect x="276" y="816" width="94" height="70" rx="12" fill="#cfcac0" stroke="#a39d92" stroke-width="3"/>
+<text x="323" y="862" font-family="Consolas, monospace" font-size="26" fill="#333639" text-anchor="middle">5M</text>
+<rect x="390" y="814" width="93" height="70" rx="12" fill="#cfcac0" stroke="#a39d92" stroke-width="3"/>
+<text x="436.5" y="860" font-family="Consolas, monospace" font-size="26" fill="#333639" text-anchor="middle">10S</text>
+<rect x="521" y="780" width="103" height="100" rx="50" fill="#cfcac0" stroke="#a39d92" stroke-width="3"/>
+<text x="572.5" y="839" font-family="Consolas, monospace" font-size="22" fill="#333639" text-anchor="middle">RESET</text>
+<rect x="660" y="777" width="153" height="99" rx="49" fill="#cfcac0" stroke="#a39d92" stroke-width="3"/>
+<text x="736.5" y="836" font-family="Consolas, monospace" font-size="26" fill="#333639" text-anchor="middle">ST/SP</text>
+<text x="32" y="64" font-family="Consolas, monospace" font-size="24" fill="#ffffff" opacity="0.55">CAM-0  MOCK FRAME  ·  PLACEHOLDER, NOT A PHOTO</text>
+</svg>

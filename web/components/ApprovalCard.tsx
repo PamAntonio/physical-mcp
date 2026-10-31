@@ -4,7 +4,8 @@
 // Risk tier + reason come from the Muse Spark Open scorer (risk/), shown big at the top
 // so they're the first thing you read.
 // High risk (or not scored at all) = hold-to-approve, low/medium = a normal tap. A step that
-// turns something on (step.turns_on_output, set by the backend) is always a hold, whatever the tier.
+// turns something on (step.turns_on_output) or wipes something (step.destructive, e.g. RESET on a
+// running timer), both set by the backend, is always a hold, whatever the tier.
 // What Reject does (abort / pause / replan) is a setting, see REJECT_BEHAVIOR in lib/config.ts.
 
 import { useEffect, useRef, useState } from "react";
@@ -46,9 +47,10 @@ export default function ApprovalCard({ step, device, risk, paused, rejectBehavio
   const target = step.action.type === "wait" ? null : findControl(device.controls, step.action.control_id);
 
   // high risk has to be held, not tapped. no score at all counts as high (never assume low).
-  // turning something on is always a hold, the score can't talk it down to a tap
+  // turning something on or wiping something is always a hold, the score can't talk it down to a tap
   const turnsOnOutput = step.turns_on_output === true;
-  const needsHold = turnsOnOutput || risk === null || risk.tier === "high";
+  const destructive = step.destructive === true;
+  const needsHold = turnsOnOutput || destructive || risk === null || risk.tier === "high";
 
   function decide(decision: "approve" | "reject", approvalType: "tap" | "hold") {
     if (sent) return;
@@ -118,6 +120,9 @@ export default function ApprovalCard({ step, device, risk, paused, rejectBehavio
       {step.approval_reason && <p className="approval-planner-note">Planner says: {step.approval_reason}</p>}
       {turnsOnOutput && (
         <p className="approval-planner-note">This step turns something on, so it always takes a press-and-hold.</p>
+      )}
+      {destructive && (
+        <p className="approval-planner-note">This step wipes something that's set or counting, so it always takes a press-and-hold.</p>
       )}
 
       {paused && (

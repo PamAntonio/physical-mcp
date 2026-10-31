@@ -19,7 +19,14 @@ export const REJECT_BEHAVIOR: RejectBehavior = pickRejectBehavior(process.env.NE
 // who's approving, sent as decided_by. No logins at the hackathon, so it's just a name.
 export const OPERATOR_NAME = process.env.NEXT_PUBLIC_OPERATOR_NAME || "operator";
 
+// the device the page opens on. the picker next to the request box switches between DEVICES
 export const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "inkbird-01";
+
+export const DEVICES: { id: string; name: string }[] = [
+  { id: "inkbird-01", name: "Inkbird heater" },
+  { id: "timer-01", name: "Kitchen timer" },
+  { id: "incubator-01", name: "Incubator (demo)" },
+];
 
 // MOCK ONLY: add a fake retry where the fixture has none (Inkbird s2), so the retry UI shows up.
 // On unless set to "false". Turn it off once Pam's backend sends real retries

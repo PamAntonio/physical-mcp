@@ -117,6 +117,10 @@ export interface Step {
   // Its approval is always a press-and-hold, whatever risk_tier says, and it always has
   // requires_approval. The backend refuses a tap approval for it. Missing = false
   turns_on_output?: boolean;
+  // the step wipes something someone set or is counting (RESET on a running timer channel).
+  // Same rules as turns_on_output: always a press-and-hold, always requires_approval, the
+  // backend refuses a tap. Missing = false
+  destructive?: boolean;
   // PROPOSED, not locked with Pam yet. Filled in before a step is shown for approval.
   // The scorer only adds these; it never changes requires_approval.
   risk_tier?: RiskTier;

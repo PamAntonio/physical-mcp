@@ -26,6 +26,7 @@ export interface JobState {
 
 export type JobMessage =
   | { kind: "reset"; job: Job }
+  | { kind: "clear" } // no job (picked another device)
   | { kind: "sync"; job: Job; ts: string } // caught up after a reconnect: new job state, keep the log
   | { kind: "event"; event: JobEvent }
   | { kind: "note"; ts: string; tone: LogTone; text: string };
@@ -35,6 +36,10 @@ export const emptyJobState: JobState = { job: null, log: [] };
 export function jobReducer(state: JobState, message: JobMessage): JobState {
   if (message.kind === "reset") {
     return { job: message.job, log: [] };
+  }
+
+  if (message.kind === "clear") {
+    return emptyJobState;
   }
 
   if (message.kind === "note") {

@@ -16,7 +16,7 @@ The AI just calls tools like `press` and `read_screen`. The finger is hidden beh
 
 Muse Spark plans, and every action reaches the machine through MCP tools. The approval gate lives inside press. The step runner in `backend/api.py` is the MCP client and talks to the server in `backend/mcp_server.py` (`get_controls`, `press`, `read_screen`, `get_frame`, `stop`) in memory, in the same process, so one process owns the finger. `press` refuses anything that isn't the running step's own control, waits on the approval card for a risky step, and charges the 30-press budget, all before the hardware moves.
  
-Our first test device is an Inkbird temperature controller (`inkbird-01`).
+Our first test device is an Inkbird temperature controller (`inkbird-01`). The second is a 4-channel kitchen timer (`timer-01`, servo angles still to be found on the rig). Pick the device next to the request box in the web app.
  
 ## Repo layout
 | Folder | What's in it | Status |
@@ -54,7 +54,7 @@ More detail (mock flags, env vars, where each file lives) is in `web/README.md`.
 ## Safety rules for the approval layer
 - If the scorer fails for any reason (no key, timeout, bad reply) the step is marked high. It never falls back to low
 - The scorer only adds a tier and a reason. It can't turn approval off for a step that needs it
-- A step that turns something on (the Inkbird's heating outlet, an incubator's START) always needs a press-and-hold, whatever the tier. The backend refuses a tap for it
+- A step that turns something on (the Inkbird's heating outlet, an incubator's START) or wipes something (the timer's RESET) always needs a press-and-hold, whatever the tier. The backend refuses a tap for it
 - Reject stops the job before the risky press happens
 ## Team
 - **Pam** ([@PamAntonio](https://github.com/PamAntonio)): MCP server, servo hardware, Muse Spark orchestration, backend

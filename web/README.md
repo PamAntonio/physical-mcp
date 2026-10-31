@@ -8,7 +8,7 @@ Vision, web app and approval layer by Bhavi. Backend, MCP server and servo hardw
 
 ## Run it on mock data
 
-Both options replay one of Pam's fixtures: `shared/fixtures/inkbirdJobSample.json` for `inkbird-01` (the default device, step 1 waits for approval) or `jobSample.json` for anything else (the step 2 retry, the step 6 approval), so every UI state works before the hardware does. The sample job starts by itself when the page loads. Open http://localhost:3000.
+Both options replay one of Pam's fixtures: `shared/fixtures/inkbirdJobSample.json` for `inkbird-01` (the default device, step 1 waits for approval), `timerJobSample.json` for `timer-01` (T2 for 5 minutes, step 3 ST/SP waits for a normal approval) or `jobSample.json` for anything else (the step 2 retry, the step 6 approval), so every UI state works before the hardware does. The sample job starts by itself when the page loads. Switch devices with the picker next to the request box (it's locked while a job runs, so Stop first). Open http://localhost:3000.
 
 ```bash
 npm install
@@ -20,7 +20,7 @@ npm run dev:mock   # mock server on :8787 + the app, over real HTTP + WebSocket
 
 - `?fail=s4` (in-browser mock) or `MOCK_FAIL_STEP=s4 npm run dev:mock` makes step s4 fail
 - `NEXT_PUBLIC_MOCK_INJECT_RETRY` (default `true`) adds a **mock-only** retry on Inkbird s2: the first read is `TS 79.0`, it presses ▲ once more, then reads `TS 80.0`. Pam's Inkbird fixture has no retries yet, this is so the retry UI shows up. Set it to `false` once the real backend sends real retries (in `.env.local` for `npm run dev`, or `NEXT_PUBLIC_MOCK_INJECT_RETRY=false npm run dev:mock`)
-- The Inkbird camera frame is a placeholder still, `public/mock/inkbird-01.svg` (2560x1440, controls drawn at the fixture's bboxes so the boxes line up). Not a photo
+- The Inkbird camera frame is a placeholder still, `public/mock/inkbird-01.svg` (2560x1440, controls drawn at the fixture's bboxes so the boxes line up). Not a photo. Same for the timer, `public/mock/timer-01.svg` (959x1280)
 - Approval steps go to the risk scorer (`python risk/server.py`). If it can't answer (not running, Baseten down or out of credits) the mock uses the fixture's tier, or high when the fixture has none, and the card says "mock score"
 - `curl -X POST localhost:8787/debug/drop-sockets` cuts the WebSocket mid-run to watch the app reconnect and catch up
 - Reject on the approval card stops the job without pressing START
@@ -33,7 +33,7 @@ Copy `.env.example` to `.env.local`, flip the one flag, and restart `npm run dev
 ```
 NEXT_PUBLIC_USE_MOCK=false
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-NEXT_PUBLIC_DEVICE_ID=inkbird-01
+NEXT_PUBLIC_DEVICE_ID=inkbird-01   # the device the page opens on, the picker switches
 ```
 
 The app then uses the endpoints in `shared/types.ts`: `POST /jobs`, `GET /devices/:id`, approval and stop POSTs, and the `/jobs/:id/events` WebSocket (reconnects on drop).

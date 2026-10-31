@@ -1,0 +1,101 @@
+{
+  "job_id": "job_t2five",
+  "created_at": "2026-10-30T18:00:00Z",
+  "updated_at": "2026-10-30T18:00:06Z",
+  "request": "Set T2 to 5 minutes and start it",
+  "approval_mode": "risky_steps",
+  "status": "awaiting_approval",
+  "device": {
+    "device_id": "timer-01",
+    "name": "4-channel kitchen timer (placeholder boxes from a hand-held photo)",
+    "camera": {
+      "camera_id": "cam-0",
+      "frame_width": 959,
+      "frame_height": 1280,
+      "latest_frame_url": "/frames/job_t2five/latest.jpg"
+    },
+    "controls_version": 1,
+    "controls": [
+      { "control_id": "screen_t1", "label": "T1 time", "kind": "screen", "bbox": [288, 324, 292, 76], "confidence": 0.9, "reachable": true },
+      { "control_id": "screen_t2", "label": "T2 time", "kind": "screen", "bbox": [288, 415, 292, 75], "confidence": 0.9, "reachable": true },
+      { "control_id": "screen_t3", "label": "T3 time", "kind": "screen", "bbox": [288, 504, 292, 77], "confidence": 0.9, "reachable": true },
+      { "control_id": "screen_t4", "label": "T4 time", "kind": "screen", "bbox": [288, 588, 292, 87], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_t1", "label": "T1", "kind": "button", "bbox": [697, 289, 81, 81], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_t2", "label": "T2", "kind": "button", "bbox": [700, 386, 82, 81], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_t3", "label": "T3", "kind": "button", "bbox": [705, 485, 83, 81], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_t4", "label": "T4", "kind": "button", "bbox": [710, 585, 85, 83], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_h", "label": "H", "kind": "button", "bbox": [163, 731, 94, 69], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_m", "label": "M", "kind": "button", "bbox": [276, 729, 94, 68], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_s", "label": "S", "kind": "button", "bbox": [389, 727, 93, 69], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_10m", "label": "10M", "kind": "button", "bbox": [160, 818, 96, 71], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_5m", "label": "5M", "kind": "button", "bbox": [276, 816, 94, 70], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_10s", "label": "10S", "kind": "button", "bbox": [390, 814, 93, 70], "confidence": 0.9, "reachable": true },
+      { "control_id": "btn_reset", "label": "RESET", "kind": "button", "bbox": [521, 780, 103, 100], "confidence": 0.9, "risky": true, "reachable": true },
+      { "control_id": "btn_stsp", "label": "ST/SP", "kind": "button", "bbox": [660, 777, 153, 99], "confidence": 0.9, "risky": true, "reachable": true }
+    ]
+  },
+  "plan": {
+    "planner": "Muse Spark (model id TBD)",
+    "summary": "Pick T2, add 5 minutes with 5M, then start it with ST/SP and check it's counting down.",
+    "steps": [
+      {
+        "step_id": "s1",
+        "index": 1,
+        "intent": "Pick channel T2",
+        "action": { "type": "press", "control_id": "btn_t2", "count": 1 },
+        "expect": { "control_id": "screen_t2", "text_contains": "00:00 00" },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      },
+      {
+        "step_id": "s2",
+        "index": 2,
+        "intent": "Set T2 to 5 minutes",
+        "action": { "type": "press", "control_id": "btn_5m", "count": 1 },
+        "expect": { "control_id": "screen_t2", "text_contains": "00:05 00" },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      },
+      {
+        "step_id": "s3",
+        "index": 3,
+        "intent": "Start T2",
+        "action": { "type": "press", "control_id": "btn_stsp", "count": 1 },
+        "expect": { "control_id": "screen_t2", "text_contains": "00:04" },
+        "requires_approval": true,
+        "approval_reason": "Starts T2 counting down from 5 minutes",
+        "risk_tier": "low",
+        "risk_reason": "Starts a kitchen timer channel, ST/SP stops it again",
+        "status": "awaiting_approval",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      }
+    ]
+  },
+  "result": null
+}
