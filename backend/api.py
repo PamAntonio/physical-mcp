@@ -237,7 +237,13 @@ def finish(run, outcome, message, final_screen_text, note=None):
 
 
 class PlanRefused(Exception):
-    """The planner said the request can't be done on this rig. Nothing gets pressed."""
+    """The planner said the request can't be done on this rig. Nothing gets pressed.
+    unreadable: it's refused because the screen couldn't be read before planning (a camera
+    problem), not because the request is impossible, so the message says that instead."""
+
+    def __init__(self, reason, unreadable=False):
+        super().__init__(reason)
+        self.unreadable = unreadable
 
 
 def make_plan(device_id, request, screen_readings=None):
@@ -261,7 +267,7 @@ def make_plan(device_id, request, screen_readings=None):
     # planning (timer-01: H = +1 hour), refuse it if an expect or the final time doesn't add up
     problem = planner.check_plan(plan, screen_readings, request, profile)
     if problem:
-        raise PlanRefused(problem)
+        raise PlanRefused(problem, unreadable=planner.plan_check_start(screen_readings, profile) is None)
     return plan
 
 
@@ -511,7 +517,10 @@ async def run_job(run):
             reason = str(err).strip()
             if reason and reason[-1] not in ".!?":
                 reason += "."  # the model's reasons don't always end in one
-            message = f"Can't do this on this rig: {reason} Nothing was pressed."
+            if err.unreadable:
+                message = f"{reason} Nothing was pressed."  # a camera problem, not an impossible plan
+            else:
+                message = f"Can't do this on this rig: {reason} Nothing was pressed."
             finish(run, "failed", message, None, note=make_note("planner_refused", message))
             return
         except Exception as err:

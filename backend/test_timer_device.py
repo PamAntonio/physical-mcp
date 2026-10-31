@@ -460,7 +460,11 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("screen_t1 (T1 time): couldn't read it (empty read)", self.prompts[0])
         self.assertIn("NOT read from the camera", self.prompts[0])
         self.assertEqual(run.job["status"], "failed")
-        self.assertIn("I couldn't read T1 before planning", run.job["result"]["message"])
+        # a camera problem, not an impossible request: it says so first, and what to do
+        self.assertEqual(run.job["result"]["message"],
+                         "Couldn't read T1 before planning, so I can't check the plan against it. "
+                         "Check the camera and try again. Nothing was pressed.")
+        self.assertNotIn("Can't do this on this rig", run.job["result"]["message"])
         self.assertEqual(self.events(run, "job.finished")[0]["note"]["kind"], "planner_refused")
         self.assertEqual(self.hardware.started, [])
 
@@ -533,7 +537,10 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         # no real read to start from (failed, or low): refused, never simulated from a guess
         for reading in (self.t1_read("", None), self.t1_read("01:00 00", "low"),
                         [{"control_id": "screen_t1", "text": "", "confidence": None, "error": "camera"}]):
-            self.assertIn("couldn't read T1 before planning", planner.check_plan(plan, reading, TWO_HOURS, profile))
+            reason = planner.check_plan(plan, reading, TWO_HOURS, profile)
+            self.assertTrue(reason.startswith("Couldn't read T1 before planning"), reason)
+            self.assertIsNone(planner.plan_check_start(reading, profile))
+        self.assertEqual(planner.plan_check_start(self.t1_read("01:59 00"), profile), 7140)
 
     async def test_two_hours_from_0159_is_refused_with_the_reason(self):
         # timer_model is the model's mistake from the live run: from 01:59 it presses H once
