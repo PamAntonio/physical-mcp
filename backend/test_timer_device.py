@@ -22,6 +22,7 @@ BACKEND_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BACKEND_DIR.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
+from fastapi import HTTPException  # noqa: E402
 from mcp import Client  # noqa: E402
 
 import api  # noqa: E402
@@ -215,7 +216,8 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
                                              "retry_if_unchanged": True})
         self.assertEqual(profile["plan_reads"], ["screen_t1"])
         self.assertEqual(controls["btn_stsp"],
-                         {"reachable": True, "servo": 1, "rest_deg": None, "press_deg": None, "risky": True})
+                         {"reachable": True, "servo": 1, "rest_deg": None, "press_deg": None, "risky": True,
+                          "turns_on_output": True})
         for control_id, entry in controls.items():
             for key in ("pan_deg", "tilt_up_deg", "tilt_press_deg"):
                 self.assertNotIn(key, entry, control_id)
@@ -345,9 +347,12 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plan["steps"][0]["action"]["hold_ms"], 1200)
 
     def test_planner_rules(self):
-        # ST/SP is risky: a plan that forgets its approval is refused, not run
-        _, errors = self.validate([press_step("Start T1", "btn_stsp", "00:59")])
-        self.assertTrue(any("risky control 'btn_stsp'" in error for error in errors), errors)
+        # ST/SP turns the countdown on: a plan that forgets its approval gets it added, as a hold
+        plan, errors = self.validate([press_step("Start T1", "btn_stsp", "00:59")])
+        self.assertEqual(errors, [])
+        self.assertIs(plan["steps"][0]["requires_approval"], True)
+        self.assertIs(plan["steps"][0]["turns_on_output"], True)
+        self.assertTrue(planner.needs_hold(plan["steps"][0]))
         # a button with no finger can never be in a plan
         for control_id in ("btn_t2", "btn_m", "btn_5m", "btn_reset"):
             _, errors = self.validate([press_step("x", control_id, "00:05 00", True, "x")])
@@ -373,12 +378,15 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(start["action"]["control_id"], "btn_stsp")
         self.assertEqual(start["status"], "awaiting_approval")
         self.assertIs(start["requires_approval"], True)
-        self.assertFalse(planner.needs_hold(start), "starting a timer is a normal approval")
+        # the model's step doesn't say turns_on_output, the profile's mark on btn_stsp adds it
+        self.assertIs(start["turns_on_output"], True)
+        self.assertTrue(planner.needs_hold(start), "starting the countdown is the output: always a hold")
         for step in run.job["plan"]["steps"][:-1]:
             self.assertIs(step["requires_approval"], False, "pressing H needs no approval")
+            self.assertNotIn("turns_on_output", step)
         self.assertNotIn(("btn_stsp", 1, 1000), self.hardware.started, "ST/SP waits for the card")
 
-        await self.decide(run, {"decision": "approve", "approval_type": "tap"})
+        await self.decide(run, {"decision": "approve", "approval_type": "hold"})
         await self.wait_until(lambda: api.is_finished(run), seconds=20)
         self.assertEqual(run.job["status"], "succeeded", run.job["result"])
         return run
@@ -543,7 +551,6 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.hardware.finished, [("btn_h", 1, 1000), ("btn_h", 1, 1000), ("btn_stsp", 1, 1000)])
 
     async def test_resume_needs_a_read_pause_and_stop_ends_one(self):
-        from fastapi import HTTPException
         self.hardware = ReadingHardware(low_reads={1})
         api.hardware = self.hardware
         planner.call_model = timer_model(self.prompts)
@@ -696,6 +703,32 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         await self.wait_until(lambda: api.is_finished(run))
         self.assertNotIn("note", self.events(run, "job.finished")[0])
 
+    # ---- ST/SP turns the countdown on: always a hold ----
+
+    async def test_tap_on_stsp_is_refused_even_at_low_risk(self):
+        """The real backend path: real make_plan, the approval route, the MCP press gate."""
+        api.scorer.score_step_with_raw = scored("low")
+        planner.call_model = timer_model(self.prompts)
+        run = await self.start_job(TWO_HOURS)
+        await self.wait_for_card_and_score(run, "s3")
+        self.assertEqual(self.step(run, "s3")["risk_tier"], "low", "the scorer says low...")
+
+        # ...but a tap, or no approval type at all, is refused and ST/SP doesn't move
+        for body in ({"decision": "approve", "approval_type": "tap"}, {"decision": "approve"}):
+            with self.assertRaises(HTTPException) as refused:
+                await self.decide(run, body)
+            self.assertEqual(refused.exception.status_code, 400)
+            self.assertIn("turns something on", refused.exception.detail)
+            self.assertIn("press-and-hold", refused.exception.detail)
+        self.assertEqual(run.waiting_step_id, "s3", "the card stays up")
+        self.assertEqual(run.job["status"], "awaiting_approval")
+        self.assertNotIn(("btn_stsp", 1, 1000), self.hardware.started)
+
+        await self.decide(run, {"decision": "approve", "approval_type": "hold"})
+        await self.wait_until(lambda: api.is_finished(run), seconds=20)
+        self.assertEqual(run.job["status"], "succeeded", run.job["result"])
+        self.assertEqual(self.hardware.finished[-1], ("btn_stsp", 1, 1000))
+
     # ---- the mock demo fixture ----
 
     def test_fixture_is_the_t1_two_hour_demo(self):
@@ -715,11 +748,14 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(retries), 1)
         self.assertEqual(steps[1]["retries"][0]["correction"]["control_id"], "btn_h")
         self.assertEqual(steps[1]["retries"][0]["screen_confidence"], "high")
-        # ST/SP waits for hold-to-approve: the web card holds for a high tier (ApprovalCard needsHold)
+        # ST/SP waits for hold-to-approve because it turns the countdown on (ApprovalCard's
+        # needsHold), not because of its tier: the tier is what the scorer really gave, medium
         start = steps[2]
         self.assertEqual(start["status"], "awaiting_approval")
         self.assertIs(start["requires_approval"], True)
-        self.assertEqual(start["risk_tier"], "high")
+        self.assertIs(start["turns_on_output"], True)
+        self.assertTrue(planner.needs_hold(start))
+        self.assertNotEqual(start["risk_tier"], "high", "the hold mustn't depend on a high tier")
         self.assertEqual(start["evidence"]["screen_confidence"], "high")
         # and the plan is one the backend would accept
         raw = []
@@ -775,6 +811,8 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(control["reachable"], control_id in FINGERS + SCREENS, control_id)
         self.assertIs(controls["btn_stsp"]["risky"], True)
         self.assertIs(controls["btn_stsp"]["destructive"], False)
+        self.assertIs(controls["btn_stsp"]["turns_on_output"], True)
+        self.assertIs(controls["btn_h"]["turns_on_output"], False)
         self.assertIs(controls["btn_h"]["risky"], False)
         self.assertEqual(controls["btn_t2"]["bbox"], [700, 386, 82, 81])
 

@@ -19,7 +19,7 @@
     "ST/SP starts the picked channel, or stops it if it is running.",
     "UNVERIFIED: a started channel counts down from the set time (so 02:00 00 reads 01:59 59 a second later), and what it does at 00:00 00 (beeps, counts up).",
     "To check a channel really started, expect the time it shows after it has started counting (for 2 hours, expect 01:59), never the time that was set: that is on screen even if ST/SP did nothing.",
-    "Approval: the step that presses ST/SP gets requires_approval true with a reason (it starts or stops a channel). Pressing H needs no approval."
+    "Approval: the step that presses ST/SP gets requires_approval true with a reason, and turns_on_output true: starting the countdown is the output. That approval is always a press-and-hold. Pressing H needs no approval."
   ],
   "controls": {
     "btn_t1": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
@@ -33,7 +33,7 @@
     "btn_5m": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
     "btn_10s": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
     "btn_reset": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null, "risky": true, "destructive": true },
-    "btn_stsp": { "reachable": true, "servo": 1, "rest_deg": null, "press_deg": null, "risky": true },
+    "btn_stsp": { "reachable": true, "servo": 1, "rest_deg": null, "press_deg": null, "risky": true, "turns_on_output": true },
     "screen_t1": { "reachable": true },
     "screen_t2": { "reachable": true },
     "screen_t3": { "reachable": true },
