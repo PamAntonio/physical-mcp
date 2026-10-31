@@ -205,7 +205,7 @@ export default function Home() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      {/* the device's sample request: the 80 °F heater job for inkbird-01, T2 for 5 minutes for
+      {/* the device's sample request: the 80 °F heater job for inkbird-01, T1 for 2 hours for
           timer-01, the incubator one otherwise. keyed on the device so the text swaps with it */}
       <JobRequestForm
         key={deviceId}

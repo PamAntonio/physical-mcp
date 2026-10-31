@@ -17,6 +17,7 @@
 //   POST /jobs                         body: CreateJobRequest  -> Job
 //   GET  /jobs/:job_id                                         -> Job
 //   POST /jobs/:job_id/steps/:step_id/approval  body: ApprovalDecision -> Job
+//   POST /jobs/:job_id/resume          PROPOSED: after a low-confidence read pause, re-read and carry on -> Job
 //   POST /jobs/:job_id/stop            immediate stop: servo retracts, job -> "stopped"
 //   GET  /devices/:device_id                                   -> Device (with controls)
 //   WS   /jobs/:job_id/events          stream of JobEvent
@@ -30,6 +31,8 @@ export type JobStatus =
   | "awaiting_approval"
   // PROPOSED, not locked with Pam yet: a step was rejected with on_reject "pause" (or "replan").
   // Nothing gets pressed. The step stays awaiting_approval: approving it resumes, Stop ends the job.
+  // PROPOSED: also a low-confidence screen read (Job.pause_reason says which). Nothing gets
+  // pressed; POST /jobs/:id/resume reads the screen again first, Stop ends the job.
   | "paused"
   | "succeeded"
   | "failed"
@@ -89,17 +92,58 @@ export interface Expectation {
   indicator_on?: boolean; // true = expect this indicator light to be on instead of screen text
 }
 
+// How sure vision is of a screen read, from its vote (vision/read_screen.py vote_reads):
+// "high" = two reads agreed, "medium" = a third read broke a tie, "low" = all three differed,
+// the read was empty, or (Inkbird) a temperature outside 32-212 °F. null = the hardware has no
+// vote (FakeHardware, an LED's pixel check). The backend never acts on a "low" read: the job pauses.
+export type ReadConfidence = "high" | "medium" | "low";
+
+// one screen read, the same shape the MCP read_screen tool returns
+export interface ScreenRead {
+  control_id: string;
+  text: string;
+  confidence: ReadConfidence | null;
+}
+
 export interface Evidence {
   before_frame_url: string | null;
   after_frame_url: string | null;
   screen_text: string | null; // what the vision model read after the step
+  // PROPOSED: how sure that read is. On a step awaiting approval it's the read the card shows
+  // (the screen before the press). Missing = an older backend that didn't send it
+  screen_confidence?: ReadConfidence | null;
 }
 
 export interface Retry {
   attempt: number;
   screen_text: string;
+  screen_confidence?: ReadConfidence | null; // PROPOSED: the read that triggered the retry
   problem: string;
   correction: Action;
+}
+
+// PROPOSED: what a log entry is about, so the UI can tell them apart without diffing steps.
+// Rides on an existing event (see JobEvent), never an event of its own.
+// screen_read: a read the runner made (verify, re-read, the read before planning)
+// retry: the read didn't match, the backend is pressing again (step.retries has the details)
+// read_unclear: a low-confidence read, the job paused, nothing pressed (POST .../resume re-reads)
+// resumed: someone resumed after read_unclear
+// rejected: a human rejected the step at approval (with on_reject in the message)
+// step_skipped: the step won't run, after a reject with on_reject "abort"
+// planner_refused: the planner said the rig can't do the request, no plan, nothing pressed
+export type NoteKind =
+  | "screen_read"
+  | "retry"
+  | "read_unclear"
+  | "resumed"
+  | "rejected"
+  | "step_skipped"
+  | "planner_refused";
+
+export interface EventNote {
+  kind: NoteKind;
+  message: string; // one plain line for the log
+  read?: ScreenRead; // set on every note that involves a screen read
 }
 
 // PROPOSED, not locked with Pam yet: risk score from the Muse Spark Open scorer (risk/).
@@ -159,6 +203,9 @@ export interface Job {
   device: Device;
   plan: Plan | null; // null while status is "queued" or "planning"
   result: JobResult | null;
+  // PROPOSED: while status is "paused", why (a low-confidence read, or a step rejected with
+  // "pause"). null otherwise. Missing = an older backend
+  pause_reason?: string | null;
 }
 
 export interface CreateJobRequest {
@@ -184,10 +231,12 @@ export interface ApprovalDecision {
 }
 
 // WebSocket events. Each carries enough to update the UI without refetching.
+// note (PROPOSED, optional): what this event means for the log, see EventNote.
+// reason (PROPOSED, optional): on job.status "paused", why it paused, in one plain line.
 export type JobEvent =
-  | { type: "job.status"; job_id: string; ts: string; status: JobStatus }
-  | { type: "plan.ready"; job_id: string; ts: string; plan: Plan }
-  | { type: "step.updated"; job_id: string; ts: string; step: Step }
+  | { type: "job.status"; job_id: string; ts: string; status: JobStatus; reason?: string; note?: EventNote }
+  | { type: "plan.ready"; job_id: string; ts: string; plan: Plan; note?: EventNote }
+  | { type: "step.updated"; job_id: string; ts: string; step: Step; note?: EventNote }
   | { type: "controls.updated"; job_id: string; ts: string; controls_version: number; controls: Control[] }
   | { type: "frame"; job_id: string; ts: string; frame_url: string } // throttle to ~2 fps
-  | { type: "job.finished"; job_id: string; ts: string; result: JobResult };
+  | { type: "job.finished"; job_id: string; ts: string; result: JobResult; note?: EventNote };

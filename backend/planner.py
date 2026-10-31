@@ -158,6 +158,30 @@ def max_hold_ms(profile):
     return most if _positive_number(most) else None
 
 
+def planning_screens(device, profile):
+    """The screens to read before planning: the profile's plan_reads (the timer reads only
+    screen_t1, the rig can't use the other channels), else every reachable screen."""
+    reachable = []
+    for control in reachable_device(device, profile)["controls"]:
+        if control.get("kind") == "screen":
+            reachable.append(control)
+    wanted = (profile or {}).get("plan_reads")
+    if not isinstance(wanted, list):
+        return reachable
+    picked = []
+    for control in reachable:
+        if control["control_id"] in wanted:
+            picked.append(control)
+    return picked
+
+
+def retries_if_unchanged(control_id, profile):
+    """The profile says a press on this control can silently not register (the timer's H), so
+    an unchanged screen afterwards means press it again. See api.plan_repeat."""
+    entry = profile_controls(profile).get(control_id)
+    return bool(isinstance(entry, dict) and entry.get("retry_if_unchanged"))
+
+
 def refusal_reason(raw):
     """The model's one-line reason when it says the request can't be done on this rig
     ({"refusal": "..."} instead of a plan), else None."""

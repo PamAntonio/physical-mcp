@@ -1,9 +1,10 @@
 {
-  "_comment": "4-channel kitchen timer, two fixed fingers, one servo per button, no pan: servo 0 is on H, servo 1 on ST/SP. Every other button has no finger, so it's reachable false and the planner never sees it. Screens stay reachable, the camera reads them. ST/SP's angles are still null (Pam fills them Sunday), so pressing it fails with NotCalibrated until then. Every press holds for hold_ms (a control can override it with its own hold_ms), and nothing over max_hold_ms is pressed. Control ids match vision/calibration/timer-01.boxes.json. Anything in the notes marked UNVERIFIED hasn't been checked on the real timer.",
+  "_comment": "4-channel kitchen timer, two fixed fingers, one servo per button, no pan: servo 0 is on H, servo 1 on ST/SP. Every other button has no finger, so it's reachable false and the planner never sees it. Screens stay reachable, the camera reads them. ST/SP's angles are still null (Pam fills them Sunday), so pressing it fails with NotCalibrated until then. Every press holds for hold_ms (a control can override it with its own hold_ms), and nothing over max_hold_ms is pressed. plan_reads: the screens the camera reads before planning (only T1, the rig can't use the others). retry_if_unchanged: if the screen still shows what it showed before the press, twice in a row, the press didn't register, so it's pressed again (never on a step that needs approval). Control ids match vision/calibration/timer-01.boxes.json. Anything in the notes marked UNVERIFIED hasn't been checked on the real timer.",
   "device_id": "timer-01",
   "current_screen": "T1 00:00 00, T2 00:00 00, T3 00:00 00, T4 00:00 00 (all stopped)",
   "hold_ms": 1000,
   "max_hold_ms": 1800,
+  "plan_reads": ["screen_t1"],
   "notes": [
     "Four channels, T1 to T4. Each has its own LCD row (screen_t1 to screen_t4) showing HH:MM SS, so 02:00 00 is 2 hours and 00:05 00 is 5 minutes.",
     "The rig has only two fingers: one on H, one on ST/SP. T1 to T4, M, S, 10M, 5M, 10S and RESET can't be pressed, so they aren't in the controls.",
@@ -18,21 +19,21 @@
     "ST/SP starts the picked channel, or stops it if it is running.",
     "UNVERIFIED: a started channel counts down from the set time (so 02:00 00 reads 01:59 59 a second later), and what it does at 00:00 00 (beeps, counts up).",
     "To check a channel really started, expect the time it shows after it has started counting (for 2 hours, expect 01:59), never the time that was set: that is on screen even if ST/SP did nothing.",
-    "Approval: the step that presses ST/SP gets requires_approval true with a reason (it starts or stops a channel). Pressing H needs no approval."
+    "Approval: the step that presses ST/SP gets requires_approval true with a reason, and turns_on_output true: starting the countdown is the output. That approval is always a press-and-hold. Pressing H needs no approval."
   ],
   "controls": {
     "btn_t1": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
     "btn_t2": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
     "btn_t3": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
     "btn_t4": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
-    "btn_h": { "reachable": true, "servo": 0, "rest_deg": 150, "press_deg": 50 },
+    "btn_h": { "reachable": true, "servo": 0, "rest_deg": 150, "press_deg": 50, "retry_if_unchanged": true },
     "btn_m": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
     "btn_s": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
     "btn_10m": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
     "btn_5m": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
     "btn_10s": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null },
     "btn_reset": { "reachable": false, "servo": null, "rest_deg": null, "press_deg": null, "risky": true, "destructive": true },
-    "btn_stsp": { "reachable": true, "servo": 1, "rest_deg": null, "press_deg": null, "risky": true },
+    "btn_stsp": { "reachable": true, "servo": 1, "rest_deg": null, "press_deg": null, "risky": true, "turns_on_output": true },
     "screen_t1": { "reachable": true },
     "screen_t2": { "reachable": true },
     "screen_t3": { "reachable": true },

@@ -62,17 +62,51 @@ class FakeHardware(Hardware):
 
     undershoot (or FAKE_UNDERSHOOT=1 in the env): the first time an up/down step runs, one
     press "doesn't register", so the screen reads one step short and the backend's retry
-    kicks in. Only once per server run, so the demo shows exactly one self-correction."""
+    kicks in. Only once per server run, so the demo shows exactly one self-correction.
+
+    miss_press (or FAKE_MISS_PRESS=btn_h in the env): the second press of that control "doesn't
+    register" (the second, so there's a verified screen for it to stay on), and the screen keeps
+    showing what it did before. That's the timer's missed H, and the backend's retry_if_unchanged presses it again.
+    Only once per server run.
+
+    Read confidence, opt-in, for filming the confidence UI with no rig. Default: None on every
+    read, the fake has no vision vote.
+    - confidence (or FAKE_CONFIDENCE=high|medium|low): every read reports that level.
+    - low_read (or FAKE_LOW_READ=N): only the Nth read reports "low", so the backend pauses on
+      it. Reads are counted from when the backend started, 1 = the first one (the read before
+      the first job's plan, on the timer). Together with FAKE_CONFIDENCE=high the resume's
+      re-read then comes back high."""
 
     UP_DOWN = {"btn_up": 1, "btn_down": -1}  # which way each one moves the number
+    CONFIDENCE_LEVELS = ("high", "medium", "low")
 
-    def __init__(self, seconds_per_press=0.2, seconds_per_read=0.3, undershoot=None):
+    def __init__(self, seconds_per_press=0.2, seconds_per_read=0.3, undershoot=None, miss_press=None,
+                 confidence=None, low_read=None):
         self.seconds_per_press = seconds_per_press
         self.seconds_per_read = seconds_per_read
         if undershoot is None:
             undershoot = os.environ.get("FAKE_UNDERSHOOT") == "1"
         self.undershoot = undershoot
         self.undershoot_done = False
+        if miss_press is None:
+            miss_press = os.environ.get("FAKE_MISS_PRESS") or None
+        self.miss_press = miss_press
+        self.miss_press_seen = 0  # presses of miss_press so far
+        self.miss_press_done = False
+        if confidence is None:
+            confidence = os.environ.get("FAKE_CONFIDENCE") or None
+        if confidence is not None and confidence not in self.CONFIDENCE_LEVELS:
+            raise ValueError(f"FAKE_CONFIDENCE should be high, medium or low, not {confidence!r}")
+        self.confidence = confidence
+        if low_read is None and os.environ.get("FAKE_LOW_READ"):
+            try:
+                low_read = int(os.environ["FAKE_LOW_READ"])
+            except ValueError:
+                raise ValueError(f"FAKE_LOW_READ should be a read number like 3, not {os.environ['FAKE_LOW_READ']!r}")
+        if low_read is not None and low_read < 1:
+            raise ValueError(f"FAKE_LOW_READ counts from 1, got {low_read}")
+        self.low_read = low_read
+        self.reads_done = 0  # reads through read_screen_detail (what the MCP tool calls) so far
         self.stop_requested = threading.Event()
         self.next_reads = {}  # control_id -> what the next read should say
         self.last_reads = {}  # control_id -> what it said last time
@@ -106,6 +140,13 @@ class FakeHardware(Hardware):
         if not self.expected_read:
             return
         screen_id, wanted = self.expected_read
+        if control_id == self.miss_press and not self.miss_press_done:
+            self.miss_press_seen += 1
+            if self.miss_press_seen == 2:  # the second one, so there's a screen to stay on
+                self.miss_press_done = True
+                self.next_reads.pop(screen_id, None)  # the screen doesn't change
+                print(f"[fake hardware] {control_id} press didn't register, screen stays", flush=True)
+                return
         short_text = None
         if self.undershoot and not self.undershoot_done and control_id in self.UP_DOWN and self.step_size:
             # one press goes missing, so the number lands a step short of the target
@@ -130,6 +171,15 @@ class FakeHardware(Hardware):
         self.last_reads[control_id] = text
         print(f"[fake hardware] read {control_id}: {text!r}", flush=True)
         return text
+
+    def read_screen_detail(self, control_id):
+        text = self.read_screen(control_id)
+        self.reads_done += 1
+        confidence = self.confidence
+        if self.low_read is not None and self.reads_done == self.low_read:
+            confidence = "low"
+            print(f"[fake hardware] read {self.reads_done} reports low confidence (FAKE_LOW_READ)", flush=True)
+        return {"text": text, "confidence": confidence}
 
     def stop(self):
         print("[fake hardware] stop, finger retracted", flush=True)

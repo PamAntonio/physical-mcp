@@ -66,19 +66,20 @@ const INKBIRD: { job: Job; script: MockScript } = {
   },
 };
 
-// the timer's rows, after each step of the T2 job (the overlay paints it on every row, so say which one)
+// the timer's rows, after each step of the T1 2-hour job (the overlay paints it on every row, so
+// say which one). s2's first H misses, the fixture's retry replays that
 const TIMER_SCREENS: Record<string, string> = {
-  s1: "T2 00:00 00",
-  s2: "T2 00:05 00",
-  s3: "T2 00:04 58",
+  s1: "T1 01:00 00",
+  s2: "T1 02:00 00",
+  s3: "T1 01:59 58",
 };
 
 const TIMER: { job: Job; script: MockScript } = {
   job: timerJson as unknown as Job,
   script: {
-    firstScreen: "T2 00:00 00",
-    doneMessage: "Job done. T2 is counting down from 5 minutes.",
-    screenAfter: (step) => TIMER_SCREENS[step.step_id] ?? "T2 00:04 58",
+    firstScreen: "T1 00:00 00",
+    doneMessage: "Job done. T1 is counting down from 2 hours.",
+    screenAfter: (step) => TIMER_SCREENS[step.step_id] ?? "T1 01:59 58",
     frameUrl: "/mock/timer-01.svg",
     injectedRetries: {},
   },

@@ -9,6 +9,7 @@
     GET  /jobs/:job_id                          -> Job
     GET  /jobs/:job_id/history                  -> every JobEvent so far (backend/record_run.py)
     POST /jobs/:job_id/steps/:step_id/approval  -> Job
+    POST /jobs/:job_id/resume                   -> Job (after a pause for a low-confidence read)
     POST /jobs/:job_id/stop                     -> Job
     GET  /devices/:device_id                    -> Device
     WS   /jobs/:job_id/events                   -> stream of JobEvent
@@ -16,9 +17,13 @@
 Same routes and event order as web/mock-server/server.ts, but with a real planner, the real
 risk scorer and a Hardware object (backend/hardware.py) doing the pressing:
 
-1. POST /jobs makes the job and starts planning in the background: every reachable screen
-   gets read through the MCP read_screen tool first, then planner.py asks Muse Spark for a
-   plan starting from those readings, then plan.ready goes out.
+1. POST /jobs makes the job and starts planning in the background: the profile's plan_reads
+   (else every reachable screen) get read through the MCP read_screen tool first, then
+   planner.py asks Muse Spark for a plan starting from those readings, then plan.ready goes out.
+   A low-confidence read, here or anywhere later, pauses the job with a reason (pause_reason)
+   and nothing gets pressed until POST .../resume, which reads the screen again first.
+   Events carry an optional note (shared/types.ts EventNote) saying what they are for the log,
+   with the read and its confidence on every one that involves a screen read.
 2. Every requires_approval step goes to the risk scorer (risk/scorer.py) right away, all at
    once, in the background. Each score lands as a step.updated. Nothing waits on them.
 3. Steps run one at a time. The runner here is the MCP client: every press and read goes
@@ -160,6 +165,8 @@ class JobRun:
         self.active_step = None
         self.presses_used = 0
         self.profile = {}  # backend/devices/<device_id>.json, loaded when the run starts
+        self.resume = None  # future that POST .../resume resolves, while paused on an unclear read
+        self.last_reads = {}  # control_id -> the newest ScreenRead of it
 
 
 runs = {}  # job_id -> JobRun
@@ -181,31 +188,48 @@ def is_finished(run):
 # ---- events ----
 
 
-def emit(run, event_type, **fields):
+def emit(run, event_type, note=None, **fields):
+    """note: what this event means for the log (EventNote in shared/types.ts), so a retry, a
+    skip, a rejection, a refusal... each look different. Left off when there's nothing to say."""
     event = {"type": event_type, "job_id": run.job["job_id"], "ts": now()}
     event.update(fields)
+    if note is not None:
+        event["note"] = note
     run.job["updated_at"] = event["ts"]
     run.events.append(event)
     for queue in run.watchers:
         queue.put_nowait(event)
 
 
-def emit_status(run, job_status):
+def make_note(kind, message, read=None):
+    note = {"kind": kind, "message": message}
+    if read is not None:
+        note["read"] = dict(read)
+    return note
+
+
+def emit_status(run, job_status, reason=None, note=None):
+    """reason: only for "paused", why. It's kept on the job too (pause_reason) for reconnects."""
     run.job["status"] = job_status
-    emit(run, "job.status", status=job_status)
+    run.job["pause_reason"] = reason if job_status == "paused" else None
+    if reason is not None:
+        emit(run, "job.status", note=note, status=job_status, reason=reason)
+    else:
+        emit(run, "job.status", note=note, status=job_status)
 
 
-def emit_step(run, step):
-    emit(run, "step.updated", step=copy.deepcopy(step))
+def emit_step(run, step, note=None):
+    emit(run, "step.updated", note=note, step=copy.deepcopy(step))
 
 
-def finish(run, outcome, message, final_screen_text):
+def finish(run, outcome, message, final_screen_text, note=None):
     if is_finished(run):
         return
     result = {"outcome": outcome, "message": message, "final_screen_text": final_screen_text}
     run.job["status"] = outcome
     run.job["result"] = result
-    emit(run, "job.finished", result=result)
+    run.job["pause_reason"] = None
+    emit(run, "job.finished", note=note, result=result)
     log(f"job {run.job['job_id']} {outcome}: {message}")
 
 
@@ -340,21 +364,98 @@ def plan_correction(run, step, screen_text):
     return {"type": "press", "control_id": control_id, "count": presses}, problem, None
 
 
-async def read_screens_for_planning(client, device, profile):
-    """Read every reachable screen through the MCP read_screen tool, so the planner starts
-    from what the device really shows, not the profile's fixed current_screen. A read that
-    fails comes back with "error" set instead of raising: the planner falls back to the
-    profile's guess for it (planner.describe_current_screen)."""
+def same_text(a, b):
+    return " ".join((a or "").split()) == " ".join((b or "").split())
+
+
+def plan_repeat(run, step, read, before_read, plain_reads):
+    """The timer's missed press: H didn't register, so the screen still shows exactly what it
+    showed before the press. Only for a control the profile marks retry_if_unchanged, only
+    after two reads in a row agree nothing changed (a slow screen gets a second look first),
+    and never on a step that needs approval (pressing ST/SP twice would stop what it started).
+
+    Returns (correction, problem), or (None, None) when it isn't safe to press again. A screen
+    that changed, just not to what we wanted, is never "fixed" this way: no guessing."""
+    action = step["action"]
+    if action["type"] != "press" or not planner.retries_if_unchanged(action["control_id"], run.profile):
+        return None, None
+    if step.get("requires_approval"):
+        return None, None
+    # the before read has to be a real read of the same screen, not the profile's guess
+    if before_read is None or before_read["control_id"] != read["control_id"]:
+        return None, None
+    if plain_reads < 2 or not same_text(read["text"], before_read["text"]):
+        return None, None
+    problem = (f"{read['control_id']} still reads {read['text']!r}, same as before the press, "
+               "so the press didn't register")
+    return {"type": "press", "control_id": action["control_id"], "count": action["count"]}, problem
+
+
+def describe_read(read):
+    return f"{read['control_id']} reads {read['text']!r} ({read['confidence'] or 'no vision vote'})"
+
+
+async def read_once(run, client, control_id):
+    """One read through the MCP read_screen tool, as a ScreenRead {control_id, text, confidence}.
+    The newest read of every screen is kept in run.last_reads."""
+    result = await mcp_server.call(client, "read_screen", {"control_id": control_id})
+    read = {"control_id": control_id, "text": result.get("text") or "", "confidence": result.get("confidence")}
+    run.last_reads[control_id] = read
+    return read
+
+
+async def wait_out_unclear_read(run, client, read, step=None):
+    """A low-confidence read is never acted on. The job pauses with the reason, nothing gets
+    pressed, and it waits for POST /jobs/:id/resume (Stop ends it). Resuming reads the screen
+    again first, and if that one's low too it pauses again. Returns the first read that isn't low."""
+    status_after = run.job["status"]  # "planning" before planning, "running" in a step
+    while read["confidence"] == "low":
+        where = f"step {step['index']}" if step is not None else "before planning"
+        reason = (f"Couldn't read {read['control_id']} clearly ({where}): low confidence, read "
+                  f"{read['text']!r}. Nothing was pressed. Check the camera and the screen, then "
+                  "resume to read it again.")
+        if step is not None:
+            step["evidence"]["screen_text"] = read["text"]
+            step["evidence"]["screen_confidence"] = read["confidence"]
+            emit_step(run, step)
+        log(reason)
+        emit_status(run, "paused", reason=reason, note=make_note("read_unclear", reason, read))
+
+        run.resume = asyncio.get_running_loop().create_future()
+        try:
+            body = await run.resume
+        finally:
+            run.resume = None
+        who = body.get("decided_by") or "you"
+        emit_status(run, status_after, note=make_note("resumed", f"Resumed by {who}, reading {read['control_id']} again"))
+        read = await read_once(run, client, read["control_id"])
+        log(f"after resuming, {describe_read(read)}")
+    return read
+
+
+async def read_checked(run, client, control_id, step=None):
+    """read_once, but a low-confidence read pauses the job until a clear read comes back."""
+    read = await read_once(run, client, control_id)
+    return await wait_out_unclear_read(run, client, read, step)
+
+
+async def read_screens_for_planning(run, client, device, profile):
+    """Read the screens the planner starts from (the profile's plan_reads, the timer's is just
+    screen_t1, else every reachable screen) through the MCP read_screen tool, so it plans from
+    what the device really shows, not the profile's fixed current_screen.
+
+    A low-confidence read pauses the job before planning (wait_out_unclear_read): planning from
+    a read we don't trust is pressing blind. A read that fails outright (camera error) comes back
+    with "error" set: the planner gets the profile's guess for it, marked as one, and the first
+    step's verify catches it if the guess was wrong."""
     readings = []
-    for control in planner.reachable_device(device, profile)["controls"]:
-        if control.get("kind") != "screen":
-            continue
+    for control in planner.planning_screens(device, profile):
         reading = {"control_id": control["control_id"], "label": control.get("label", ""),
                    "text": "", "confidence": None, "error": None}
         try:
-            result = await mcp_server.call(client, "read_screen", {"control_id": control["control_id"]})
-            reading["text"] = (result.get("text") or "").strip()
-            reading["confidence"] = result.get("confidence")
+            read = await read_checked(run, client, control["control_id"])
+            reading["text"] = read["text"].strip()
+            reading["confidence"] = read["confidence"]
         except Exception as err:
             reading["error"] = str(err) or type(err).__name__
         if reading["error"]:
@@ -365,18 +466,41 @@ async def read_screens_for_planning(client, device, profile):
     return readings
 
 
+def planning_note(readings):
+    """The note on plan.ready: which read the plan started from, with its confidence."""
+    good = []
+    failed = []
+    for reading in readings:
+        if reading["error"] or not reading["text"]:
+            failed.append(reading["control_id"])
+        else:
+            good.append(reading)
+    parts = []
+    for reading in good:
+        parts.append(describe_read(reading))
+    if failed:
+        parts.append(f"couldn't read {', '.join(failed)}, planned from the profile's guess for it")
+    if not parts:
+        return None
+    read = None
+    if good:
+        read = {"control_id": good[0]["control_id"], "text": good[0]["text"], "confidence": good[0]["confidence"]}
+    return make_note("screen_read", "Planned from " + "; ".join(parts), read)
+
+
 async def run_job(run):
     job = run.job
     device_id = job["device"]["device_id"]
     run.profile = planner.load_profile(device_id)
     # every press and read goes through the MCP tools, in memory in this same process
     async with Client(mcp_server.mcp) as client:
-        readings = await read_screens_for_planning(client, job["device"], run.profile)
+        readings = await read_screens_for_planning(run, client, job["device"], run.profile)
         try:
             plan = await asyncio.to_thread(make_plan, device_id, job["request"], readings)
         except PlanRefused as err:
             log(f"planner refused: {err}")
-            finish(run, "failed", f"Can't do this on this rig: {err} Nothing was pressed.", None)
+            message = f"Can't do this on this rig: {err} Nothing was pressed."
+            finish(run, "failed", message, None, note=make_note("planner_refused", message))
             return
         except Exception as err:
             log(f"planning failed: {err}")
@@ -384,7 +508,7 @@ async def run_job(run):
             return
 
         job["plan"] = plan
-        emit(run, "plan.ready", plan=copy.deepcopy(plan))
+        emit(run, "plan.ready", note=planning_note(readings), plan=copy.deepcopy(plan))
         log(f"plan ready, {len(plan['steps'])} steps: {plan['summary']}")
 
         # score every gated step now, all at once, without holding up the run
@@ -396,7 +520,12 @@ async def run_job(run):
 
         screen_text = run.profile.get("current_screen")
         for step in plan["steps"]:
-            keep_going = await run_step(run, client, step, screen_text)
+            # what the step's screen showed last (a real read, with its confidence), else the
+            # profile's guess with no confidence. the approval card shows this one
+            before_read = run.last_reads.get(step["expect"].get("control_id"))
+            if before_read is not None and not before_read["text"].strip():
+                before_read = None  # an empty read says nothing, the guess is better than ""
+            keep_going = await run_step(run, client, step, screen_text, before_read)
             if not keep_going:
                 return
             screen_text = step["evidence"]["screen_text"] or screen_text
@@ -425,11 +554,17 @@ async def wait_for_approval(run, step, screen_before):
             return True
 
         behavior = decision.get("on_reject") or "pause"  # contract default
+        # the rejection itself is one log entry, what happens to the step after it is another
+        rejected = f"Step {step['index']} rejected by {decision.get('decided_by') or 'you'} ({behavior})"
+        if decision.get("note"):
+            rejected += f": {decision['note']}"
+        emit_step(run, step, note=make_note("rejected", rejected))
+
         if behavior == "abort":
             step["status"] = "skipped"
             step["error"] = decision.get("note") or "Rejected at approval"
             step["finished_at"] = now()
-            emit_step(run, step)
+            emit_step(run, step, note=make_note("step_skipped", f"Step {step['index']} skipped, the finger never moved"))
             finish(run, "stopped", f"Stopped: step {step['index']} was rejected, the finger never moved.", screen_before)
             return False
 
@@ -437,15 +572,22 @@ async def wait_for_approval(run, step, screen_before):
         # the step stays awaiting_approval: approving it later resumes, Stop ends the job
         if behavior == "replan":
             log("replan requested (no replanner yet, holding like a pause)")
-        emit_status(run, "paused")
+        emit_status(run, "paused",
+                    reason=f"Step {step['index']} was rejected, holding here. Nothing was pressed. "
+                           "Approve it to carry on, or Stop.")
 
 
-def fail_step(run, step, error, screen_text):
+def fail_step(run, step, error, screen_text, read=None):
+    """read: the ScreenRead the failure is about, if there is one (its confidence goes on the step)."""
     step["status"] = "failed"
     step["error"] = error
     step["finished_at"] = now()
     step["evidence"]["screen_text"] = screen_text
-    emit_step(run, step)
+    note = None
+    if read is not None:
+        step["evidence"]["screen_confidence"] = read["confidence"]
+        note = make_note("screen_read", f"Failed after reading: {describe_read(read)}", read)
+    emit_step(run, step, note=note)
     finish(run, "failed", f"Job failed at step {step['index']}: {error}", screen_text)
 
 
@@ -460,16 +602,23 @@ def start_step(run, step):
     hardware.prepare_step(copy.deepcopy(step), copy.deepcopy(run.profile))
 
 
-async def read_through_mcp(client, control_id):
-    result = await mcp_server.call(client, "read_screen", {"control_id": control_id})
-    return result["text"]
+def show_read(step, read):
+    step["evidence"]["screen_text"] = read["text"]
+    step["evidence"]["screen_confidence"] = read["confidence"]
 
 
-async def run_step(run, client, step, screen_before):
+async def run_step(run, client, step, screen_before, before_read=None):
     """Returns False if the job should end here. Presses and reads go through the MCP
-    tools on `client`; the approval card and the press budget live inside press."""
+    tools on `client`; the approval card and the press budget live inside press.
+    before_read: the newest real read of this step's screen (a ScreenRead), or None when
+    there's only the profile's guess. A low-confidence read anywhere in here pauses the job
+    (read_checked), so nothing is ever pressed or verified on a read we don't trust."""
     run.active_step = step
-    step["evidence"]["screen_text"] = screen_before
+    if before_read is not None:
+        show_read(step, before_read)  # what the approval card shows, with its confidence
+    else:
+        step["evidence"]["screen_text"] = screen_before
+        step["evidence"]["screen_confidence"] = None
     action = step["action"]
 
     try:
@@ -487,7 +636,7 @@ async def run_step(run, client, step, screen_before):
             except mcp_server.ToolRefused as err:
                 if is_finished(run):
                     return False  # rejected with abort, or stopped while the card was up
-                fail_step(run, step, str(err), screen_before)
+                fail_step(run, step, str(err), step["evidence"]["screen_text"])
                 return False
         else:
             # nothing to press, but a step that needs approval still waits for it (same gate as press)
@@ -503,21 +652,27 @@ async def run_step(run, client, step, screen_before):
 
         expect = step["expect"]
         max_attempts = step.get("max_attempts") or DEFAULT_MAX_ATTEMPTS
-        text = await read_through_mcp(client, expect["control_id"])
+        read = await read_checked(run, client, expect["control_id"], step)
         plain_reads = 1
-        while not screen_matches(expect, text):
-            correction, problem, error = plan_correction(run, step, text)
+        while not screen_matches(expect, read["text"]):
+            correction, problem, error = plan_correction(run, step, read["text"])
             if error:
-                fail_step(run, step, error, text)
+                fail_step(run, step, error, read["text"], read)
                 return False
+            if correction is None:
+                correction, problem = plan_repeat(run, step, read, before_read, plain_reads)
 
             if correction is None:
                 # nothing safe to press (no numbers to go on, or not an up/down step),
                 # so just look again in case the screen is slow. never a blind press
                 if plain_reads >= max_attempts:
                     break
+                # every read gets one log entry: this one is "not it yet, looking again"
+                show_read(step, read)
+                message = f"{describe_read(read)}, wanted {describe_expect(expect)}, looking again"
+                emit_step(run, step, note=make_note("screen_read", message, read))
                 await asyncio.sleep(SECONDS_BETWEEN_READS)
-                text = await read_through_mcp(client, expect["control_id"])
+                read = await read_checked(run, client, expect["control_id"], step)
                 plain_reads += 1
                 continue
 
@@ -526,12 +681,14 @@ async def run_step(run, client, step, screen_before):
 
             # a self-correction: note what went wrong and what we're pressing about it
             retries = step.get("retries") or []
-            retries.append({"attempt": step["attempts"], "screen_text": text, "problem": problem, "correction": correction})
+            retries.append({"attempt": step["attempts"], "screen_text": read["text"],
+                            "screen_confidence": read["confidence"], "problem": problem, "correction": correction})
             step["retries"] = retries
             step["attempts"] += 1
             step["status"] = "running"
-            step["evidence"]["screen_text"] = text
-            emit_step(run, step)
+            show_read(step, read)
+            message = f"Retry: {problem}. Pressing {correction['control_id']} x{correction['count']} again"
+            emit_step(run, step, note=make_note("retry", message, read))
             log(f"{step['step_id']} retry: {problem}, pressing {correction['control_id']} x{correction['count']}")
 
             # through the same gate as every other press (so it's charged to the budget too)
@@ -547,12 +704,13 @@ async def run_step(run, client, step, screen_before):
             except mcp_server.ToolRefused as err:
                 if is_finished(run):
                     return False
-                fail_step(run, step, f"{problem}, but the correction press was refused: {err}", text)
+                fail_step(run, step, f"{problem}, but the correction press was refused: {err}", read["text"], read)
                 return False
 
             step["status"] = "verifying"
             emit_step(run, step)
-            text = await read_through_mcp(client, expect["control_id"])
+            read = await read_checked(run, client, expect["control_id"], step)
+            plain_reads = 1
     except HardwareStopped:
         # usually the stop handler got there first and the job's already over,
         # but if the rig stopped itself, end the job here
@@ -564,20 +722,20 @@ async def run_step(run, client, step, screen_before):
         fail_step(run, step, f"Hardware error: {err}", screen_before)
         return False
 
-    if not screen_matches(expect, text):
-        error = f"Expected {describe_expect(expect)} on {expect['control_id']}, read {text!r}."
+    if not screen_matches(expect, read["text"]):
+        error = f"Expected {describe_expect(expect)} on {expect['control_id']}, read {read['text']!r}."
         if step.get("retries"):
             error = (
-                f"Still reads {text!r} after {step['attempts']} attempts, wanted {describe_expect(expect)}."
+                f"Still reads {read['text']!r} after {step['attempts']} attempts, wanted {describe_expect(expect)}."
                 " Gave up so it doesn't overshoot."
             )
-        fail_step(run, step, error, text)
+        fail_step(run, step, error, read["text"], read)
         return False
 
     step["status"] = "succeeded"
     step["finished_at"] = now()
-    step["evidence"]["screen_text"] = text
-    emit_step(run, step)
+    show_read(step, read)
+    emit_step(run, step, note=make_note("screen_read", f"Verified: {describe_read(read)}", read))
     return True
 
 
@@ -599,6 +757,8 @@ def stop_run(run, message):
         run.task.cancel()
     if run.decision and not run.decision.done():
         run.decision.cancel()
+    if run.resume and not run.resume.done():
+        run.resume.cancel()
 
     # whatever step was mid-press gets marked, so the UI doesn't spin forever
     step = run.active_step
@@ -719,6 +879,7 @@ async def create_job(http_request: Request):
         "device": device,
         "plan": None,
         "result": None,
+        "pause_reason": None,
     }
     run = JobRun(job)
     runs[job["job_id"]] = run
@@ -784,6 +945,26 @@ async def decide(job_id: str, step_id: str, http_request: Request):
         f" by {body.get('decided_by', '?')} at {body.get('decided_at', '?')})"
     )
     run.decision.set_result(body)
+    await asyncio.sleep(0)  # let the run pick it up so the job we send back is current
+    return run.job
+
+
+@app.post("/jobs/{job_id}/resume")
+async def resume_job(job_id: str, http_request: Request):
+    """Carry on after a pause for a low-confidence read: the screen gets read again first, and
+    if that's still low the job pauses again. Body optional, e.g. {"decided_by": "Pam"}.
+    (A step rejected with "pause" resumes by approving it, POST .../approval, not this.)"""
+    run = get_run(job_id)
+    try:
+        body = await http_request.json()
+    except ValueError:
+        body = {}  # no body is fine
+    if not isinstance(body, dict):
+        body = {}
+    if run.resume is None or run.resume.done():
+        raise HTTPException(status_code=409, detail=f"job {job_id} isn't paused on an unclear read")
+    log(f"job {job_id}: resume (by {body.get('decided_by', '?')}), reading the screen again")
+    run.resume.set_result(body)
     await asyncio.sleep(0)  # let the run pick it up so the job we send back is current
     return run.job
 
