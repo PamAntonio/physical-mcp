@@ -476,16 +476,19 @@ def planning_note(readings):
         else:
             good.append(reading)
     parts = []
-    for reading in good:
-        parts.append(describe_read(reading))
+    if good:
+        reads = []
+        for reading in good:
+            reads.append(describe_read(reading))
+        parts.append("Planned from " + "; ".join(reads))
     if failed:
-        parts.append(f"couldn't read {', '.join(failed)}, planned from the profile's guess for it")
+        parts.append(f"Couldn't read {', '.join(failed)}, planned from the profile's guess for it")
     if not parts:
         return None
     read = None
     if good:
         read = {"control_id": good[0]["control_id"], "text": good[0]["text"], "confidence": good[0]["confidence"]}
-    return make_note("screen_read", "Planned from " + "; ".join(parts), read)
+    return make_note("screen_read", ". ".join(parts), read)
 
 
 async def run_job(run):

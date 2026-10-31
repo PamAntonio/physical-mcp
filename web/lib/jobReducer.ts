@@ -1,7 +1,7 @@
 // Applies backend events to a Job and keeps a human-readable action log.
 // Pure on purpose (React may call reducers twice in dev).
 
-import type { Action, Control, Job, JobEvent, Step } from "@contract/types";
+import type { Action, Control, EventNote, Job, JobEvent, NoteKind, ReadConfidence, Step } from "@contract/types";
 
 export type LogTone = "info" | "good" | "warn" | "bad" | "you";
 
@@ -10,14 +10,30 @@ export interface LogEntry {
   ts: string;
   tone: LogTone;
   text: string; // what happened, e.g. "Verified" or "Plan ready, 6 steps"
+  // what the backend said this is (the event's note.kind), so each kind gets its own look.
+  // missing = an older backend or a local note, the tone alone decides the look
+  kind?: NoteKind;
   // the rest only shows up when the entry is about a step
   stepIndex?: number;
   stepIntent?: string;
   action?: string; // "Press ▲ ×12"
   screenText?: string | null; // what the camera read after
+  screenConfidence?: ReadConfidence | null; // how sure that read is, null = no vision vote
+  detail?: string; // one extra plain line, e.g. what the plan started from
   beforeFrame?: string | null; // evidence paths, as the backend sent them
   afterFrame?: string | null;
 }
+
+// how each note kind reads in the log. routine reads stay quiet so the rest stands out
+const KIND_TONE: Record<NoteKind, LogTone> = {
+  screen_read: "info",
+  retry: "warn",
+  read_unclear: "warn",
+  resumed: "good",
+  rejected: "bad",
+  step_skipped: "bad",
+  planner_refused: "bad",
+};
 
 export interface JobState {
   job: Job | null;
@@ -68,8 +84,12 @@ export function jobReducer(state: JobState, message: JobMessage): JobState {
 
 export function applyEvent(job: Job, event: JobEvent): Job {
   switch (event.type) {
-    case "job.status":
-      return { ...job, status: event.status, updated_at: event.ts };
+    case "job.status": {
+      // pause_reason only means something while paused. an older backend sends no reason
+      let pauseReason: string | null = null;
+      if (event.status === "paused") pauseReason = event.reason ?? job.pause_reason ?? null;
+      return { ...job, status: event.status, pause_reason: pauseReason, updated_at: event.ts };
+    }
 
     case "plan.ready":
       return { ...job, plan: event.plan, updated_at: event.ts };
@@ -103,7 +123,7 @@ export function applyEvent(job: Job, event: JobEvent): Job {
       };
 
     case "job.finished":
-      return { ...job, status: event.result.outcome, result: event.result, updated_at: event.ts };
+      return { ...job, status: event.result.outcome, result: event.result, pause_reason: null, updated_at: event.ts };
 
     default: {
       // if types.ts grows a new event type, this stops compiling until it's handled above
@@ -177,25 +197,55 @@ function addLog(state: JobState, entry: Omit<LogEntry, "id">): JobState {
   return { ...state, log: [...state.log, { ...entry, id }] };
 }
 
+// an entry straight from the backend's note: its words, its kind, and the read (with its
+// confidence) when the note involves one
+function fromNote(ts: string, note: EventNote, about: Partial<LogEntry> = {}): Omit<LogEntry, "id"> {
+  const entry: Omit<LogEntry, "id"> = {
+    ...about,
+    ts,
+    tone: KIND_TONE[note.kind] ?? "info", // a kind from a newer backend still gets an entry
+    kind: note.kind,
+    text: note.message,
+  };
+  if (note.read) {
+    entry.screenText = note.read.text;
+    entry.screenConfidence = note.read.confidence;
+  }
+  return entry;
+}
+
 function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | null {
   const ts = event.ts;
   const controls = jobBefore.device.controls;
 
   switch (event.type) {
     case "job.status":
+      if (event.note) return fromNote(ts, event.note); // read_unclear, resumed
       if (event.status === "planning") return { ts, tone: "info", text: "Muse Spark is planning the steps" };
       if (event.status === "queued") return { ts, tone: "info", text: "Job queued" };
       if (event.status === "paused") {
-        return { ts, tone: "warn", text: "Job paused, nothing was pressed. Approve the step to carry on, or Stop." };
+        // the backend says why. an older one doesn't, and then all we know is it holds here
+        return { ts, tone: "warn", text: event.reason ?? "Job paused, nothing was pressed." };
       }
       return null; // running / awaiting_approval are already covered by step entries
 
-    case "plan.ready":
-      return {
+    case "plan.ready": {
+      const entry: Omit<LogEntry, "id"> = {
         ts,
         tone: "info",
         text: `Plan ready, ${event.plan.steps.length} steps: ${event.plan.summary}`,
       };
+      // what the plan started from: the read (with its badge), or the backend saying it couldn't
+      // read the screen and planned from the profile's guess
+      if (event.note) {
+        entry.detail = event.note.message;
+        if (event.note.read) {
+          entry.screenText = event.note.read.text;
+          entry.screenConfidence = event.note.read.confidence;
+        }
+      }
+      return entry;
+    }
 
     case "step.updated": {
       const step = event.step;
@@ -206,7 +256,21 @@ function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | 
         action: describeAction(step, controls),
       };
 
-      // was this a retry? compare with what we had before
+      // the backend said what this is: use its words and kind
+      if (event.note) {
+        const entry = fromNote(ts, event.note, about);
+        if (step.status === "succeeded" || step.status === "failed") {
+          entry.beforeFrame = step.evidence.before_frame_url;
+          entry.afterFrame = step.evidence.after_frame_url;
+        }
+        if (event.note.kind === "retry" && step.retries && step.retries.length > 0) {
+          const latest = step.retries[step.retries.length - 1];
+          entry.text = `Retry: ${latest.problem}. ${describeCorrection(latest.correction, controls)}`;
+        }
+        return entry;
+      }
+
+      // no note (an older backend): work out what changed by comparing with what we had
       const previous = findStep(jobBefore, step.step_id);
       const retriesBefore = previous && previous.retries ? previous.retries.length : 0;
       const retriesNow = step.retries ? step.retries.length : 0;
@@ -215,8 +279,10 @@ function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | 
         return {
           ...about,
           tone: "warn",
-          text: `Self-corrected: ${latest.problem}. ${describeCorrection(latest.correction, controls)}`,
+          kind: "retry",
+          text: `Retry: ${latest.problem}. ${describeCorrection(latest.correction, controls)}`,
           screenText: latest.screen_text,
+          screenConfidence: latest.screen_confidence,
         };
       }
 
@@ -230,6 +296,7 @@ function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | 
           tone: "good",
           text: retriesNow > 0 ? "Verified after retry" : "Verified",
           screenText: step.evidence.screen_text,
+          screenConfidence: step.evidence.screen_confidence,
           beforeFrame: step.evidence.before_frame_url,
           afterFrame: step.evidence.after_frame_url,
         };
@@ -243,6 +310,7 @@ function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | 
           tone: "bad",
           text: `Failed: ${step.error ?? "unknown error"}`,
           screenText: step.evidence.screen_text,
+          screenConfidence: step.evidence.screen_confidence,
           beforeFrame: step.evidence.before_frame_url,
           afterFrame: step.evidence.after_frame_url,
         };
@@ -260,6 +328,7 @@ function describeEvent(jobBefore: Job, event: JobEvent): Omit<LogEntry, "id"> | 
       return null; // way too noisy for the log
 
     case "job.finished": {
+      if (event.note) return fromNote(ts, event.note); // planner_refused
       const tone: LogTone = event.result.outcome === "succeeded" ? "good" : "bad";
       return { ts, tone, text: event.result.message };
     }

@@ -22,6 +22,9 @@ export interface JobBackend {
   getJob(jobId: string): Promise<Job>;
   subscribe(jobId: string, handlers: JobStreamHandlers): () => void;
   decide(jobId: string, stepId: string, decision: ApprovalDecision): Promise<void>;
+  // carry on after a pause for a low-confidence read: the backend reads the screen again first
+  // (and pauses again if that read is low too). A rejected step resumes by approving it instead
+  resume(jobId: string, decidedBy: string): Promise<void>;
   stop(jobId: string): Promise<void>;
   // frame urls in the contract are paths like /frames/..., this turns them into something <img> can load
   frameUrl(path: string | null): string | null;
@@ -96,6 +99,10 @@ export class HttpBackend implements JobBackend {
 
   async decide(jobId: string, stepId: string, decision: ApprovalDecision) {
     await this.send<Job>(`/jobs/${jobId}/steps/${stepId}/approval`, "POST", decision);
+  }
+
+  async resume(jobId: string, decidedBy: string) {
+    await this.send<Job>(`/jobs/${jobId}/resume`, "POST", { decided_by: decidedBy });
   }
 
   async stop(jobId: string) {
