@@ -15,6 +15,7 @@ import sys
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 os.environ.pop("HARDWARE", None)  # always the fake here
 
@@ -26,6 +27,7 @@ from fastapi import HTTPException  # noqa: E402
 from mcp import Client  # noqa: E402
 
 import api  # noqa: E402
+from hardware import FakeHardware  # noqa: E402
 import mcp_server  # noqa: E402
 import planner  # noqa: E402
 from serial_hardware import NotCalibrated, SerialHardware  # noqa: E402
@@ -728,6 +730,68 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         await self.wait_until(lambda: api.is_finished(run), seconds=20)
         self.assertEqual(run.job["status"], "succeeded", run.job["result"])
         self.assertEqual(self.hardware.finished[-1], ("btn_stsp", 1, 1000))
+
+    # ---- FakeHardware confidence, opt-in ----
+
+    def test_fake_confidence_is_off_unless_asked(self):
+        quick = {"seconds_per_press": 0.0, "seconds_per_read": 0.0}
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("FAKE_CONFIDENCE", None)
+            os.environ.pop("FAKE_LOW_READ", None)
+            self.assertIsNone(FakeHardware(**quick).read_screen_detail("screen_t1")["confidence"])
+
+        for level in ("high", "medium", "low"):
+            with mock.patch.dict(os.environ, {"FAKE_CONFIDENCE": level}):
+                fake = FakeHardware(**quick)
+                for _ in range(3):
+                    self.assertEqual(fake.read_screen_detail("screen_t1")["confidence"], level)
+        with mock.patch.dict(os.environ, {"FAKE_CONFIDENCE": "sure"}):
+            with self.assertRaises(ValueError):
+                FakeHardware(**quick)
+
+    def test_fake_low_read_is_only_the_nth(self):
+        quick = {"seconds_per_press": 0.0, "seconds_per_read": 0.0}
+        with mock.patch.dict(os.environ, {"FAKE_CONFIDENCE": "high", "FAKE_LOW_READ": "2"}):
+            fake = FakeHardware(**quick)
+        levels = []
+        for control_id in ("screen_t1", "screen_t1", "screen_t1", "screen_t2"):
+            levels.append(fake.read_screen_detail(control_id)["confidence"])
+        self.assertEqual(levels, ["high", "low", "high", "high"])
+        # on its own (no FAKE_CONFIDENCE) the other reads stay null
+        with mock.patch.dict(os.environ, {"FAKE_LOW_READ": "1"}):
+            os.environ.pop("FAKE_CONFIDENCE", None)
+            fake = FakeHardware(**quick)
+        self.assertEqual(fake.read_screen_detail("screen_t1")["confidence"], "low")
+        self.assertIsNone(fake.read_screen_detail("screen_t1")["confidence"])
+        for bad in ("0", "two"):
+            with mock.patch.dict(os.environ, {"FAKE_LOW_READ": bad}):
+                with self.assertRaises(ValueError):
+                    FakeHardware(**quick)
+
+    async def test_filming_the_pause_with_fake_low_read(self):
+        # the setup for the video: FAKE_CONFIDENCE=high FAKE_LOW_READ=2 on the stock FakeHardware.
+        # read 1 is before planning, read 2 checks the first H: it pauses there, resume reads high
+        with mock.patch.dict(os.environ, {"FAKE_CONFIDENCE": "high", "FAKE_LOW_READ": "2"}):
+            self.hardware = FakeHardware(seconds_per_press=0.01, seconds_per_read=0.01)
+        api.hardware = self.hardware
+        planner.call_model = timer_model(self.prompts)
+        run = await self.start_job(TWO_HOURS)
+        await self.wait_until(lambda: run.resume is not None)
+
+        self.assertEqual(run.job["status"], "paused")
+        self.assertIn("Couldn't read screen_t1 clearly (step 1): low confidence, read '01:00 00'",
+                      run.job["pause_reason"])
+        await api.resume_job(run.job["job_id"], FakeRequest({"decided_by": "Pam"}))
+        await self.wait_until(lambda: self.step(run, "s1")["status"] == "succeeded")
+        self.assertEqual(self.step(run, "s1")["evidence"]["screen_confidence"], "high")
+        kinds = self.note_kinds(run)
+        self.assertEqual(kinds.count("read_unclear"), 1)
+        self.assertLess(kinds.index("read_unclear"), kinds.index("resumed"))
+
+        await self.wait_for_card_and_score(run, "s3")
+        await self.decide(run, {"decision": "approve", "approval_type": "hold"})
+        await self.wait_until(lambda: api.is_finished(run), seconds=20)
+        self.assertEqual(run.job["status"], "succeeded", run.job["result"])
 
     # ---- the mock demo fixture ----
 
