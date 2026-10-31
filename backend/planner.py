@@ -5,10 +5,12 @@ Usage:
     python backend/planner.py [--device DEVICE_ID] "<request>"
     python backend/planner.py --device incubator-01 "Set the incubator to 37 °C and run it for 2 hours"
     python backend/planner.py --device inkbird-01 "Set the heater to turn on at 80 °F"
-    python backend/planner.py --device timer-01 "Set T2 to 5 minutes and start it"
+    python backend/planner.py --device timer-01 "Set T1 to 2 hours and start it"
 
 Reads the device (with its controls) from the matching fixture in
 shared/fixtures/ and the device profile from backend/devices/<device_id>.json,
+(the CLI has no camera, so the current screen is the profile's guess; api.py reads the
+real screens through the MCP read_screen tool first and passes them in),
 asks Muse Spark (via Meta's Model API) for a minimal plan, fills in the
 runtime fields so the result matches the Plan type in shared/types.ts,
 validates it, prints it as pretty JSON, and saves it to
@@ -130,13 +132,74 @@ def needs_hold(step):
     return False
 
 
+def _positive_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+
+
+def device_hold_ms(profile):
+    """The profile's device-level hold_ms: every press on this device holds that long (the
+    timer needs 1 s, a tap doesn't click). None when the device has no such setting."""
+    hold = (profile or {}).get("hold_ms")
+    return hold if _positive_number(hold) else None
+
+
 def required_hold_ms(control_id, profile):
+    """The hold a press on control_id needs: the control's own hold_ms wins, then the
+    device-level one, else None (a plain tap is fine)."""
     entry = profile_controls(profile).get(control_id)
-    if isinstance(entry, dict):
-        hold = entry.get("hold_ms")
-        if isinstance(hold, (int, float)) and not isinstance(hold, bool) and hold > 0:
-            return hold
+    if isinstance(entry, dict) and _positive_number(entry.get("hold_ms")):
+        return entry["hold_ms"]
+    return device_hold_ms(profile)
+
+
+def max_hold_ms(profile):
+    """Longest hold this device may get (the timer auto-repeats at ~2 s), or None for no limit."""
+    most = (profile or {}).get("max_hold_ms")
+    return most if _positive_number(most) else None
+
+
+def refusal_reason(raw):
+    """The model's one-line reason when it says the request can't be done on this rig
+    ({"refusal": "..."} instead of a plan), else None."""
+    if isinstance(raw, dict) and isinstance(raw.get("refusal"), str) and raw["refusal"].strip():
+        return raw["refusal"].strip()
     return None
+
+
+def describe_current_screen(profile, readings=None):
+    """The "Current screen" part of the prompt.
+
+    readings: what the camera read just before planning, one dict per screen:
+    {"control_id", "label", "text", "confidence", "error"}. A read that failed (error set,
+    or no text) or came back low confidence doesn't count, and the profile's current_screen
+    goes in instead, marked as a guess. No readings at all (the CLI, no camera) = the guess."""
+    guess = (profile or {}).get("current_screen", "")
+    if not readings:
+        return f"Current screen (a guess from the device profile, NOT read from the camera, may be stale): {guess}"
+
+    lines = ["Current screen (read from the camera just now):"]
+    any_bad = False
+    for reading in readings:
+        name = reading["control_id"]
+        if reading.get("label"):
+            name += f" ({reading['label']})"
+        if reading.get("error"):
+            lines.append(f"- {name}: couldn't read it ({reading['error']})")
+            any_bad = True
+        elif not reading.get("text"):
+            lines.append(f"- {name}: couldn't read it (empty read)")
+            any_bad = True
+        elif reading.get("confidence") == "low":
+            lines.append(f"- {name}: unsure, low-confidence read {reading['text']!r}, don't trust it")
+            any_bad = True
+        else:
+            lines.append(f"- {name}: {reading['text']}")
+    if any_bad:
+        lines.append(
+            "For the screens that couldn't be read, use this guess from the device profile "
+            f"(NOT read from the camera, may be stale): {guess}"
+        )
+    return "\n".join(lines)
 
 
 def reachable_device(device, profile):
@@ -151,9 +214,11 @@ def reachable_device(device, profile):
     for control in filtered["controls"]:
         entry = profile_controls(profile).get(control.get("control_id"))
         merged = dict(control)
+        # the hold this control needs: its own, or the device-level one (every timer press)
+        hold = required_hold_ms(control.get("control_id"), profile)
+        if hold is not None and control.get("kind") not in ("screen", "indicator"):
+            merged["hold_ms"] = hold
         if isinstance(entry, dict):
-            if "hold_ms" in entry:
-                merged["hold_ms"] = entry["hold_ms"]
             if entry.get("risky"):
                 merged["risky"] = True
             for mark in HOLD_MARKS:
@@ -164,10 +229,12 @@ def reachable_device(device, profile):
     return filtered
 
 
-def build_messages(device, profile, request):
+def build_messages(device, profile, request, screen_readings=None):
+    """screen_readings: what the camera read before planning (see describe_current_screen).
+    None = no camera, the profile's current_screen goes in marked as a guess."""
     profile = profile or {}
     visible_device = reachable_device(device, profile)
-    current_screen = profile.get("current_screen", "")
+    current_screen = describe_current_screen(profile, screen_readings)
     notes = profile.get("notes", [])
     if isinstance(notes, list):
         notes_text = "\n".join(f"- {n}" for n in notes)
@@ -193,7 +260,7 @@ def build_messages(device, profile, request):
     user_prompt = (
         "Plan the following request for the supplied device.\n\n"
         f"Request: {request}\n\n"
-        f"Current screen: {current_screen}\n\n"
+        f"{current_screen}\n\n"
         f"Device notes (how the buttons behave):\n{notes_text}\n"
         f"{menu_text}\n"
         f"Device (with controls, only reachable controls are listed):\n"
@@ -223,7 +290,11 @@ def build_messages(device, profile, request):
         "    }\n"
         "  ]\n"
         "}\n"
-        "hold_ms on a press is optional; include it only for a long press. "
+        "If the request can't be done with only the controls listed above (it needs a "
+        "button that isn't listed, or the device notes say it can't be done), don't make a "
+        "plan: return exactly {\"refusal\": \"<one line: what can't be done and why>\"} instead. "
+        "hold_ms on a press: include it whenever the control lists a hold_ms, with that "
+        "value, otherwise leave it out. "
         "Set turns_on_output to true on the step that makes the machine switch an "
         "output on (a heater, a motor, a pump), as the device notes describe, or "
         "that presses a control marked turns_on_output; that step also needs "
@@ -319,6 +390,9 @@ def validate_and_build_plan(raw, device, profile=None):
 
     if not isinstance(raw, dict):
         return None, ["model output must be a JSON object with 'summary' and 'steps'"]
+    reason = refusal_reason(raw)
+    if reason:
+        return None, [f"the planner refused: {reason}"]
 
     summary = raw.get("summary")
     if not isinstance(summary, str) or not summary.strip():
@@ -381,6 +455,19 @@ def validate_and_build_plan(raw, device, profile=None):
                 if isinstance(hold, bool) or not isinstance(hold, (int, float)) or hold <= 0:
                     errors.append(f"{label}: press 'hold_ms' must be a number > 0")
             needed = required_hold_ms(cid, profile)
+            # a device where every press is a hold (the timer): the model doesn't have to
+            # remember it, a press with no hold_ms gets the device's. a control that needs its
+            # own special hold (the Inkbird's SET) still has to say so in the plan
+            if needed is not None and device_hold_ms(profile) is not None and action.get("hold_ms") is None:
+                action = dict(action)
+                action["hold_ms"] = needed
+            most = max_hold_ms(profile)
+            hold = action.get("hold_ms")
+            if most is not None and _positive_number(hold) and hold > most:
+                errors.append(
+                    f"{label}: hold_ms {hold} on {cid!r} is over this device's limit of "
+                    f"{most} ms (a longer hold auto-repeats)"
+                )
             if needed is not None:
                 hold = action.get("hold_ms")
                 if isinstance(hold, bool) or not isinstance(hold, (int, float)):
@@ -554,6 +641,11 @@ def main(argv=None):
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         print(f"Raw model output:\n{content}", file=sys.stderr)
+        return 1
+
+    reason = refusal_reason(raw)
+    if reason:
+        print(f"Refused, no plan: {reason}", file=sys.stderr)
         return 1
 
     plan, errors = validate_and_build_plan(raw, device, profile)

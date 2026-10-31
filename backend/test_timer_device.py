@@ -1,12 +1,16 @@
 """Tests for timer-01, the 4-channel kitchen timer, as a backend device. FakeHardware, stubbed
-scorer, no rig or API key. The plans are written the way Muse Spark replies and go through the
-same validator make_plan uses. Run from the repo root:
+scorer and model, no rig or API key. Model replies are written the way Muse Spark replies and go
+through the real make_plan (prompt, refusal check, validator). Run from the repo root:
     python -m unittest backend/test_timer_device.py -v
+
+The rig has two fixed fingers (H on servo 0, ST/SP on servo 1), every press holds 1 s, and the
+planner starts from what the camera reads, not from the profile's current_screen.
 """
 
 import asyncio
 import json
 import os
+import re
 import sys
 import time
 import unittest
@@ -18,39 +22,59 @@ BACKEND_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BACKEND_DIR.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
-from fastapi import HTTPException  # noqa: E402
 from mcp import Client  # noqa: E402
 
 import api  # noqa: E402
 import mcp_server  # noqa: E402
 import planner  # noqa: E402
+from serial_hardware import NotCalibrated, SerialHardware  # noqa: E402
 from test_mcp_server import FakeRequest, RecordingHardware, scored, tool_error_text  # noqa: E402
+from test_serial_hardware import FakeESP32  # noqa: E402
 
 DEVICE = "timer-01"
 TIMER_CONTROLS = [
     "btn_t1", "btn_t2", "btn_t3", "btn_t4", "btn_h", "btn_m", "btn_s", "btn_10m", "btn_5m", "btn_10s",
     "btn_reset", "btn_stsp", "screen_t1", "screen_t2", "screen_t3", "screen_t4",
 ]
+SCREENS = ["screen_t1", "screen_t2", "screen_t3", "screen_t4"]
+FINGERS = ["btn_h", "btn_stsp"]  # the only two buttons with a finger on them
+TWO_HOURS = "Set T1 to 2 hours and start it"
+REAL_MAKE_PLAN = api.make_plan  # grabbed before any test's setUp replaces it
 
 
 class ReadingHardware(RecordingHardware):
-    """RecordingHardware that also remembers which screen every read looked at."""
+    """RecordingHardware that remembers which screen every read looked at, and starts with
+    every channel showing `screens` (what the camera would see before planning)."""
 
-    def __init__(self):
+    def __init__(self, screens=None, low_confidence=()):
         super().__init__()
         self.reads = []
+        self.low_confidence = set(low_confidence)
+        for control_id in SCREENS:
+            self.last_reads[control_id] = "00:00 00"
+        for control_id, text in (screens or {}).items():
+            self.last_reads[control_id] = text
 
     def read_screen(self, control_id):
         self.reads.append(control_id)
         return super().read_screen(control_id)
 
+    def read_screen_detail(self, control_id):
+        text = self.read_screen(control_id)
+        if control_id in self.low_confidence:
+            return {"text": text, "confidence": "low"}
+        return {"text": text, "confidence": "high"}
 
-def press_step(intent, control_id, screen, text, requires_approval=False, reason=None):
-    """One step the way Muse Spark writes it (planning fields only)."""
+
+def press_step(intent, control_id, text, requires_approval=False, reason=None, hold_ms=None):
+    """One step the way Muse Spark writes it (planning fields only), verified on T1's row."""
+    action = {"type": "press", "control_id": control_id, "count": 1}
+    if hold_ms is not None:
+        action["hold_ms"] = hold_ms
     step = {
         "intent": intent,
-        "action": {"type": "press", "control_id": control_id, "count": 1},
-        "expect": {"control_id": screen, "text_contains": text},
+        "action": action,
+        "expect": {"control_id": "screen_t1", "text_contains": text},
         "requires_approval": requires_approval,
     }
     if reason:
@@ -58,28 +82,39 @@ def press_step(intent, control_id, screen, text, requires_approval=False, reason
     return step
 
 
-def build_plan(raw_steps):
-    plan, errors = planner.validate_and_build_plan(
-        {"summary": "test plan", "steps": raw_steps}, planner.load_device(DEVICE), planner.load_profile(DEVICE))
-    assert not errors, errors
-    return plan
+def t1_reading_in(prompt):
+    """What the prompt says T1 shows right now, e.g. "01:00 00", or None if it doesn't say."""
+    match = re.search(r"- screen_t1 \(T1 time\): (\d\d:\d\d \d\d)", prompt)
+    return match.group(1) if match else None
 
 
-def t2_five_minutes_plan():
-    """Set T2 to 5 minutes and start it: pick T2, 5M once, ST/SP (approval), then T2 counts down."""
-    return build_plan([
-        press_step("Pick channel T2", "btn_t2", "screen_t2", "00:00 00"),
-        press_step("Set T2 to 5 minutes", "btn_5m", "screen_t2", "00:05 00"),
-        press_step("Start T2", "btn_stsp", "screen_t2", "00:04", True, "Starts T2 counting down"),
-    ])
+def timer_model(prompts, target_hours=2):
+    """A stand-in for Muse Spark on "set T1 to N hours and start it": it plans from the T1
+    reading in the prompt, the way the real model is told to (H adds 1 hour per press), one H
+    per step, then ST/SP. Leaves hold_ms off like a model that forgot it. Every prompt it gets
+    goes in `prompts`."""
+
+    def call_model(client, messages):
+        prompt = messages[1]["content"]
+        prompts.append(prompt)
+        reading = t1_reading_in(prompt) or "00:00 00"
+        hours = int(reading[:2])
+        steps = []
+        while hours < target_hours:
+            hours += 1
+            steps.append(press_step(f"Add an hour to T1 ({hours} h)", "btn_h", f"{hours:02d}:00 00"))
+        steps.append(press_step("Start T1", "btn_stsp", f"{target_hours - 1:02d}:59", True, "Starts T1 counting down"))
+        return json.dumps({"summary": f"T1 to {target_hours} h, then start it", "steps": steps})
+
+    return call_model
 
 
-def reset_t1_plan():
-    """Reset T1 while it's running. The model left the approval off RESET: the profile adds it."""
-    return build_plan([
-        press_step("Pick channel T1", "btn_t1", "screen_t1", ":"),  # running, so any time will do
-        press_step("Reset T1", "btn_reset", "screen_t1", "00:00 00"),
-    ])
+def canned_model(prompts, reply):
+    def call_model(client, messages):
+        prompts.append(messages[1]["content"])
+        return json.dumps(reply)
+
+    return call_model
 
 
 class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
@@ -89,13 +124,25 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         api.scorer.score_step_with_raw = scored("medium")
         api.runs.clear()
         api.current_run = None
+        # the real make_plan runs (the other suites swap in a lambda), only the model call is
+        # stubbed, so nothing ever goes out to the API
+        self.addCleanup(setattr, api, "make_plan", api.make_plan)
+        api.make_plan = REAL_MAKE_PLAN
+        self.addCleanup(setattr, planner, "call_model", planner.call_model)
+        old_key = os.environ.get("MODEL_API_KEY")
+        os.environ["MODEL_API_KEY"] = "test-key-never-sent"
+        if old_key is None:
+            self.addCleanup(os.environ.pop, "MODEL_API_KEY", None)
+        else:
+            self.addCleanup(os.environ.__setitem__, "MODEL_API_KEY", old_key)
+        self.prompts = []
 
     async def asyncTearDown(self):
         for run in list(api.runs.values()):
             if not api.is_finished(run):
                 await api.stop_job_now(run, "test over")
 
-    # ---- helpers (same shape as test_mcp_server's) ----
+    # ---- helpers ----
 
     async def start_job(self, request):
         job = await api.create_job(FakeRequest({"device_id": DEVICE, "request": request}))
@@ -121,6 +168,10 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         await self.wait_until(lambda: run.waiting_step_id == step_id)
         await self.wait_until(lambda: self.step(run, step_id).get("risk_tier") is not None)
 
+    def validate(self, raw_steps):
+        return planner.validate_and_build_plan(
+            {"summary": "test plan", "steps": raw_steps}, planner.load_device(DEVICE), planner.load_profile(DEVICE))
+
     # ---- the device files ----
 
     def test_profile_fixture_and_boxes_agree(self):
@@ -136,105 +187,301 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(control["bbox"], boxes["boxes"][control["control_id"]])
         self.assertEqual(sorted(fixture_ids), sorted(TIMER_CONTROLS))
 
-        # pan/tilt on every control, all still to be found on the rig
-        self.assertTrue(profile["_comment"].startswith("PLACEHOLDER"))
-        self.assertEqual(profile["rig"], {"pan_servo": 1, "tilt_servo": 0})
-        for control_id, entry in profile["controls"].items():
-            for key in ("pan_deg", "tilt_up_deg", "tilt_press_deg"):
-                self.assertIn(key, entry, control_id)
-                self.assertIsNone(entry[key], control_id)
+    def test_two_fixed_fingers_and_a_one_second_hold(self):
+        profile = planner.load_profile(DEVICE)
+        self.assertNotIn("rig", profile, "no pan/tilt on the timer")
+        self.assertEqual(profile["hold_ms"], 1000)
+        self.assertEqual(profile["max_hold_ms"], 1800)
 
-        # the notes say which parts nobody has checked yet
+        controls = profile["controls"]
+        self.assertEqual(controls["btn_h"], {"reachable": True, "servo": 0, "rest_deg": 150, "press_deg": 50})
+        self.assertEqual(controls["btn_stsp"],
+                         {"reachable": True, "servo": 1, "rest_deg": None, "press_deg": None, "risky": True})
+        for control_id, entry in controls.items():
+            for key in ("pan_deg", "tilt_up_deg", "tilt_press_deg"):
+                self.assertNotIn(key, entry, control_id)
+            if control_id in SCREENS:
+                self.assertIs(entry["reachable"], True, "the camera reads every screen")
+            elif control_id not in FINGERS:
+                self.assertIs(entry["reachable"], False, control_id)
+                for key in ("servo", "rest_deg", "press_deg"):
+                    self.assertIsNone(entry[key], control_id)
+
+    def test_notes_say_what_was_checked_on_the_rig(self):
+        notes = planner.load_profile(DEVICE)["notes"]
+        checked = {"H adds 1 hour": None, "T1 is the picked channel after power-on": None, "20:00 00": None}
         unverified = 0
-        for note in profile["notes"]:
+        for note in notes:
+            for phrase in checked:
+                if phrase in note:
+                    checked[phrase] = note
             if "UNVERIFIED" in note:
                 unverified += 1
-        self.assertGreater(unverified, 0)
+        for phrase, note in checked.items():
+            self.assertIsNotNone(note, f"no note says {phrase!r}")
+            self.assertNotIn("UNVERIFIED", note)
+        self.assertGreater(unverified, 0, "everything else is still unverified")
+        # what M/S/10M/5M/10S/RESET do is still written down, unverified, for when they get fingers
+        all_notes = " ".join(notes)
+        for phrase in ("10M, 5M and 10S", "RESET clears", "what H does past 23 hours"):
+            self.assertIn(phrase, all_notes)
 
-    def test_planner_prompt_and_marks(self):
+    def test_serial_rig_presses_h_on_its_own_servo(self):
+        """serial_hardware's one-servo-per-button form, with the real timer profile and a fake ESP32."""
+        fake = FakeESP32()
+        rig = SerialHardware(serial_port=fake, device_id="test-device")
+        try:
+            rig.prepare_step({}, planner.load_profile(DEVICE))
+            rig.press("btn_h", 1, 1000)
+            self.assertEqual(fake.commands[-2:], ["CAL 0 150 50", "PRESS 0 1 1000"])
+            for command in fake.commands:
+                self.assertFalse(command.startswith("ANGLE"), "no pan move, the finger is fixed")
+
+            # ST/SP has its servo but no angles until Sunday: refused before anything moves
+            sent = len(fake.commands)
+            with self.assertRaises(NotCalibrated) as ctx:
+                rig.press("btn_stsp", 1, 1000)
+            self.assertIn("rest_deg", str(ctx.exception))
+            for control_id in ("btn_m", "btn_t2", "btn_reset"):
+                with self.assertRaises(NotCalibrated):
+                    rig.press(control_id, 1, 1000)
+            self.assertEqual(len(fake.commands), sent, "nothing sent for an uncalibrated button")
+        finally:
+            rig._closed = True
+
+    # ---- the planner ----
+
+    def test_prompt_lists_only_the_two_fingers_and_their_hold(self):
         device = planner.load_device(DEVICE)
         profile = planner.load_profile(DEVICE)
-        prompt = planner.build_messages(device, profile, "Set T2 to 5 minutes and start it")[1]["content"]
-        self.assertIn("ST/SP starts the picked channel", prompt)
-        self.assertIn('"destructive": true', prompt)  # RESET is marked for the model too
-        self.assertIn('"destructive": true | false', prompt)
+        visible = planner.reachable_device(device, profile)
+        visible_ids = []
+        for control in visible["controls"]:
+            visible_ids.append(control["control_id"])
+            if control["control_id"] in FINGERS:
+                self.assertEqual(control["hold_ms"], 1000)
+            else:
+                self.assertNotIn("hold_ms", control, "screens don't get pressed")
+        self.assertEqual(sorted(visible_ids), sorted(FINGERS + SCREENS))
 
+        prompt = planner.build_messages(device, profile, TWO_HOURS)[1]["content"]
+        self.assertIn("H adds 1 hour", prompt)
+        self.assertIn('"refusal"', prompt)
+        for control_id in ("btn_t1", "btn_t2", "btn_m", "btn_10m", "btn_reset"):
+            self.assertNotIn(f'"{control_id}"', prompt)
+        # no camera (the CLI): the profile's screen goes in, marked as a guess
+        self.assertIn("a guess from the device profile, NOT read from the camera", prompt)
+        self.assertIn("T1 00:00 00", prompt)
+
+    def test_prompt_uses_the_camera_readings(self):
+        device = planner.load_device(DEVICE)
+        profile = planner.load_profile(DEVICE)
+        readings = []
+        for control_id in SCREENS:
+            readings.append({"control_id": control_id, "label": control_id[-2:].upper() + " time",
+                             "text": "00:00 00", "confidence": "high", "error": None})
+        readings[0]["text"] = "01:00 00"
+
+        prompt = planner.build_messages(device, profile, TWO_HOURS, readings)[1]["content"]
+        self.assertIn("read from the camera just now", prompt)
+        self.assertEqual(t1_reading_in(prompt), "01:00 00")
+        self.assertNotIn("guess", prompt)
+
+        # a low-confidence read or a failed one: not trusted, and the profile's guess comes back, marked
+        readings[0]["confidence"] = "low"
+        readings[1]["error"] = "hardware error: Camera returned no frame"
+        prompt = planner.build_messages(device, profile, TWO_HOURS, readings)[1]["content"]
+        self.assertIsNone(t1_reading_in(prompt))
+        self.assertIn("low-confidence read '01:00 00', don't trust it", prompt)
+        self.assertIn("screen_t2 (T2 time): couldn't read it (hardware error: Camera returned no frame)", prompt)
+        self.assertIn("guess from the device profile (NOT read from the camera", prompt)
+
+    def test_every_press_gets_the_one_second_hold(self):
+        # the model left hold_ms off: the planner fills in the device's, so the check passes
+        plan, errors = self.validate([
+            press_step("Add an hour", "btn_h", "01:00 00"),
+            press_step("Start T1", "btn_stsp", "00:59", True, "Starts T1"),
+        ])
+        self.assertEqual(errors, [])
+        for step in plan["steps"]:
+            self.assertEqual(step["action"]["hold_ms"], 1000)
+
+        # too short doesn't click, over 1800 auto-repeats: both refused
+        _, errors = self.validate([press_step("Add an hour", "btn_h", "01:00 00", hold_ms=250)])
+        self.assertTrue(any("needs a hold of 1000 ms but hold_ms is 250" in error for error in errors), errors)
+        _, errors = self.validate([press_step("Add an hour", "btn_h", "01:00 00", hold_ms=2000)])
+        self.assertTrue(any("over this device's limit of 1800 ms" in error for error in errors), errors)
+        _, errors = self.validate([press_step("Add an hour", "btn_h", "01:00 00", hold_ms=1800)])
+        self.assertEqual(errors, [])
+
+        # a control's own hold_ms overrides the device's
+        profile = planner.load_profile(DEVICE)
+        profile["controls"]["btn_h"]["hold_ms"] = 1200
+        self.assertEqual(planner.required_hold_ms("btn_h", profile), 1200)
+        self.assertEqual(planner.required_hold_ms("btn_stsp", profile), 1000)
+        plan, errors = planner.validate_and_build_plan(
+            {"summary": "x", "steps": [press_step("Add an hour", "btn_h", "01:00 00")]},
+            planner.load_device(DEVICE), profile)
+        self.assertEqual(errors, [])
+        self.assertEqual(plan["steps"][0]["action"]["hold_ms"], 1200)
+
+    def test_planner_rules(self):
         # ST/SP is risky: a plan that forgets its approval is refused, not run
-        raw = [press_step("Start T2", "btn_stsp", "screen_t2", "00:04")]
-        _, errors = planner.validate_and_build_plan({"summary": "x", "steps": raw}, device, profile)
+        _, errors = self.validate([press_step("Start T1", "btn_stsp", "00:59")])
         self.assertTrue(any("risky control 'btn_stsp'" in error for error in errors), errors)
+        # a button with no finger can never be in a plan
+        for control_id in ("btn_t2", "btn_m", "btn_5m", "btn_reset"):
+            _, errors = self.validate([press_step("x", control_id, "00:05 00", True, "x")])
+            self.assertTrue(any(f"{control_id!r} is unreachable on this rig" in error for error in errors), errors)
+        # the model saying no is a refusal, not a plan
+        plan, errors = planner.validate_and_build_plan(
+            {"refusal": "T2 can't be picked"}, planner.load_device(DEVICE), planner.load_profile(DEVICE))
+        self.assertIsNone(plan)
+        self.assertEqual(errors, ["the planner refused: T2 can't be picked"])
 
-        # RESET: approval and the destructive mark get added even when the model leaves them off
-        plan = reset_t1_plan()
-        reset = plan["steps"][1]
-        self.assertIs(reset["requires_approval"], True)
-        self.assertIs(reset["destructive"], True)
-        self.assertNotIn("turns_on_output", reset)
-        self.assertTrue(planner.needs_hold(reset))
-        # picking a channel needs nothing
-        self.assertIs(plan["steps"][0]["requires_approval"], False)
-        self.assertFalse(planner.needs_hold(plan["steps"][0]))
+    # ---- jobs: the demo ----
 
-        # a non-boolean destructive is refused
-        bad = dict(press_step("Reset T1", "btn_reset", "screen_t1", "00:00 00", True), destructive="yes")
-        _, errors = planner.validate_and_build_plan({"summary": "x", "steps": [bad]}, device, profile)
-        self.assertTrue(any("'destructive' must be a boolean" in error for error in errors), errors)
+    async def run_two_hours(self):
+        """Runs TWO_HOURS through the real make_plan with timer_model, approves ST/SP, returns the run."""
+        planner.call_model = timer_model(self.prompts)
+        run = await self.start_job(TWO_HOURS)
+        await self.wait_until(lambda: run.job.get("plan") is not None or api.is_finished(run))
+        self.assertIsNotNone(run.job.get("plan"), run.job.get("result"))
+        last = run.job["plan"]["steps"][-1]["step_id"]
+        await self.wait_for_card_and_score(run, last)
 
-    # ---- jobs ----
-
-    async def test_set_t2_to_five_minutes_and_start_it(self):
-        api.make_plan = lambda device_id, request: t2_five_minutes_plan()
-        run = await self.start_job("Set T2 to 5 minutes and start it")
-        await self.wait_for_card_and_score(run, "s3")
-
-        # picking T2 and setting the time ran on their own, ST/SP waits on the card
-        self.assertEqual(self.hardware.finished, [("btn_t2", 1, None), ("btn_5m", 1, None)])
-        self.assertEqual(self.hardware.started, self.hardware.finished, "ST/SP hasn't moved")
-        start = self.step(run, "s3")
+        start = self.step(run, last)
+        self.assertEqual(start["action"]["control_id"], "btn_stsp")
         self.assertEqual(start["status"], "awaiting_approval")
         self.assertIs(start["requires_approval"], True)
         self.assertFalse(planner.needs_hold(start), "starting a timer is a normal approval")
+        for step in run.job["plan"]["steps"][:-1]:
+            self.assertIs(step["requires_approval"], False, "pressing H needs no approval")
+        self.assertNotIn(("btn_stsp", 1, 1000), self.hardware.started, "ST/SP waits for the card")
 
-        # medium risk, nothing wiped or switched on: a tap is enough
         await self.decide(run, {"decision": "approve", "approval_type": "tap"})
         await self.wait_until(lambda: api.is_finished(run), seconds=20)
         self.assertEqual(run.job["status"], "succeeded", run.job["result"])
-        self.assertEqual(self.hardware.finished[-1], ("btn_stsp", 1, None))
+        return run
 
-        # every verify read T2's row, and the start step saw it counting
-        self.assertEqual(self.hardware.reads, ["screen_t2", "screen_t2", "screen_t2"])
-        self.assertEqual(start["evidence"]["screen_text"], "00:04")
+    async def test_two_hours_from_zero_presses_h_twice(self):
+        run = await self.run_two_hours()
 
-    async def test_reset_t1_while_running_needs_a_hold(self):
-        api.make_plan = lambda device_id, request: reset_t1_plan()
-        for tier in ("low", "medium"):
-            with self.subTest(tier=tier):
-                self.hardware = ReadingHardware()
-                api.hardware = self.hardware
-                api.scorer.score_step_with_raw = scored(tier)
-                run = await self.start_job("Reset T1")
-                await self.wait_for_card_and_score(run, "s2")
-                self.assertEqual(self.step(run, "s2")["risk_tier"], tier)
-                self.assertEqual(self.hardware.finished, [("btn_t1", 1, None)])
+        # the planner was told what the camera read, not the profile's fixed screen
+        self.assertEqual(len(self.prompts), 1)
+        self.assertEqual(t1_reading_in(self.prompts[0]), "00:00 00")
+        self.assertIn("read from the camera just now", self.prompts[0])
+        self.assertNotIn("guess", self.prompts[0])
 
-                # a tap (or no type at all) is refused, RESET doesn't move, the card stays up
-                with self.assertRaises(HTTPException) as refused:
-                    await self.decide(run, {"decision": "approve", "approval_type": "tap"})
-                self.assertEqual(refused.exception.status_code, 400)
-                self.assertIn("wipes something", refused.exception.detail)
-                self.assertIn("press-and-hold", refused.exception.detail)
-                with self.assertRaises(HTTPException):
-                    await self.decide(run, {"decision": "approve"})
-                self.assertEqual(run.waiting_step_id, "s2")
-                self.assertEqual(self.hardware.started, [("btn_t1", 1, None)])
+        # H, H, then ST/SP, every one a 1 s hold
+        self.assertEqual(self.hardware.finished, [("btn_h", 1, 1000), ("btn_h", 1, 1000), ("btn_stsp", 1, 1000)])
+        expects = []
+        for step in run.job["plan"]["steps"]:
+            expects.append((step["expect"]["control_id"], step["expect"]["text_contains"]))
+        self.assertEqual(expects, [("screen_t1", "01:00 00"), ("screen_t1", "02:00 00"), ("screen_t1", "01:59")])
+        # all four screens read before planning, then screen_t1 verified after each press
+        self.assertEqual(self.hardware.reads, SCREENS + ["screen_t1", "screen_t1", "screen_t1"])
 
-                await self.decide(run, {"decision": "approve", "approval_type": "hold"})
-                await self.wait_until(lambda: api.is_finished(run), seconds=20)
-                self.assertEqual(run.job["status"], "succeeded", run.job["result"])
-                self.assertEqual(self.hardware.finished[-1], ("btn_reset", 1, None))
-                self.assertEqual(self.hardware.reads[-1], "screen_t1")
+    async def test_two_hours_from_one_hour_presses_h_once(self):
+        self.hardware = ReadingHardware(screens={"screen_t1": "01:00 00"})
+        api.hardware = self.hardware
+        run = await self.run_two_hours()
+
+        self.assertEqual(t1_reading_in(self.prompts[0]), "01:00 00")
+        self.assertEqual(self.hardware.finished, [("btn_h", 1, 1000), ("btn_stsp", 1, 1000)])
+        self.assertEqual(len(run.job["plan"]["steps"]), 2)
+        self.assertEqual(self.hardware.reads, SCREENS + ["screen_t1", "screen_t1"])
+
+    async def test_low_confidence_read_plans_from_the_guess(self):
+        # T1 really shows 01:00 00 but vision isn't sure: the planner gets the profile's guess
+        # (00:00 00) instead, marked as one. With the guess, timer_model presses H twice
+        self.hardware = ReadingHardware(screens={"screen_t1": "01:00 00"}, low_confidence={"screen_t1"})
+        api.hardware = self.hardware
+        await self.run_two_hours()
+        self.assertIsNone(t1_reading_in(self.prompts[0]))
+        self.assertIn("low-confidence read '01:00 00'", self.prompts[0])
+        self.assertIn("NOT read from the camera", self.prompts[0])
+
+    async def test_plain_fake_hardware_still_plans(self):
+        # the stock FakeHardware has never been told what a screen shows, so every pre-plan read
+        # comes back empty: the planner gets the profile's guess and the job still runs
+        self.hardware = ReadingHardware()
+        self.hardware.last_reads.clear()
+        api.hardware = self.hardware
+        await self.run_two_hours()
+        self.assertIn("screen_t1 (T1 time): couldn't read it (empty read)", self.prompts[0])
+        self.assertIn("NOT read from the camera", self.prompts[0])
+        self.assertEqual(self.hardware.finished, [("btn_h", 1, 1000), ("btn_h", 1, 1000), ("btn_stsp", 1, 1000)])
+
+    # ---- jobs: things the rig can't do ----
+
+    async def test_t2_is_refused_not_planned(self):
+        planner.call_model = canned_model(self.prompts, {
+            "refusal": "T2 can't be picked (no finger on T1 to T4) and minutes can't be set (only H can be pressed)."})
+        run = await self.start_job("Set T2 to 5 minutes")
+        await self.wait_until(lambda: api.is_finished(run))
+
+        self.assertEqual(run.job["status"], "failed")
+        self.assertIsNone(run.job["plan"])
+        self.assertTrue(run.job["result"]["message"].startswith("Can't do this on this rig: T2 can't be picked"),
+                        run.job["result"]["message"])
+        self.assertIn("Nothing was pressed", run.job["result"]["message"])
+        self.assertEqual(self.hardware.started, [])
+        # the prompt never offered T2 or 5M
+        self.assertNotIn('"btn_t2"', self.prompts[0])
+        self.assertNotIn('"btn_5m"', self.prompts[0])
+
+    async def test_t2_plan_from_a_confused_model_is_refused_too(self):
+        # if the model plans with buttons that have no finger anyway, the validator stops it
+        planner.call_model = canned_model(self.prompts, {"summary": "T2 to 5 minutes", "steps": [
+            press_step("Pick T2", "btn_t2", "00:00 00"),
+            press_step("Add 5 minutes", "btn_5m", "00:05 00"),
+        ]})
+        run = await self.start_job("Set T2 to 5 minutes")
+        await self.wait_until(lambda: api.is_finished(run))
+
+        self.assertEqual(run.job["status"], "failed")
+        self.assertIsNone(run.job["plan"])
+        message = run.job["result"]["message"]
+        self.assertIn("'btn_t2' is unreachable on this rig", message)
+        self.assertIn("'btn_5m' is unreachable on this rig", message)
+        self.assertEqual(self.hardware.started, [])
 
     # ---- MCP and the routes ----
+
+    def manual_run(self, raw_steps):
+        """A job that's 'running' with no runner task, so a test can call press itself."""
+        plan, errors = self.validate(raw_steps)
+        self.assertEqual(errors, [])
+        job = {
+            "job_id": "job_timer_test", "created_at": api.now(), "updated_at": api.now(),
+            "request": TWO_HOURS, "approval_mode": "risky_steps", "press_budget": api.DEFAULT_PRESS_BUDGET,
+            "status": "running", "device": api.load_device_with_frame(DEVICE), "plan": plan, "result": None,
+        }
+        run = api.JobRun(job)
+        run.profile = planner.load_profile(DEVICE)
+        api.runs[job["job_id"]] = run
+        run.active_step = plan["steps"][0]
+        return run
+
+    async def test_press_tool_holds_one_second_and_refuses_long_holds(self):
+        run = self.manual_run([press_step("Add an hour", "btn_h", "01:00 00")])
+        arguments = {"job_id": run.job["job_id"], "step_id": "s1", "control_id": "btn_h", "count": 1}
+        async with Client(mcp_server.mcp) as client:
+            # no hold_ms from the caller: the tool uses the planned one (the device's 1 s)
+            result = await client.call_tool("press", arguments)
+            self.assertFalse(result.is_error, tool_error_text(result))
+            self.assertEqual(result.structured_content["hold_ms"], 1000)
+            self.assertEqual(self.hardware.finished, [("btn_h", 1, 1000)])
+
+            # a plan with a 2 s hold can't be made, but if one got here the tool still says no
+            run.job["plan"]["steps"][0]["action"]["hold_ms"] = 2000
+            result = await client.call_tool("press", dict(arguments, hold_ms=2000))
+            self.assertTrue(result.is_error)
+            self.assertIn("over this device's 1800 ms limit", tool_error_text(result))
+            self.assertIn("nothing pressed", tool_error_text(result))
+        self.assertEqual(self.hardware.started, [("btn_h", 1, 1000)], "the 2 s press never started")
+        self.assertEqual(run.presses_used, 1, "and wasn't charged to the budget")
 
     async def test_get_controls_and_device_route(self):
         async with Client(mcp_server.mcp) as client:
@@ -244,11 +491,11 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         for control in result.structured_content["controls"]:
             controls[control["control_id"]] = control
         self.assertEqual(sorted(controls), sorted(TIMER_CONTROLS))
-        self.assertIs(controls["btn_reset"]["destructive"], True)
-        self.assertIs(controls["btn_reset"]["risky"], True)
+        for control_id, control in controls.items():
+            self.assertIs(control["reachable"], control_id in FINGERS + SCREENS, control_id)
         self.assertIs(controls["btn_stsp"]["risky"], True)
         self.assertIs(controls["btn_stsp"]["destructive"], False)
-        self.assertIs(controls["btn_5m"]["risky"], False)
+        self.assertIs(controls["btn_h"]["risky"], False)
         self.assertEqual(controls["btn_t2"]["bbox"], [700, 386, 82, 81])
 
         device = await api.get_device(DEVICE)

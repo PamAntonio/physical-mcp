@@ -16,8 +16,9 @@
 Same routes and event order as web/mock-server/server.ts, but with a real planner, the real
 risk scorer and a Hardware object (backend/hardware.py) doing the pressing:
 
-1. POST /jobs makes the job and starts planning in the background: planner.py asks Muse
-   Spark for a plan, then plan.ready goes out.
+1. POST /jobs makes the job and starts planning in the background: every reachable screen
+   gets read through the MCP read_screen tool first, then planner.py asks Muse Spark for a
+   plan starting from those readings, then plan.ready goes out.
 2. Every requires_approval step goes to the risk scorer (risk/scorer.py) right away, all at
    once, in the background. Each score lands as a step.updated. Nothing waits on them.
 3. Steps run one at a time. The runner here is the MCP client: every press and read goes
@@ -211,15 +212,24 @@ def finish(run, outcome, message, final_screen_text):
 # ---- planning and scoring (both block, so they run on threads) ----
 
 
-def make_plan(device_id, request):
+class PlanRefused(Exception):
+    """The planner said the request can't be done on this rig. Nothing gets pressed."""
+
+
+def make_plan(device_id, request, screen_readings=None):
+    """screen_readings: what the camera read just before planning (read_screens_for_planning)."""
     api_key = os.environ.get("MODEL_API_KEY")
     if not api_key:
         raise RuntimeError("MODEL_API_KEY is not set (put it in the repo-root .env)")
     device = planner.load_device(device_id)
     profile = planner.load_profile(device_id)
     client = OpenAI(base_url=planner.BASE_URL, api_key=api_key, timeout=PLANNER_TIMEOUT_SECONDS)
-    content = planner.call_model(client, planner.build_messages(device, profile, request))
+    messages = planner.build_messages(device, profile, request, screen_readings)
+    content = planner.call_model(client, messages)
     raw = planner.parse_planning_json(content)
+    reason = planner.refusal_reason(raw)
+    if reason:
+        raise PlanRefused(reason)
     plan, errors = planner.validate_and_build_plan(raw, device, profile)
     if errors:
         raise ValueError("plan failed validation: " + "; ".join(errors))
@@ -330,31 +340,61 @@ def plan_correction(run, step, screen_text):
     return {"type": "press", "control_id": control_id, "count": presses}, problem, None
 
 
+async def read_screens_for_planning(client, device, profile):
+    """Read every reachable screen through the MCP read_screen tool, so the planner starts
+    from what the device really shows, not the profile's fixed current_screen. A read that
+    fails comes back with "error" set instead of raising: the planner falls back to the
+    profile's guess for it (planner.describe_current_screen)."""
+    readings = []
+    for control in planner.reachable_device(device, profile)["controls"]:
+        if control.get("kind") != "screen":
+            continue
+        reading = {"control_id": control["control_id"], "label": control.get("label", ""),
+                   "text": "", "confidence": None, "error": None}
+        try:
+            result = await mcp_server.call(client, "read_screen", {"control_id": control["control_id"]})
+            reading["text"] = (result.get("text") or "").strip()
+            reading["confidence"] = result.get("confidence")
+        except Exception as err:
+            reading["error"] = str(err) or type(err).__name__
+        if reading["error"]:
+            log(f"before planning, couldn't read {control['control_id']}: {reading['error']}")
+        else:
+            log(f"before planning, {control['control_id']} reads {reading['text']!r} (confidence {reading['confidence']})")
+        readings.append(reading)
+    return readings
+
+
 async def run_job(run):
     job = run.job
     device_id = job["device"]["device_id"]
-    try:
-        plan = await asyncio.to_thread(make_plan, device_id, job["request"])
-    except Exception as err:
-        log(f"planning failed: {err}")
-        finish(run, "failed", f"Planning failed: {err}", None)
-        return
-
-    job["plan"] = plan
-    emit(run, "plan.ready", plan=copy.deepcopy(plan))
-    log(f"plan ready, {len(plan['steps'])} steps: {plan['summary']}")
-
-    # score every gated step now, all at once, without holding up the run
-    for step in plan["steps"]:
-        if step.get("requires_approval"):
-            run.scoring_tasks.append(asyncio.create_task(score_in_background(run, step)))
-
-    emit_status(run, "running")
-
     run.profile = planner.load_profile(device_id)
-    screen_text = run.profile.get("current_screen")
     # every press and read goes through the MCP tools, in memory in this same process
     async with Client(mcp_server.mcp) as client:
+        readings = await read_screens_for_planning(client, job["device"], run.profile)
+        try:
+            plan = await asyncio.to_thread(make_plan, device_id, job["request"], readings)
+        except PlanRefused as err:
+            log(f"planner refused: {err}")
+            finish(run, "failed", f"Can't do this on this rig: {err} Nothing was pressed.", None)
+            return
+        except Exception as err:
+            log(f"planning failed: {err}")
+            finish(run, "failed", f"Planning failed: {err}", None)
+            return
+
+        job["plan"] = plan
+        emit(run, "plan.ready", plan=copy.deepcopy(plan))
+        log(f"plan ready, {len(plan['steps'])} steps: {plan['summary']}")
+
+        # score every gated step now, all at once, without holding up the run
+        for step in plan["steps"]:
+            if step.get("requires_approval"):
+                run.scoring_tasks.append(asyncio.create_task(score_in_background(run, step)))
+
+        emit_status(run, "running")
+
+        screen_text = run.profile.get("current_screen")
         for step in plan["steps"]:
             keep_going = await run_step(run, client, step, screen_text)
             if not keep_going:

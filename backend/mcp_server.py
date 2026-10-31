@@ -119,6 +119,15 @@ async def gated_press(job_id, step_id, control_id, count, hold_ms):
         raise refused(f"count {count} isn't allowed for step {step_id} (1 to {most}), nothing pressed")
     if hold_ms is not None and hold_ms != action.get("hold_ms"):
         raise refused(f"hold_ms {hold_ms} isn't what step {step_id} planned, nothing pressed")
+    # no hold given: the step's planned one for its own control, else whatever the profile
+    # says this control needs (the timer holds every press 1 s, a 250 ms tap doesn't click)
+    if hold_ms is None and control_id == action["control_id"]:
+        hold_ms = action.get("hold_ms")
+    if hold_ms is None:
+        hold_ms = planner.required_hold_ms(control_id, run.profile)
+    most_hold = planner.max_hold_ms(run.profile)
+    if hold_ms is not None and most_hold is not None and hold_ms > most_hold:
+        raise refused(f"hold_ms {hold_ms} is over this device's {most_hold} ms limit (it would auto-repeat), nothing pressed")
 
     if not await ensure_approved(run, step):
         raise refused(f"step {step_id} was rejected at approval, nothing pressed")
@@ -146,6 +155,7 @@ async def gated_press(job_id, step_id, control_id, count, hold_ms):
         "step_id": step_id,
         "control_id": control_id,
         "count": count,
+        "hold_ms": hold_ms,
         "presses_used": run.presses_used,
         "press_budget": budget,
     }
@@ -176,6 +186,7 @@ class Pressed(TypedDict):
     step_id: str
     control_id: str
     count: int
+    hold_ms: int | None
     presses_used: int
     press_budget: int
 
@@ -229,10 +240,12 @@ async def get_controls(device_id: str) -> Controls:
 @mcp.tool()
 async def press(job_id: str, step_id: str, control_id: str, count: int, hold_ms: int | None = None) -> Pressed:
     """Press control_id `count` times for step step_id of a running job, holding each press
-    for hold_ms if given. This is the approval gate: a step that needs approval waits here
+    for hold_ms if given (else the step's planned hold, else the hold the device profile says
+    that control needs). This is the approval gate: a step that needs approval waits here
     until a human approves it, and every press is charged to the job's press budget.
     Refused (nothing pressed) for an unknown job or step, a step that isn't running now,
-    a control that isn't part of the step, a rejected step, or going over the budget."""
+    a control that isn't part of the step, a hold over the device's max_hold_ms, a rejected
+    step, or going over the budget."""
     return await gated_press(job_id, step_id, control_id, count, hold_ms)
 
 

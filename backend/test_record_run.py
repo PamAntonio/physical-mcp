@@ -57,7 +57,7 @@ class RecordRunTests(unittest.TestCase):
         self.saved = (fake_camera.FRAMES_DIR, api.hardware, api.make_plan, api.scorer.score_step_with_raw, api.LIVE_FRAMES)
         fake_camera.FRAMES_DIR = self.frames_dir  # the fake webcam writes into the temp folder
         api.hardware = QuickFakeCamera("inkbird-01")
-        api.make_plan = lambda device_id, request: fixture_plan()
+        api.make_plan = lambda device_id, request, screen_readings=None: fixture_plan()
         api.scorer.score_step_with_raw = stub_score
         api.LIVE_FRAMES = True  # the frame loop, like HARDWARE=serial
         api.runs.clear()
@@ -76,8 +76,16 @@ class RecordRunTests(unittest.TestCase):
             time.sleep(0.05)
 
     def tearDown(self):
+        # stop any job still going (test_lists_jobs never finishes its own), so nothing is
+        # mid-read on the fake camera when the temp folder goes
+        for run in list(api.runs.values()):
+            if not api.is_finished(run):
+                post_json(f"{self.backend}/jobs/{run.job['job_id']}/stop", {})
         self.server.should_exit = True
         self.server_thread.join(timeout=10)
+        # and let a frame write that already started finish, Windows won't delete a folder mid-write
+        api.hardware_pool.submit(lambda: None).result(timeout=10)
+        api.camera_pool.submit(lambda: None).result(timeout=10)
         fake_camera.FRAMES_DIR, api.hardware, api.make_plan, api.scorer.score_step_with_raw, api.LIVE_FRAMES = self.saved
         api.runs.clear()
         api.current_run = None
