@@ -57,7 +57,7 @@ class RecordRunTests(unittest.TestCase):
         self.saved = (fake_camera.FRAMES_DIR, api.hardware, api.make_plan, api.scorer.score_step_with_raw, api.LIVE_FRAMES)
         fake_camera.FRAMES_DIR = self.frames_dir  # the fake webcam writes into the temp folder
         api.hardware = QuickFakeCamera("inkbird-01")
-        api.make_plan = lambda device_id, request: fixture_plan()
+        api.make_plan = lambda device_id, request, screen_readings=None: fixture_plan()
         api.scorer.score_step_with_raw = stub_score
         api.LIVE_FRAMES = True  # the frame loop, like HARDWARE=serial
         api.runs.clear()

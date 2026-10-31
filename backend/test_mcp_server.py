@@ -121,7 +121,7 @@ class McpLayerTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.hardware = RecordingHardware()
         api.hardware = self.hardware
-        api.make_plan = lambda device_id, request: fixture_plan()
+        api.make_plan = lambda device_id, request, screen_readings=None: fixture_plan()
         api.scorer.score_step_with_raw = stub_score
         api.runs.clear()
         api.current_run = None
@@ -375,7 +375,7 @@ class McpLayerTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(run.job["status"], "succeeded", run.job["result"])
 
     async def test_step_that_turns_nothing_on_follows_the_tier(self):
-        api.make_plan = lambda device_id, request: fixture_plan(turns_on_output=False)
+        api.make_plan = lambda device_id, request, screen_readings=None: fixture_plan(turns_on_output=False)
         api.scorer.score_step_with_raw = scored("low")
         run = await self.start_job()
         await self.wait_for_card(run)
