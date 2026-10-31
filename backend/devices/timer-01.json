@@ -2,7 +2,7 @@
   "_comment": "PLACEHOLDER: 4-channel kitchen timer. Every pan/tilt angle is null, fill them in on the rig (see firmware/README.md). One finger on pan/tilt: Pam presses with ANGLE 0, so servo 0 tilts (presses) and servo 1 pans. Control ids match vision/calibration/timer-01.boxes.json. Anything in the notes marked UNVERIFIED hasn't been checked on the real timer.",
   "device_id": "timer-01",
   "current_screen": "T1 00:00 00, T2 00:00 00, T3 00:00 00, T4 00:00 00 (all stopped)",
-  "rig": { "pan_servo": 1, "tilt_servo": 0 },
+  "rig": { "pan_servo": 1, "tilt_servo": 0, "settle_ms": 500 },
   "notes": [
     "Four channels, T1 to T4. Each has its own LCD row (screen_t1 to screen_t4) showing HH:MM SS, so 00:05 00 is 5 minutes.",
     "The current screen above is a fixed starting point, not read from the camera, so a channel may already be running.",
@@ -25,7 +25,7 @@
     "btn_h": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
     "btn_m": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
     "btn_s": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
-    "btn_10m": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
+    "btn_10m": { "reachable": true, "pan_deg": 90, "tilt_up_deg": 120, "tilt_press_deg": 45 },
     "btn_5m": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
     "btn_10s": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null },
     "btn_reset": { "reachable": true, "pan_deg": null, "tilt_up_deg": null, "tilt_press_deg": null, "risky": true, "destructive": true },
