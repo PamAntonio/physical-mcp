@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Device, RejectBehavior, Step } from "@contract/types";
-import { describeAction, findControl } from "@/lib/jobReducer";
+import { findControl, formatSeconds } from "@/lib/jobReducer";
 import { RISK_ICONS, type RiskScore } from "@/lib/risk";
 import ConfidenceBadge from "./ConfidenceBadge";
 import HoldToApprove from "./HoldToApprove";
@@ -23,6 +23,19 @@ const REJECT_LABELS: Record<RejectBehavior, string> = {
   pause: "Reject & pause",
   replan: "Reject & replan",
 };
+
+// "Finger presses ST/SP (1 s)", "Finger presses H ×2 (1 s each)", "Camera reads T1 time"
+function describeFinger(step: Step, device: Device): string {
+  const action = step.action;
+  if (action.type === "wait") return `Waits ${formatSeconds(action.seconds * 1000)} s`;
+  const control = findControl(device.controls, action.control_id);
+  const label = control ? control.label : action.control_id;
+  if (action.type === "read_screen") return `Camera reads ${label}`;
+  let text = `Finger presses ${label}`;
+  if (action.count > 1) text += ` ×${action.count}`;
+  if (action.hold_ms) text += ` (${formatSeconds(action.hold_ms)} s${action.count > 1 ? " each" : ""})`;
+  return text;
+}
 
 export interface DecisionInfo {
   approvalType: "tap" | "hold";
@@ -91,9 +104,11 @@ export default function ApprovalCard({ step, device, risk, paused, pauseReason, 
 
       <h2>{step.intent}</h2>
 
-      {/* what the finger is about to do, biggest thing after the title */}
+      {/* what the finger is about to do, biggest thing after the title. labelled as the
+          finger's, so its press time never reads like the hold you do to approve */}
       <div className="approval-action">
-        <span className="approval-action-verb">{describeAction(step, device.controls)}</span>
+        <span className="approval-section-label">What the finger will do</span>
+        <span className="approval-action-verb">{describeFinger(step, device)}</span>
         {target ? (
           <span className="approval-action-target">
             button <strong>{target.label}</strong> <span className="mono">{target.control_id}</span>
@@ -162,6 +177,7 @@ export default function ApprovalCard({ step, device, risk, paused, pauseReason, 
         </p>
       )}
 
+      <span className="approval-section-label approval-decision-label">Your decision</span>
       <div className="approval-actions">
         {!paused && (
           <button type="button" className="btn btn-ghost btn-reject" disabled={sent} onClick={() => decide("reject", "tap")}>

@@ -122,7 +122,10 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .ctl-tag-below { bottom: auto; top: calc(100% + 2px); }
 
 /* what the LCD says (mock only). this one scales with the frame since it's "on" the panel */
-.ctl-screen-text { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--mono); font-size: 2cqw; color: #6dff9e; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; }
+/* the timer's LCD is light grey, so the digits sit on their own dark chip: readable on any
+   display in every video frame. scales with the frame, never under 12px on a phone */
+.ctl-screen-text { position: absolute; inset: 0; display: grid; place-items: center; white-space: nowrap; overflow: hidden; }
+.ctl-screen-text-chip { font-family: var(--mono); font-size: max(12px, 3.4cqw); font-weight: 700; line-height: 1.15; letter-spacing: 0.05em; color: #7dffaa; background: #0b0f0d; padding: 0.1em 0.45em; border-radius: 4px; box-shadow: 0 0 0 1px rgba(125, 255, 170, 0.35); text-shadow: 0 0 6px rgba(125, 255, 170, 0.45); }
 
 /* narrow frame (phone): smaller tags, drop the confidence so neighbours don't collide */
 @container (max-width: 560px) {
@@ -232,7 +235,11 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .approval-hold-tag { font-family: var(--mono); font-size: 11px; color: var(--good); border: 1px solid color-mix(in srgb, var(--good) 55%, transparent); padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
 /* the press itself, big: "Hold ST/SP 1.0s" + which button */
 .approval-action { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0 0 14px; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; }
-.approval-action-verb { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.approval-action-verb { font-size: 20px; flex-basis: 100%; font-weight: 700; letter-spacing: -0.01em; }
+/* "What the finger will do" / "Your decision": the finger's press time and your approval hold
+   are two different things, each section says whose it is */
+.approval-section-label { display: block; flex-basis: 100%; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.approval-decision-label { margin: 14px 0 6px; padding-top: 12px; border-top: 1px solid var(--line); }
 .approval-action-target { font-size: 13px; color: var(--muted); }
 .approval-action-target strong { color: var(--text); }
 .approval-action-target .mono { font-size: 12px; }

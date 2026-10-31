@@ -7,6 +7,7 @@
 // long-press menu, no text selection or drag on the button (CSS .btn-hold does the rest).
 
 import { useEffect, useRef, useState } from "react";
+import { formatSeconds } from "@/lib/jobReducer";
 
 const DEFAULT_HOLD_MS = 1500;
 
@@ -59,8 +60,8 @@ export default function HoldToApprove({ holdMs = DEFAULT_HOLD_MS, onComplete }: 
     };
   }, []);
 
-  const seconds = (holdMs / 1000).toFixed(1);
-  let label = `Hold ${seconds}s to approve`;
+  const seconds = formatSeconds(holdMs); // "1.5", shown as "1.5 s"
+  let label = `Hold ${seconds} s to approve`;
   if (progress > 0 && progress < 1) label = "Keep holding…";
   if (progress >= 1) label = "Approved";
 
@@ -107,7 +108,7 @@ export default function HoldToApprove({ holdMs = DEFAULT_HOLD_MS, onComplete }: 
         </span>
       </button>
       <span className="hold-hint" aria-live="polite">
-        {letGoEarly ? `Let go too early. Hold for the full ${seconds}s.` : ""}
+        {letGoEarly ? `Let go too early. Hold for the full ${seconds} s.` : ""}
       </span>
     </div>
   );

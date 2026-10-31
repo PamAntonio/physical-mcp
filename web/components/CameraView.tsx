@@ -273,7 +273,11 @@ function ControlBox({
         {control.label}
         <span className="ctl-conf"> {confidence}%</span>
       </span>
-      {control.kind === "screen" && screenOverlay && <span className="ctl-screen-text">{screenOverlay}</span>}
+      {control.kind === "screen" && screenOverlay && (
+        <span className="ctl-screen-text">
+          <span className="ctl-screen-text-chip">{screenOverlay}</span>
+        </span>
+      )}
     </div>
   );
 }

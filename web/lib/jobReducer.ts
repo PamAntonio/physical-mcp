@@ -155,6 +155,11 @@ export function findControl(controls: Control[], controlId: string): Control | n
 }
 
 // "Press ▲ ×12", "Hold SET 3.0s", "Wait 5s", "Read Display"
+// 1000 -> "1", 1500 -> "1.5": seconds with no trailing ".0", for "1 s" / "1.5 s"
+export function formatSeconds(ms: number): string {
+  return String(Number((ms / 1000).toFixed(1)));
+}
+
 export function describeAction(step: Step, controls: Control[]): string {
   const action = step.action;
   if (action.type === "wait") return `Wait ${action.seconds}s`;

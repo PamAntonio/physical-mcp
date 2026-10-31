@@ -206,6 +206,10 @@ export default function Home() {
   }
 
   const frameSrc = backendRef.current ? backendRef.current.frameUrl(device.camera.latest_frame_url) : null;
+  // a placeholder still (the in-browser mock, the mock server, or the real backend on FakeHardware)
+  // shows a blank LCD, so the screen text gets painted on. never on a real camera photo
+  const latestFrame = device.camera.latest_frame_url || "";
+  const placeholderFrame = latestFrame.startsWith("/mock/") || latestFrame.startsWith("data:");
 
   return (
     <main className="app">
@@ -250,7 +254,7 @@ export default function Home() {
             currentStep={currentStep}
             frameSrc={frameSrc}
             live={!finished}
-            screenOverlay={isMock ? screenText : null}
+            screenOverlay={isMock || placeholderFrame ? screenText : null}
             screenOverlayControlId={screenTextControlId}
             selectedControlId={selectedControlId}
           />
