@@ -62,17 +62,27 @@ class FakeHardware(Hardware):
 
     undershoot (or FAKE_UNDERSHOOT=1 in the env): the first time an up/down step runs, one
     press "doesn't register", so the screen reads one step short and the backend's retry
-    kicks in. Only once per server run, so the demo shows exactly one self-correction."""
+    kicks in. Only once per server run, so the demo shows exactly one self-correction.
+
+    miss_press (or FAKE_MISS_PRESS=btn_h in the env): the second press of that control "doesn't
+    register" (the second, so there's a verified screen for it to stay on), and the screen keeps
+    showing what it did before. That's the timer's missed H, and the backend's retry_if_unchanged presses it again.
+    Only once per server run. reads have no vision vote, so their confidence is None."""
 
     UP_DOWN = {"btn_up": 1, "btn_down": -1}  # which way each one moves the number
 
-    def __init__(self, seconds_per_press=0.2, seconds_per_read=0.3, undershoot=None):
+    def __init__(self, seconds_per_press=0.2, seconds_per_read=0.3, undershoot=None, miss_press=None):
         self.seconds_per_press = seconds_per_press
         self.seconds_per_read = seconds_per_read
         if undershoot is None:
             undershoot = os.environ.get("FAKE_UNDERSHOOT") == "1"
         self.undershoot = undershoot
         self.undershoot_done = False
+        if miss_press is None:
+            miss_press = os.environ.get("FAKE_MISS_PRESS") or None
+        self.miss_press = miss_press
+        self.miss_press_seen = 0  # presses of miss_press so far
+        self.miss_press_done = False
         self.stop_requested = threading.Event()
         self.next_reads = {}  # control_id -> what the next read should say
         self.last_reads = {}  # control_id -> what it said last time
@@ -106,6 +116,13 @@ class FakeHardware(Hardware):
         if not self.expected_read:
             return
         screen_id, wanted = self.expected_read
+        if control_id == self.miss_press and not self.miss_press_done:
+            self.miss_press_seen += 1
+            if self.miss_press_seen == 2:  # the second one, so there's a screen to stay on
+                self.miss_press_done = True
+                self.next_reads.pop(screen_id, None)  # the screen doesn't change
+                print(f"[fake hardware] {control_id} press didn't register, screen stays", flush=True)
+                return
         short_text = None
         if self.undershoot and not self.undershoot_done and control_id in self.UP_DOWN and self.step_size:
             # one press goes missing, so the number lands a step short of the target
