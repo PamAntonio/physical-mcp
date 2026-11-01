@@ -24,7 +24,7 @@ interface Props {
 export default function StepList({ steps, controls, planning, selectedStepId, onSelect }: Props) {
   if (!steps) {
     return (
-      <section className="panel">
+      <section className="panel plan-panel">
         <h2>Plan</h2>
         <p className="muted">{planning ? "Muse Spark is planning…" : "Send a job to get a plan."}</p>
       </section>
@@ -32,7 +32,7 @@ export default function StepList({ steps, controls, planning, selectedStepId, on
   }
 
   return (
-    <section className="panel">
+    <section className="panel plan-panel">
       <h2>Plan</h2>
       <ol className="steps">
         {steps.map((step) => (

@@ -40,6 +40,20 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null); // clicked in the step list
   const [connection, setConnection] = useState<ConnectionState | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
+  const topbarRef = useRef<HTMLElement>(null);
+
+  // the log drawer opens under the top bar so STOP is never covered. it needs the bar's height,
+  // which changes when the brand or status wraps on a phone
+  useEffect(() => {
+    const topbar = topbarRef.current;
+    if (!topbar) return;
+    const observer = new ResizeObserver(() => {
+      document.documentElement.style.setProperty("--topbar-h", `${topbar.getBoundingClientRect().height}px`);
+    });
+    observer.observe(topbar);
+    return () => observer.disconnect();
+  }, []);
 
   // one place that wires a job's event stream into the reducer
   function listenTo(backend: JobBackend, jobId: string) {
@@ -213,7 +227,7 @@ export default function Home() {
 
   return (
     <main className="app">
-      <header className="topbar">
+      <header className="topbar" ref={topbarRef}>
         <div className="brand">
           <span className="brand-mark" aria-hidden />
           Physical MCP
@@ -226,7 +240,18 @@ export default function Home() {
         </div>
         <div className="topbar-right">
           {job && <span className={`status status-${job.status}`}>{job.status.replace("_", " ")}</span>}
-          {/* always on screen: the top bar sticks, so STOP is there mid-scroll and during approval */}
+          <button
+            type="button"
+            className="btn-log"
+            aria-expanded={logOpen}
+            aria-controls="action-log"
+            aria-label={`Action log, ${state.log.length} entries`}
+            onClick={() => setLogOpen(!logOpen)}
+          >
+            <span className="btn-log-long">Action </span>log ({state.log.length})
+          </button>
+          {/* always on screen: the top bar sticks, so STOP is there mid-scroll, during approval
+              and with the log open (the log opens below the bar) */}
           <button className="btn btn-stop" onClick={stopJob} disabled={!busy} aria-label="Stop the job now">
             Stop
           </button>
@@ -247,6 +272,7 @@ export default function Home() {
         onSubmit={startJob}
       />
 
+      {/* desktop: camera and plan side by side at equal widths, filling the window */}
       <div className="layout">
         <div className="col-main">
           <CameraView
@@ -292,10 +318,12 @@ export default function Home() {
         </div>
       </div>
 
-      {/* full width along the bottom */}
-      <div className="log-row">
-        <ActionLog log={state.log} frameUrl={(path) => (backendRef.current ? backendRef.current.frameUrl(path) : null)} />
-      </div>
+      <ActionLog
+        open={logOpen}
+        onClose={() => setLogOpen(false)}
+        log={state.log}
+        frameUrl={(path) => (backendRef.current ? backendRef.current.frameUrl(path) : null)}
+      />
     </main>
   );
 }

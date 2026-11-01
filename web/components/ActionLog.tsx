@@ -4,6 +4,10 @@
 // screen read afterwards (with vision's confidence badge), and before/after frames. Click a
 // frame to see it big. Entries the backend labelled (note.kind) each get their own chip, icon and
 // color, so a retry, a rejection, a refusal and an unclear read look different at a glance.
+//
+// It lives in a drawer opened from the top bar: a slide-over from the right on desktop, a bottom
+// sheet on a phone. Not modal on purpose: it opens below the top bar and STOP has to keep
+// working while it's open, so nothing here may make the rest of the page inert.
 
 import { useEffect, useRef, useState } from "react";
 import type { NoteKind } from "@contract/types";
@@ -22,6 +26,8 @@ const KIND_CHIPS: Record<NoteKind, { icon: string; label: string }> = {
 };
 
 interface Props {
+  open: boolean;
+  onClose: () => void;
   log: LogEntry[];
   frameUrl: (path: string | null) => string | null;
 }
@@ -35,8 +41,32 @@ function clockTime(ts: string) {
   return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
 
-export default function ActionLog({ log, frameUrl }: Props) {
+export default function ActionLog({ open, onClose, log, frameUrl }: Props) {
   const [openFrame, setOpenFrame] = useState<OpenFrame | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  // Esc closes the big frame first, then the drawer
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      if (openFrame) setOpenFrame(null);
+      else onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, openFrame, onClose]);
+
+  // focus the X on open, hand focus back to whatever opened it (the top bar button) on close
+  useEffect(() => {
+    if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    return () => {
+      setOpenFrame(null);
+      opener?.focus();
+    };
+  }, [open]);
 
   // newest first. explicit loop so we don't mutate the reducer's array
   const newestFirst: LogEntry[] = [];
@@ -45,79 +75,97 @@ export default function ActionLog({ log, frameUrl }: Props) {
   }
 
   return (
-    <section className="panel log-panel">
-      <h2>
-        Action log <span className="log-count">{log.length}</span>
-      </h2>
-      {log.length === 0 && <p className="muted">Nothing yet.</p>}
+    <>
+      {/* clicking anywhere outside the drawer (below the top bar) closes it */}
+      <div className={open ? "log-backdrop log-backdrop-open" : "log-backdrop"} onClick={onClose} aria-hidden />
+      <section
+        id="action-log"
+        className={open ? "log-drawer log-drawer-open" : "log-drawer"}
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="action-log-title"
+        inert={!open}
+      >
+        <div className="log-drawer-head">
+          <h2 id="action-log-title">
+            Action log <span className="log-count">{log.length}</span>
+          </h2>
+          <button type="button" ref={closeRef} className="btn btn-small log-close" onClick={onClose} aria-label="Close the action log">
+            ✕
+          </button>
+        </div>
+        <div className="log-drawer-body">
+          {log.length === 0 && <p className="muted">Nothing yet.</p>}
 
-      <ol className="log" reversed>
-        {newestFirst.map((entry) => {
-          const before = frameUrl(entry.beforeFrame ?? null);
-          const after = frameUrl(entry.afterFrame ?? null);
-          const stepName = entry.stepIndex !== undefined ? `Step ${entry.stepIndex}` : null;
+          <ol className="log" reversed>
+            {newestFirst.map((entry) => {
+              const before = frameUrl(entry.beforeFrame ?? null);
+              const after = frameUrl(entry.afterFrame ?? null);
+              const stepName = entry.stepIndex !== undefined ? `Step ${entry.stepIndex}` : null;
 
-          return (
-            <li key={entry.id} className={`log-entry log-${entry.tone}${entry.kind ? ` log-kind-${entry.kind}` : ""}`}>
-              <time dateTime={entry.ts}>{clockTime(entry.ts)}</time>
+              return (
+                <li key={entry.id} className={`log-entry log-${entry.tone}${entry.kind ? ` log-kind-${entry.kind}` : ""}`}>
+                  <time dateTime={entry.ts}>{clockTime(entry.ts)}</time>
 
-              <span className="log-step" title={entry.stepIntent}>
-                {stepName ?? (entry.tone === "you" ? "You" : "Job")}
-              </span>
+                  <span className="log-step" title={entry.stepIntent}>
+                    {stepName ?? (entry.tone === "you" ? "You" : "Job")}
+                  </span>
 
-              <div className="log-main">
-                <div className="log-text">
-                  {entry.kind && KIND_CHIPS[entry.kind] && (
-                    <span className={`log-kind log-kind-chip-${entry.kind}`}>
-                      <span aria-hidden>{KIND_CHIPS[entry.kind].icon}</span> {KIND_CHIPS[entry.kind].label}
-                    </span>
-                  )}
-                  {entry.text}
-                </div>
-                {(entry.action || entry.screenText || entry.detail) && (
-                  <div className="log-detail">
-                    {entry.detail && <span>{entry.detail}</span>}
-                    {entry.action && <span>{entry.action}</span>}
-                    {entry.screenText && (
-                      <span className="log-read">
-                        screen read <span className="log-screen">“{entry.screenText}”</span>
-                        <ConfidenceBadge confidence={entry.screenConfidence} />
-                      </span>
+                  <div className="log-main">
+                    <div className="log-text">
+                      {entry.kind && KIND_CHIPS[entry.kind] && (
+                        <span className={`log-kind log-kind-chip-${entry.kind}`}>
+                          <span aria-hidden>{KIND_CHIPS[entry.kind].icon}</span> {KIND_CHIPS[entry.kind].label}
+                        </span>
+                      )}
+                      {entry.text}
+                    </div>
+                    {(entry.action || entry.screenText || entry.detail) && (
+                      <div className="log-detail">
+                        {entry.detail && <span>{entry.detail}</span>}
+                        {entry.action && <span>{entry.action}</span>}
+                        {entry.screenText && (
+                          <span className="log-read">
+                            screen read <span className="log-screen">“{entry.screenText}”</span>
+                            <ConfidenceBadge confidence={entry.screenConfidence} />
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              {(before || after) && (
-                <div className="log-frames">
-                  {before && (
-                    <Thumb
-                      src={before}
-                      label="before"
-                      onOpen={() => setOpenFrame({ src: before, caption: `${stepName ?? ""} · before the press` })}
-                    />
+                  {(before || after) && (
+                    <div className="log-frames">
+                      {before && (
+                        <Thumb
+                          src={before}
+                          label="before"
+                          onOpen={() => setOpenFrame({ src: before, caption: `${stepName ?? ""} · before the press` })}
+                        />
+                      )}
+                      {after && (
+                        <Thumb
+                          src={after}
+                          label="after"
+                          onOpen={() =>
+                            setOpenFrame({
+                              src: after,
+                              caption: `${stepName ?? ""} · after${entry.screenText ? `, screen read “${entry.screenText}”` : ""}`,
+                            })
+                          }
+                        />
+                      )}
+                    </div>
                   )}
-                  {after && (
-                    <Thumb
-                      src={after}
-                      label="after"
-                      onOpen={() =>
-                        setOpenFrame({
-                          src: after,
-                          caption: `${stepName ?? ""} · after${entry.screenText ? `, screen read “${entry.screenText}”` : ""}`,
-                        })
-                      }
-                    />
-                  )}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ol>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </section>
 
       <FrameViewer frame={openFrame} onClose={() => setOpenFrame(null)} />
-    </section>
+    </>
   );
 }
 
@@ -131,39 +179,30 @@ function Thumb({ src, label, onOpen }: { src: string; label: string; onOpen: () 
   );
 }
 
-// Big view of one frame. <dialog> gives us Esc to close and focus handling for free.
+// Big view of one frame, over the drawer and under the top bar. Not a modal <dialog>: showModal()
+// would make STOP inert while it's open. Esc is handled by the drawer above.
 function FrameViewer({ frame, onClose }: { frame: OpenFrame | null; onClose: () => void }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (frame && !dialog.open) dialog.showModal();
-    if (!frame && dialog.open) dialog.close();
-  }, [frame]);
-
+  if (!frame) return null;
   return (
-    <dialog
-      ref={dialogRef}
+    <div
       className="frame-viewer"
-      onClose={onClose}
+      role="dialog"
+      aria-label={frame.caption}
       onClick={(e) => {
-        // clicking the dark backdrop (the dialog itself, not its contents) closes it
-        if (e.target === dialogRef.current) onClose();
+        // clicking the dark backdrop (not the frame itself) closes it
+        if (e.target === e.currentTarget) onClose();
       }}
     >
-      {frame && (
-        <figure>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={frame.src} alt={frame.caption} />
-          <figcaption>
-            <span>{frame.caption}</span>
-            <button type="button" className="btn btn-small" onClick={onClose} autoFocus>
-              Close
-            </button>
-          </figcaption>
-        </figure>
-      )}
-    </dialog>
+      <figure>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={frame.src} alt={frame.caption} />
+        <figcaption>
+          <span>{frame.caption}</span>
+          <button type="button" className="btn btn-small" onClick={onClose} autoFocus>
+            Close
+          </button>
+        </figcaption>
+      </figure>
+    </div>
   );
 }

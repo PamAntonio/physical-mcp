@@ -31,10 +31,12 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .muted { color: var(--muted); }
 .mono { font-family: var(--mono); }
 
-.app { max-width: 1280px; margin: 0 auto; padding: 16px 16px 48px; }
+.app { max-width: 1760px; margin: 0 auto; padding: 0 16px 48px; }
 
-/* top bar. sticky so STOP stays on screen however far down you scroll, approval card or not */
-.topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0 12px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+/* top bar. sticky so STOP stays on screen however far down you scroll, approval card or not.
+   no padding above it on .app, so it sits at the very top scrolled or not: the log drawer
+   opens right under it (--topbar-h, measured in page.tsx) */
+.topbar { position: sticky; top: 0; z-index: 20; background: var(--bg); display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
 .brand-mark { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff 0 15%, var(--accent) 16% 60%, transparent 61%); box-shadow: 0 0 12px var(--accent); }
 .badge-mock { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--warn); border: 1px dashed var(--warn); padding: 1px 6px; border-radius: 4px; }
@@ -46,6 +48,12 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .status-paused { color: var(--warn); border-color: var(--warn); border-style: dashed; }
 .status-succeeded { color: var(--good); }
 .status-failed, .status-stopped { color: var(--bad); }
+
+/* opens the action log. same pill as the status badge, so it never shouts louder than STOP */
+.btn-log { font-family: var(--mono); font-size: 12px; padding: 3px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); white-space: nowrap; cursor: pointer; }
+.btn-log:hover { border-color: var(--muted); }
+.btn-log[aria-expanded="true"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.btn-log:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* buttons */
 .btn { border: 1px solid var(--line); background: var(--surface-2); padding: 9px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.15s, border-color 0.15s; }
@@ -67,29 +75,47 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .hold-hint { min-height: 16px; font-size: 12px; color: var(--warn); }
 
 /* request */
-.request { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
-.request label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.request { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; }
+.request label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .request-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .request input { flex: 1 1 320px; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; }
 .request input:focus, .request select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .request select { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; }
 
 /* layout */
-.layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .col-main, .col-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.log-row { margin-top: 16px; }
 @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .col-side { order: -1; } }
+
+/* desktop: the page is exactly the window. camera and plan get equal columns that fill what's
+   left under the request box. the camera fits inside its column (see .camera below), the right
+   column scrolls inside itself only if the approval card plus the plan can't fit */
+@media (min-width: 901px) {
+  .app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; padding-bottom: 16px; }
+  .layout { flex: 1 1 auto; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+  .col-main { container-type: size; }
+  .col-side { overflow-y: auto; overscroll-behavior: contain; }
+  .col-side > * { flex: none; }
+  /* the plan gives up height first, and scrolls inside itself */
+  .col-side > .plan-panel { flex: 0 1 auto; min-height: 140px; overflow-y: auto; }
+  /* the biggest frame that fits the column by width and by height, keeping the camera's
+     aspect ratio. 76px = the bar (40) + caption (34) + border (2) */
+  .camera { width: min(100cqw, calc((100cqh - 76px) * var(--frame-ar, 1.7778) + 2px)); margin: 0 auto; }
+}
 
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
 
 /* camera */
 .camera { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.camera-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-.camera-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+/* bar and caption have fixed heights so the desktop fit (.camera above) knows how much room they take */
+.camera-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 40px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+.camera-title { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .camera-target { color: var(--accent); }
 .camera-target-waiting { color: var(--warn); }
 .btn-small { padding: 5px 10px; font-size: 12px; }
-.camera figcaption { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 12px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); font-family: var(--mono); }
+.camera-bar .btn-small { flex: none; }
+.camera figcaption { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 34px; padding: 0 12px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); font-family: var(--mono); white-space: nowrap; }
+.camera figcaption span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* the frame box keeps the camera's aspect ratio; everything inside is positioned in % of it */
 .camera-frame { position: relative; width: 100%; background: #000; container-type: inline-size; }
@@ -207,7 +233,7 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .error-note { margin-top: 6px; font-size: 12px; color: var(--bad); }
 
 /* approval card */
-.approval { border-radius: 12px; padding: 16px; background: var(--surface); border: 2px solid var(--warn); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 12%, transparent); animation: arrive 0.25s ease-out; }
+.approval { container: approval / inline-size; border-radius: 12px; padding: 16px; background: var(--surface); border: 2px solid var(--warn); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 12%, transparent); animation: arrive 0.25s ease-out; }
 .approval-low, .approval-medium { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent); }
 .approval h2 { font-size: 18px; text-transform: none; letter-spacing: -0.01em; color: var(--text); margin: 8px 0 12px; }
 .approval-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
@@ -251,6 +277,15 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .approval-frame { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #000; }
 .approval-frame img { display: block; width: 100%; max-height: 260px; object-fit: contain; background: #000; }
 .approval-frame figcaption { font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 4px 8px; background: var(--surface); border-top: 1px solid var(--line); }
+/* wide card (a desktop column): decision facts left, frame + notes right, so the whole card
+   fits above the plan. the buttons stay full width underneath */
+@container approval (min-width: 560px) {
+  .approval-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 0 16px; align-items: start; }
+  .approval-frame img { max-height: 200px; }
+  .approval-side .approval-planner-note { margin-bottom: 8px; }
+  .approval h2 { margin: 6px 0 10px; }
+  .approval-decision-label { margin-top: 6px; padding-top: 10px; }
+}
 
 /* vision confidence: shape (dots) and color both change, null = no badge at all */
 .conf { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 999px; border: 1px solid; white-space: nowrap; vertical-align: middle; }
@@ -285,9 +320,19 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 .result-failed, .result-stopped { border-color: var(--bad); }
 .result-failed h2, .result-stopped h2 { color: var(--bad); }
 
-/* log: newest on top */
-.log-panel { max-height: 420px; overflow-y: auto; padding-top: 0; }
-.log-panel h2 { position: sticky; top: 0; background: var(--surface); padding: 14px 0 8px; margin: 0; z-index: 1; }
+/* log: newest on top, in a drawer under the top bar (slide-over on desktop, bottom sheet on a
+   phone). starts below the bar so STOP is never covered and stays clickable */
+.log-backdrop { position: fixed; top: var(--topbar-h, 56px); right: 0; bottom: 0; left: 0; z-index: 30; background: rgba(0, 0, 0, 0.45); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.log-backdrop-open { opacity: 1; pointer-events: auto; }
+.log-drawer { position: fixed; top: var(--topbar-h, 56px); right: 0; bottom: 0; z-index: 31; width: min(640px, 100vw); display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line); box-shadow: -12px 0 32px rgba(0, 0, 0, 0.45); transform: translateX(100%); visibility: hidden; transition: transform 0.22s ease-out, visibility 0s linear 0.22s; }
+.log-drawer-open { transform: none; visibility: visible; transition: transform 0.22s ease-out; }
+.log-drawer-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.log-drawer-head h2 { margin: 0; }
+.log-close { min-width: 36px; min-height: 36px; font-size: 14px; line-height: 1; }
+.log-drawer-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 14px 14px; }
+/* the drawer is narrower than the old full-width row, so frames go under the text */
+.log-drawer .log-entry { grid-template-columns: 76px 52px minmax(0, 1fr); }
+.log-drawer .log-frames { grid-column: 3; }
 .log-count { font-family: var(--mono); color: var(--muted); font-weight: 400; margin-left: 4px; }
 .badge-mock { white-space: nowrap; }
 .badge-conn { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
@@ -339,9 +384,15 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 
 /* phone: time + step on one line, then text, then frames */
 @media (max-width: 640px) {
-  .log-entry { grid-template-columns: auto 1fr; }
-  .log-main, .log-frames { grid-column: 1 / -1; }
+  .log-drawer .log-entry { grid-template-columns: auto 1fr; }
+  .log-drawer .log-main, .log-drawer .log-frames { grid-column: 1 / -1; }
   .log-thumb img { width: 140px; }
+  /* the log is a bottom sheet here, still stopping short of the top bar */
+  .log-drawer { top: auto; left: 0; width: 100%; height: min(80dvh, calc(100dvh - var(--topbar-h, 56px) - 12px)); border-left: none; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.45); transform: translateY(100%); }
+  .log-drawer-open { transform: none; }
+  .log-close { min-width: 44px; min-height: 44px; }
+  .btn-log { font-size: 11px; padding: 3px 7px; }
+  .btn-log-long { display: none; }
   /* thumb-sized targets: STOP, the hold button and reject all at least 44px tall */
   .btn-stop { min-height: 44px; min-width: 88px; font-size: 15px; }
   .approval { padding: 14px; }
@@ -349,8 +400,11 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
   .approval-actions .btn { min-height: 48px; }
   .hold-wrap { align-items: stretch; width: 100%; }
   .approval-actions .btn-hold { min-height: 56px; min-width: 0; width: 100%; font-size: 16px; }
-  /* top bar on a phone: the mock badge drops under the name, so status + STOP keep one line */
-  .brand { flex-wrap: wrap; row-gap: 2px; gap: 6px 8px; font-size: 15px; white-space: nowrap; max-width: 150px; }
+  /* top bar on a phone: the name on its own line, then status, log and STOP on a full-width
+     row with STOP at the end, so a long status or log count never pushes STOP off screen */
+  .topbar { flex-wrap: wrap; row-gap: 6px; }
+  .brand { gap: 6px 8px; font-size: 15px; white-space: nowrap; }
+  .topbar-right { flex: 1 0 100%; justify-content: flex-end; gap: 8px; }
   .badge-mock { font-size: 10px; }
   .status { font-size: 11px; padding: 3px 7px; }
   .pause-actions .btn { width: 100%; min-height: 52px; }
@@ -358,10 +412,10 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 }
 
 /* big frame view */
-.frame-viewer { padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); width: min(1100px, calc(100vw - 32px)); max-width: none; }
-.frame-viewer::backdrop { background: rgba(0, 0, 0, 0.75); }
-.frame-viewer figure { margin: 0; }
-.frame-viewer img { display: block; width: 100%; height: auto; background: #000; }
+/* big frame view: over the log drawer, under the top bar (so STOP still works) */
+.frame-viewer { position: fixed; top: var(--topbar-h, 56px); right: 0; bottom: 0; left: 0; z-index: 32; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.75); }
+.frame-viewer figure { margin: 0; width: min(1100px, 100%); max-height: 100%; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.frame-viewer img { display: block; width: 100%; min-height: 0; flex: 1 1 auto; object-fit: contain; background: #000; }
 .frame-viewer figcaption { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px; font-family: var(--mono); font-size: 13px; }
 
 .error-banner { background: color-mix(in srgb, var(--bad) 15%, transparent); border: 1px solid var(--bad); color: var(--bad); padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }

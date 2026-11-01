@@ -2,7 +2,7 @@
 
 // Camera frame with the detected controls drawn as boxes on top.
 // bbox is [x, y, width, height] in camera pixels (1280x720 for the incubator), so each box
-// is placed as a % of the frame size. The frame and the boxes scale together at any width,
+// is placed as a % of the frame size. The frame and the boxes scale together at any size,
 // while labels keep a normal font size so they're still readable on a phone.
 //
 // Live: on the real rig the backend keeps overwriting web/public/frames/<device>-latest.jpg,
@@ -136,8 +136,12 @@ export default function CameraView({
     if (control.control_id === targetId) targetLabel = control.label;
   }
 
+  // --frame-ar lets the CSS fit the whole camera inside its column on desktop, by width or by
+  // height, whichever runs out first (the timer's frame is portrait, the others 16:9)
+  const figureStyle = { "--frame-ar": frameWidth / frameHeight } as React.CSSProperties;
+
   return (
-    <figure className="camera">
+    <figure className="camera" style={figureStyle}>
       <div className="camera-bar">
         <span className="camera-title">
           Camera · {device.camera.camera_id}

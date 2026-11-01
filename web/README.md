@@ -67,4 +67,4 @@ To show the self-correction on fake hardware, start it with `FAKE_UNDERSHOOT=1 p
 | `components/ApprovalCard.tsx` | Approval card shell: action, target button, empty risk tier/reason slots. Approve/Reject log to the console and send the decision |
 | `components/HoldToApprove.tsx` | **Parked**, not rendered. Hold button for high-risk steps |
 | `components/StepList.tsx` | Plan with every step state, retries shown inline |
-| `components/ActionLog.tsx` | Newest-first log: step, action, screen read, before/after frames (click to enlarge) |
+| `components/ActionLog.tsx` | Newest-first log in a drawer opened from the top bar (slide-over on desktop, bottom sheet on a phone): step, action, screen read, before/after frames (click to enlarge) |

@@ -104,78 +104,86 @@ export default function ApprovalCard({ step, device, risk, paused, pauseReason, 
 
       <h2>{step.intent}</h2>
 
-      {/* what the finger is about to do, biggest thing after the title. labelled as the
-          finger's, so its press time never reads like the hold you do to approve */}
-      <div className="approval-action">
-        <span className="approval-section-label">What the finger will do</span>
-        <span className="approval-action-verb">{describeFinger(step, device)}</span>
-        {target ? (
-          <span className="approval-action-target">
-            button <strong>{target.label}</strong> <span className="mono">{target.control_id}</span>
-          </span>
-        ) : (
-          <span className="approval-action-target muted">no button pressed</span>
-        )}
-      </div>
+      {/* on a wide screen the card splits in two so it fits above the plan: the decision facts
+          on the left, the frame and the notes on the right. stacked otherwise */}
+      <div className="approval-body">
+        <div className="approval-main">
+          {/* what the finger is about to do, biggest thing after the title. labelled as the
+              finger's, so its press time never reads like the hold you do to approve */}
+          <div className="approval-action">
+            <span className="approval-section-label">What the finger will do</span>
+            <span className="approval-action-verb">{describeFinger(step, device)}</span>
+            {target ? (
+              <span className="approval-action-target">
+                button <strong>{target.label}</strong> <span className="mono">{target.control_id}</span>
+              </span>
+            ) : (
+              <span className="approval-action-target muted">no button pressed</span>
+            )}
+          </div>
 
-      <div className="approval-risk">
-        {risk ? (
-          <>
-            <span className={`risk risk-lg risk-${risk.tier}`}>
-              <span aria-hidden>{RISK_ICONS[risk.tier]}</span> {risk.tier} risk
-            </span>
-            <p className="approval-risk-reason">{risk.reason}</p>
-            <p className="approval-risk-by">
-              {/* the mock's stand-in when the risk scorer can't answer */}
-              {risk.scoredBy === "mock score" ? (
-                "mock score (risk scorer not reachable)"
-              ) : (
-                <>
-                  scored by <span className="approval-risk-model">{risk.scoredBy}</span>
-                </>
-              )}
+          <div className="approval-risk">
+            {risk ? (
+              <>
+                <span className={`risk risk-lg risk-${risk.tier}`}>
+                  <span aria-hidden>{RISK_ICONS[risk.tier]}</span> {risk.tier} risk
+                </span>
+                <p className="approval-risk-reason">{risk.reason}</p>
+                <p className="approval-risk-by">
+                  {/* the mock's stand-in when the risk scorer can't answer */}
+                  {risk.scoredBy === "mock score" ? (
+                    "mock score (risk scorer not reachable)"
+                  ) : (
+                    <>
+                      scored by <span className="approval-risk-model">{risk.scoredBy}</span>
+                    </>
+                  )}
+                </p>
+              </>
+            ) : (
+              <>
+                <span className="slot-empty">not scored yet</span>
+                <p className="approval-risk-by">waiting on the risk scorer</p>
+              </>
+            )}
+          </div>
+
+          <dl className="approval-facts">
+            <dt>Screen now</dt>
+            <dd className="approval-screen">
+              <span className="mono">{step.evidence.screen_text ?? "unknown"}</span>
+              <ConfidenceBadge confidence={step.evidence.screen_confidence} />
+            </dd>
+
+            <dt>Expect after</dt>
+            <dd className="mono">{step.expect.text_contains}</dd>
+          </dl>
+        </div>
+
+        <div className="approval-side">
+          {frameSrc && (
+            <figure className="approval-frame">
+              {/* eslint-disable-next-line @next/next/no-img-element -- frames come from the backend at runtime */}
+              <img src={frameSrc} alt={`Camera, ${frameLabel}`} />
+              <figcaption>{frameLabel}</figcaption>
+            </figure>
+          )}
+
+          {step.approval_reason && <p className="approval-planner-note">Planner says: {step.approval_reason}</p>}
+          {turnsOnOutput && (
+            <p className="approval-planner-note">This step turns something on, so it always takes a press-and-hold.</p>
+          )}
+          {destructive && (
+            <p className="approval-planner-note">This step wipes something that's set or counting, so it always takes a press-and-hold.</p>
+          )}
+
+          {paused && (
+            <p className="approval-paused-note">
+              {pauseReason ?? "You rejected this step, so the job is paused. Nothing was pressed. Approve to carry on, or Stop the job."}
             </p>
-          </>
-        ) : (
-          <>
-            <span className="slot-empty">not scored yet</span>
-            <p className="approval-risk-by">waiting on the risk scorer</p>
-          </>
-        )}
+          )}
+        </div>
       </div>
-
-      <dl className="approval-facts">
-        <dt>Screen now</dt>
-        <dd className="approval-screen">
-          <span className="mono">{step.evidence.screen_text ?? "unknown"}</span>
-          <ConfidenceBadge confidence={step.evidence.screen_confidence} />
-        </dd>
-
-        <dt>Expect after</dt>
-        <dd className="mono">{step.expect.text_contains}</dd>
-      </dl>
-
-      {frameSrc && (
-        <figure className="approval-frame">
-          {/* eslint-disable-next-line @next/next/no-img-element -- frames come from the backend at runtime */}
-          <img src={frameSrc} alt={`Camera, ${frameLabel}`} />
-          <figcaption>{frameLabel}</figcaption>
-        </figure>
-      )}
-
-      {step.approval_reason && <p className="approval-planner-note">Planner says: {step.approval_reason}</p>}
-      {turnsOnOutput && (
-        <p className="approval-planner-note">This step turns something on, so it always takes a press-and-hold.</p>
-      )}
-      {destructive && (
-        <p className="approval-planner-note">This step wipes something that's set or counting, so it always takes a press-and-hold.</p>
-      )}
-
-      {paused && (
-        <p className="approval-paused-note">
-          {pauseReason ?? "You rejected this step, so the job is paused. Nothing was pressed. Approve to carry on, or Stop the job."}
-        </p>
-      )}
 
       <span className="approval-section-label approval-decision-label">Your decision</span>
       <div className="approval-actions">
