@@ -176,7 +176,8 @@ Without `HARDWARE=serial`, the same app runs on simulated hardware.
 | Test | Result |
 |---|---|
 | H, first rig, 20 presses through Python, 1 s hold (Oct 30) | 20 / 20 |
-| Rebuilt rig, H and ST/SP | TODO: measure |
+| ST/SP, rebuilt rig, 10 presses through Python, 1 s hold (Nov 2): start/stop toggles counted on video | 10 / 10 |
+| H, rebuilt rig, 20 presses through Python, 1 s hold (Nov 2): T1 read 20:00 00 | 20 / 20 |
 
 ## Troubleshooting: things that actually happened
 
