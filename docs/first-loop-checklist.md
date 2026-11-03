@@ -105,7 +105,7 @@ NEXT_PUBLIC_USE_MOCK=false NEXT_PUBLIC_BACKEND_URL=http://localhost:8000 NEXT_PU
 ```bash
 # terminal 3: recorder. start it BEFORE Run job, it stops by itself when the job ends
 .venv/bin/python backend/record_run.py
-# writes runs/<job_id>/: events.json, job.json, frames/
+# writes runs/<job_id>/: events.json, job.json, frames.json, frames/ (see section 7)
 ```
 
 ## 4. The job
@@ -156,6 +156,46 @@ HARDWARE=fake .venv/bin/python backend/fake_camera.py      # a fake live camera 
 The web app stays as it is. For B-roll, film single presses from the bench:
 `.venv/bin/python backend/serial_hardware.py press btn_h --hold 1000` (stop the backend first,
 it holds the port).
+
+## 7. Recording runs for the dashboard
+
+Every dashboard number comes from a file in the repo, so the runs have to be recorded and
+committed. For **each** run:
+
+1. Start the recorder (terminal 3) **before** hitting Run job. It can only save what happens
+   while it's running, and it stops by itself when the job ends.
+2. When it prints `Done: ...`, add the job id to `runs/labels.json`: `"real"` on the rig,
+   `"mock"` on FakeHardware. Always label a run filmed with `FAKE_CONFIDENCE`.
+
+   ```json
+   {
+     "job_1a2b3c4d": "real"
+   }
+   ```
+
+3. Commit the run data. The frames stay local (`.gitignore` keeps them out):
+
+   ```bash
+   git add runs/labels.json runs/*/job.json runs/*/events.json runs/*/frames.json
+   git commit -m "Recorded runs"
+   ```
+
+What to record, all on the real rig:
+
+- [ ] 10 x `Set T1 to 2 hours and start it`, approving ST/SP each time (power-cycle the timer
+      between runs so T1 starts at `00:00 00`)
+- [ ] 1 x `Set T2 to 5 minutes`: the planner refuses it, nothing pressed
+- [ ] 1 x covered screen: hold a card over the T1 display while it reads, so the read comes
+      back low and the job pauses. Uncover it, then hit Resume
+- [ ] 1 x reject: hit Reject on the ST/SP card. The job pauses there (nothing pressed), so hit
+      STOP after to end it, or the recorder keeps waiting
+- [ ] 1 x STOP: hit STOP during a press
+
+Then `python scripts/dashboard_metrics.py` and check that `runs.found` shows them as real.
+
+Once, for the SAM numbers: run `.venv/bin/python vision/detect_controls.py <a rig frame>.jpg
+--device timer-01` and commit the `vision/calibration/timer-01.sam_summary.json` it writes
+(not the photo, not the `.sam_raw.json`).
 
 ## If you see X
 
