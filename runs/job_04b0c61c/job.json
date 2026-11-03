@@ -1,0 +1,120 @@
+{
+  "job_id": "job_04b0c61c",
+  "created_at": "2026-11-03T19:27:39.268Z",
+  "updated_at": "2026-11-03T19:27:40.998Z",
+  "request": "Set the heater to turn on at 80 °F",
+  "approval_mode": "risky_steps",
+  "press_budget": 30,
+  "status": "stopped",
+  "device": {
+    "device_id": "inkbird-01",
+    "name": "Inkbird ITC-308 temperature controller (placeholder, device not here yet)",
+    "camera": {
+      "camera_id": "cam-0",
+      "frame_width": 2560,
+      "frame_height": 1440,
+      "latest_frame_url": "/frames/timer-01-latest.jpg?t=1793734059268"
+    },
+    "controls_version": 1,
+    "controls": [
+      {
+        "control_id": "btn_set",
+        "label": "SET",
+        "kind": "button",
+        "bbox": [
+          820,
+          980,
+          140,
+          72
+        ],
+        "confidence": 0.94,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_up",
+        "label": "▲",
+        "kind": "button",
+        "bbox": [
+          1000,
+          980,
+          100,
+          72
+        ],
+        "confidence": 0.91,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_down",
+        "label": "▼",
+        "kind": "button",
+        "bbox": [
+          1140,
+          980,
+          100,
+          72
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_pv",
+        "label": "PV",
+        "kind": "screen",
+        "bbox": [
+          820,
+          420,
+          420,
+          140
+        ],
+        "confidence": 0.97,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_sv",
+        "label": "SV",
+        "kind": "screen",
+        "bbox": [
+          820,
+          600,
+          420,
+          140
+        ],
+        "confidence": 0.96,
+        "reachable": true
+      },
+      {
+        "control_id": "led_heat",
+        "label": "HEAT",
+        "kind": "indicator",
+        "bbox": [
+          1330,
+          460,
+          48,
+          48
+        ],
+        "confidence": 0.89,
+        "reachable": true
+      },
+      {
+        "control_id": "led_cool",
+        "label": "COOL",
+        "kind": "indicator",
+        "bbox": [
+          1330,
+          620,
+          48,
+          48
+        ],
+        "confidence": 0.88,
+        "reachable": true
+      }
+    ]
+  },
+  "plan": null,
+  "result": {
+    "outcome": "stopped",
+    "message": "Stopped by you. Finger retracted.",
+    "final_screen_text": null
+  },
+  "pause_reason": null
+}
