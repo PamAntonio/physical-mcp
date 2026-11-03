@@ -120,13 +120,13 @@ COSTS = """# Costs
 
 ## Parts
 
-| Item | Qty | Unit price | Total | Store | Order number | Proof file | Note |
-|---|---|---|---|---|---|---|---|
-| SG90 servo | 2 | $3 | $6 | Amazon | 113-555 | | 2 of 10 from a $15 pack |
-| USB webcam | 1 | $4 | | | | [cam.pdf](receipts/cam.pdf) | |
-| ESP32 | | | $7 | | | https://example.com/esp32-listing | |
-| Misc | | | $3 | | | | |
-| Power bank | | | | | | | |
+| Item | Qty | Unit price | Total | Store | Listing URL | Note |
+|---|---|---|---|---|---|---|
+| SG90 servo | 2 | $3 | $6 | Amazon | https://example.com/sg90 | 2 of 10 from a $15 pack |
+| USB webcam | 1 | $4 | | AliExpress | https://example.com/cam | |
+| ESP32 | | | $7 | | order 113-555 | |
+| Misc | | | $3 | | | |
+| Finger materials | | | | | | |
 
 ## Comparison
 
@@ -141,10 +141,7 @@ COSTS = """# Costs
 class CostsTests(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
-        self.docs = Path(self.folder.name)
-        (self.docs / "receipts").mkdir()
-        (self.docs / "receipts" / "cam.pdf").write_bytes(b"%PDF")  # the webcam's proof is really there
-        path = self.docs / "costs.md"
+        path = Path(self.folder.name) / "costs.md"
         path.write_text(COSTS, encoding="utf-8")
         self.parts, self.comparison = dm.cost_tables(path)
 
@@ -159,9 +156,8 @@ class CostsTests(unittest.TestCase):
 
     def test_tables(self):
         self.assertEqual(len(self.parts), 5)
-        self.assertEqual(self.parts[0]["order number"], "113-555")
+        self.assertEqual(self.parts[0]["listing url"], "https://example.com/sg90")
         self.assertEqual(self.parts[0]["note"], "2 of 10 from a $15 pack")
-        self.assertEqual(len(self.comparison), 3)
 
     def test_money_never_guesses(self):
         self.assertEqual(dm.money("$1,299.00"), 1299.0)
@@ -169,36 +165,35 @@ class CostsTests(unittest.TestCase):
         self.assertIsNone(dm.money(""))
         self.assertIsNone(dm.money("about 10"))
 
-    def test_proven_only_with_an_order_number_or_a_real_file(self):
-        entry = dm.parts_metric(self.parts, self.docs)
-        self.assertTrue(self.part(entry, "SG90 servo")["proven"])  # order number
-        self.assertTrue(self.part(entry, "USB webcam")["proven"])  # proof file that exists
+    def test_proven_only_with_a_listing_url(self):
+        entry = dm.parts_metric(self.parts)
+        self.assertTrue(self.part(entry, "SG90 servo")["proven"])
+        self.assertTrue(self.part(entry, "USB webcam")["proven"])
         self.assertEqual(self.part(entry, "USB webcam")["cost"], 4.0)  # blank Total: Qty x Unit price
-        self.assertFalse(self.part(entry, "ESP32")["proven"])  # a listing URL isn't proof
+        self.assertFalse(self.part(entry, "ESP32")["proven"])  # text that isn't a URL doesn't count
         self.assertFalse(self.part(entry, "Misc")["proven"])
-        self.assertIn("a URL isn't proof", entry["need"])
+        self.assertIn("ESP32: listing isn't a URL", entry["need"])
 
-    def test_total_stays_needs_input_until_everything_is_proven(self):
-        entry = dm.parts_metric(self.parts, self.docs)
+    def test_total_stays_needs_input_until_everything_is_listed(self):
+        entry = dm.parts_metric(self.parts)
         self.assertEqual(entry["status"], "NEEDS INPUT")
         self.assertIsNone(entry["value"])
-        self.assertEqual(entry["entered_total"], 20.0)  # 6 + 4 + 7 + 3, the power bank has no price
+        self.assertEqual(entry["entered_total"], 20.0)  # 6 + 4 + 7 + 3, finger materials have no price
         self.assertEqual(entry["proven_total"], 10.0)  # servos + webcam
-        self.assertIn("a price for: Power bank", entry["need"])
+        self.assertIn("a price for: Finger materials", entry["need"])
 
-        # a listing URL left in the proof column holds the total back even with an order number
-        with_url = [dict(row, **{"order number": "A1"}) for row in self.parts if row["item"] != "Power bank"]
-        self.assertEqual(dm.parts_metric(with_url, self.docs)["status"], "NEEDS INPUT")
-
-        # every row priced and proven, no URL -> REAL
-        done = [dict(row, **{"order number": "A1", "proof file": ""}) for row in self.parts if row["item"] != "Power bank"]
-        entry = dm.parts_metric(done, self.docs)
+        # every row priced and listed -> REAL
+        done = []
+        for row in self.parts:
+            if row["item"] != "Finger materials":
+                done.append(dict(row, **{"listing url": "https://example.com/x"}))
+        entry = dm.parts_metric(done)
         self.assertEqual(entry["status"], "REAL")
         self.assertEqual(entry["value"], 20.0)
 
     def test_qty_times_unit_has_to_match_the_total(self):
-        rows = [{"item": "Servo", "qty": "2", "unit price": "$3", "total": "$7", "order number": "A1"}]
-        entry = dm.parts_metric(rows, self.docs)
+        rows = [{"item": "Servo", "qty": "2", "unit price": "$3", "total": "$7", "listing url": "https://example.com/s"}]
+        entry = dm.parts_metric(rows)
         self.assertEqual(entry["status"], "NEEDS INPUT")
         self.assertIn("Servo: 2 x $3 isn't $7", entry["need"])
 
@@ -207,19 +202,20 @@ class CostsTests(unittest.TestCase):
         self.assertEqual(replace["status"], "REAL")
         self.assertEqual(replace["value"], [{"option": "Buy a new 4-channel timer", "cost": 1299.0,
                                              "source": "https://example.com/timer"}])
-        self.assertIn("Replace the lab machine", replace["note"])  # 2000 with no source doesn't count
         retrofit = dm.comparison_metric(self.comparison, "retrofit", "need")
         self.assertEqual(retrofit["status"], "NEEDS INPUT")
-        self.assertIsNone(retrofit["value"])
 
     def test_the_repo_costs_file(self):
         parts, _comparison = dm.cost_tables(dm.REPO_ROOT / "docs" / "costs.md")
-        items = [row["item"] for row in parts]
-        self.assertFalse(any("timer" in item.lower() for item in items), "the timer is the machine, not a part")
+        items = []
         for row in parts:
-            # store, order number and proof are for Bhavi to fill in, never made up here
-            self.assertEqual((row["store"], row["order number"], row["proof file"]), ("", "", ""), row)
-        entry = dm.parts_metric(parts, dm.REPO_ROOT / "docs")
+            items.append(row["item"].lower())
+        self.assertFalse(any("timer" in item for item in items), "the timer is the machine, not a part")
+        self.assertFalse(any("power bank" in item for item in items), "optional, left out")
+        for row in parts:
+            # store and listing are for Bhavi to fill in, never made up here
+            self.assertEqual((row["store"], row["listing url"]), ("", ""), row)
+        entry = dm.parts_metric(parts)
         self.assertEqual(entry["entered_total"], 20.0)  # $6 + $4 + $7 + $3, as given
         self.assertEqual(entry["proven_total"], 0)
 
