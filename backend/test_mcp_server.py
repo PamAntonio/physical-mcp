@@ -119,6 +119,9 @@ def tool_error_text(result):
 
 class McpLayerTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        # put these back after, the other test files run in this same process
+        self.addCleanup(setattr, api, "make_plan", api.make_plan)
+        self.addCleanup(setattr, api.scorer, "score_step_with_raw", api.scorer.score_step_with_raw)
         self.hardware = RecordingHardware()
         api.hardware = self.hardware
         api.make_plan = lambda device_id, request, screen_readings=None: fixture_plan()

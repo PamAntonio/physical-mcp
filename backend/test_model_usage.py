@@ -143,7 +143,11 @@ class PlannerClientTests(unittest.TestCase):
 
         self.addCleanup(setattr, api, "OpenAI", api.OpenAI)
         self.addCleanup(setattr, planner, "call_model", planner.call_model)
-        self.addCleanup(os.environ.__setitem__, "MODEL_API_KEY", os.environ.get("MODEL_API_KEY", ""))
+        old_key = os.environ.get("MODEL_API_KEY")
+        if old_key is None:
+            self.addCleanup(os.environ.pop, "MODEL_API_KEY", None)
+        else:
+            self.addCleanup(os.environ.__setitem__, "MODEL_API_KEY", old_key)
         api.OpenAI = fake_openai
         planner.call_model = stop_here
         os.environ["MODEL_API_KEY"] = "test-key"
