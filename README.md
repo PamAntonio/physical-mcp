@@ -265,7 +265,7 @@ On Nov 2 a read's model calls ran one after another. By Nov 3 the first two ran 
 What the rig costs next to replacing the machine or retrofitting it. Only numbers with a source are here, the rest says so. Every figure, its source page and the date it was checked are in [`docs/costs.md`](docs/costs.md).
 
 <!-- cost:start, written by scripts/readme_cost_table.py -->
-**Rig parts:** NEEDS INPUT. Still needs a price for: Jumper wires, Mini breadboard, Olimex BREADBOARD-MINI, Finger materials (arms, hot glue, mounting tape, blocks, base board). a listing URL and a checked date for: Microcontroller (ESP32), Finger materials (arms, hot glue, mounting tape, blocks, base board).
+**Rig parts:** $17.02 priced so far (servos, webcam, ESP32), plus wires, breadboard and finger materials not yet priced.
 
 **Rig vs replacing a lab incubator:** not sourced yet (the parts total (cost.hardware_parts_total) has to be REAL first).
 

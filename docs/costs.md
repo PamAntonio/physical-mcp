@@ -21,7 +21,7 @@ Prices are what these listings show, not receipts.
 
 | Item | Qty | Unit price | Total | Store | Listing URL (price as listed, checked &lt;date&gt;) | Checked | Note |
 |---|---|---|---|---|---|---|---|
-| MG90S micro servo, metal gear (180°) | 2 | $3 | $6 | Amazon | https://www.amazon.com/dp/B0CP98TZJ2 | 2026-11-03 | &lt;N&gt; of &lt;M&gt; from a $&lt;pack price&gt; pack |
+| MG90S micro servo, metal gear (180°) | 2 | $3 | $6 | Amazon | https://www.amazon.com/dp/B0CP98TZJ2 | 2026-11-03 | |
 | Kyusrd 1080P USB webcam | 1 | $4.02 | $4.02 | Walmart | https://www.walmart.com/ip/16109623001 | 2026-11-03 | plus $6.39 shipping, not counted |
 | Microcontroller (ESP32) | | | $7 | | | | |
 | Jumper wires | | | | AliExpress | https://www.aliexpress.us/item/3256809267678383.html | 2026-11-03 | |

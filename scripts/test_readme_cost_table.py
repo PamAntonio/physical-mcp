@@ -29,6 +29,17 @@ def waiting_metrics():
 
 
 class CostBlockTests(unittest.TestCase):
+    def test_partly_priced_parts_say_what_is_priced(self):
+        metrics = waiting_metrics()
+        metrics["cost.hardware_parts_total"]["entered_total"] = 17.02
+        self.assertIn("**Rig parts:** $17.02 priced so far (servos, webcam, ESP32), plus wires, breadboard "
+                      "and finger materials not yet priced.", table.cost_block(metrics))
+
+    def test_a_new_price_goes_back_to_the_raw_message(self):
+        metrics = waiting_metrics()
+        metrics["cost.hardware_parts_total"]["entered_total"] = 20.0
+        self.assertIn("**Rig parts:** NEEDS INPUT.", table.cost_block(metrics))
+
     def test_waiting_says_so_and_shows_no_number(self):
         block = table.cost_block(waiting_metrics())
         self.assertIn("**Rig parts:** NEEDS INPUT. Still needs a price for: Wires.", block)
