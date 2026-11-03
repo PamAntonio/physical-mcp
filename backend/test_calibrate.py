@@ -110,6 +110,12 @@ class SaveFlowTests(unittest.TestCase):
     def tearDown(self):
         self.folder.cleanup()
 
+    def assertBoxNear(self, got, wanted, tolerance=1):
+        """Same box to within 1 px per value: rounding the mapped corners can land either side."""
+        self.assertEqual(len(got), len(wanted))
+        for got_value, wanted_value in zip(got, wanted):
+            self.assertLessEqual(abs(got_value - wanted_value), tolerance, f"{got} vs {wanted}")
+
     def test_reference_then_calibrate(self):
         panel = [[100, 50], [300, 50], [300, 250], [100, 250]]
         calibrate.Calibration(self.reference_frame, "panel-01", make_reference=True, folder=self.path).save(panel)
@@ -122,11 +128,13 @@ class SaveFlowTests(unittest.TestCase):
         for x, y in panel:
             moved.append([2 * x + 40, 2 * y + 20])
         run = calibrate.Calibration(self.new_frame, "panel-01", folder=self.path)
-        self.assertEqual(run.preview(moved)["boxes"]["btn_a"], [280, 420, 80, 40])
+        self.assertBoxNear(run.preview(moved)["boxes"]["btn_a"], [280, 420, 80, 40])
         result = run.save(moved)
 
         saved = json.loads((self.path / "panel-01.boxes.json").read_text(encoding="utf-8"))
-        self.assertEqual(saved["boxes"], {"btn_a": [280, 420, 80, 40], "screen_main": [280, 180, 320, 120]})
+        self.assertEqual(set(saved["boxes"]), {"btn_a", "screen_main"})
+        self.assertBoxNear(saved["boxes"]["btn_a"], [280, 420, 80, 40])
+        self.assertBoxNear(saved["boxes"]["screen_main"], [280, 180, 320, 120])
         self.assertEqual(saved["frame_size"], [800, 600])
         self.assertEqual(saved["baselines"]["led_x"]["brightness"], 0.2, "everything else in the file stays")
 
@@ -135,7 +143,7 @@ class SaveFlowTests(unittest.TestCase):
 
         # calibrating again starts from the reference, not from the last result
         again = calibrate.Calibration(self.new_frame, "panel-01", folder=self.path)
-        self.assertEqual(again.preview(moved)["boxes"]["btn_a"], [280, 420, 80, 40])
+        self.assertBoxNear(again.preview(moved)["boxes"]["btn_a"], [280, 420, 80, 40])
 
     def test_needs_a_reference_first(self):
         with self.assertRaises(SystemExit) as raised:
