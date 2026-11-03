@@ -83,7 +83,7 @@ LED indicators are a pixel check, no model.
 | `scripts/dashboard_metrics.py` | Computes every dashboard number from files in this repo and writes `metrics.json`. Anything it can't compute stays empty and says what's missing | Working, unit tested |
 | `runs/` | Recorded runs for the dashboard, labelled real or mock in `labels.json` | The Nov 2 and Nov 3 rig runs are in |
 | `web/app/results/` | The results page: five tiles to film and every metric underneath, read from `web/public/metrics.json` | Working |
-| `site/` | The public site at [physicalmcp.dev](https://physicalmcp.dev): demo video, interactive rig, replays. Plain static files, deployed by hand with Vercel | Live |
+| `site/` | The public site at [physicalmcp.dev](https://physicalmcp.dev): demo video, interactive rig, replays. Plain static files, deployed by hand with Vercel. Built with Muse Code, then changed further with Claude Code. | Live |
 | `scripts/readme_cost_table.py` | Writes the README's Cost, Reliability and Speed numbers from `web/public/metrics.json` | Working, unit tested |
 | `docs/` | `hardware.md` (how the rig is built, wired and calibrated), `first-loop-checklist.md` (first full run on the rig), `costs.md` (prices and sources) | Current |
 
@@ -296,4 +296,4 @@ Model calls were paid with hackathon credits, so the API figures are cost at lis
 
 Everything in this repo was written during the hackathon, from Oct 27, except the very first commit: the README was created on Oct 26 (`b06e0dc`, Pam). `web/` started from `create-next-app`.
 
-We used Claude Code as a coding assistant. The Co-Authored-By trailers in the commit history mark some of those commits, not all of them.
+We used Claude Code as a coding assistant. The Co-Authored-By trailers in the commit history mark some of those commits, not all of them. The site (`site/`) was built with Muse Code, then changed further with Claude Code.
