@@ -136,13 +136,14 @@ COSTS = """# Costs
 
 ## Parts
 
-| Item | Qty | Unit price | Total | Store | Listing URL | Note |
-|---|---|---|---|---|---|---|
-| SG90 servo | 2 | $3 | $6 | Amazon | https://example.com/sg90 | 2 of 10 from a $15 pack |
-| USB webcam | 1 | $4 | | AliExpress | https://example.com/cam | |
-| ESP32 | | | $7 | | order 113-555 | |
-| Misc | | | $3 | | | |
-| Finger materials | | | | | | |
+| Item | Qty | Unit price | Total | Store | Listing URL (price as listed, checked &lt;date&gt;) | Checked | Note |
+|---|---|---|---|---|---|---|---|
+| SG90 servo | 2 | $3 | $6 | Amazon | https://example.com/sg90 | 2026-11-02 | 2 of 10 from a $15 pack |
+| USB webcam | 1 | $4 | | AliExpress | https://example.com/cam | 2026-11-02 | |
+| ESP32 | | | $7 | | order 113-555 | | |
+| Misc | | | $3 | | https://example.com/misc | | |
+| Finger materials | | | | | | | |
+| Power bank | | | | | | | already owned, not counted |
 
 ## Replacing the machine
 
@@ -179,8 +180,9 @@ class CostsTests(unittest.TestCase):
         self.fail(f"no row {item}")
 
     def test_tables(self):
-        self.assertEqual(len(self.parts), 5)
-        self.assertEqual(self.parts[0]["listing url"], "https://example.com/sg90")
+        self.assertEqual(len(self.parts), 6)
+        self.assertEqual(dm.listing_cell(self.parts[0]), "https://example.com/sg90")
+        self.assertEqual(self.parts[0]["checked"], "2026-11-02")
         self.assertEqual(self.parts[0]["note"], "2 of 10 from a $15 pack")
 
     def test_money_never_guesses(self):
@@ -189,14 +191,25 @@ class CostsTests(unittest.TestCase):
         self.assertIsNone(dm.money(""))
         self.assertIsNone(dm.money("about 10"))
 
-    def test_proven_only_with_a_listing_url(self):
+    def test_proven_only_with_a_listing_url_and_a_checked_date(self):
         entry = dm.parts_metric(self.parts)
         self.assertTrue(self.part(entry, "SG90 servo")["proven"])
         self.assertTrue(self.part(entry, "USB webcam")["proven"])
         self.assertEqual(self.part(entry, "USB webcam")["cost"], 4.0)  # blank Total: Qty x Unit price
         self.assertFalse(self.part(entry, "ESP32")["proven"])  # text that isn't a URL doesn't count
-        self.assertFalse(self.part(entry, "Misc")["proven"])
+        self.assertFalse(self.part(entry, "Misc")["proven"])  # a URL but no checked date
         self.assertIn("ESP32: listing isn't a URL", entry["need"])
+        self.assertIn("a listing URL and a checked date for: ESP32, Misc", entry["need"])
+
+        rows = [{"item": "Servo", "total": "$6", "listing url (price as listed)": "https://example.com/s",
+                 "checked": "last week"}]
+        self.assertIn("checked date isn't YYYY-MM-DD", dm.parts_metric(rows)["need"])
+
+    def test_already_owned_is_left_out_not_blocking(self):
+        entry = dm.parts_metric(self.parts)
+        self.assertEqual(entry["already_owned"], ["Power bank"])
+        self.assertNotIn("Power bank", entry["need"])  # no price or listing asked for
+        self.assertIn("1 item already owned", entry["sample"])
 
     def test_total_stays_needs_input_until_everything_is_listed(self):
         entry = dm.parts_metric(self.parts)
@@ -206,17 +219,23 @@ class CostsTests(unittest.TestCase):
         self.assertEqual(entry["proven_total"], 10.0)  # servos + webcam
         self.assertIn("a price for: Finger materials", entry["need"])
 
-        # every row priced and listed -> REAL
+        # every counted row priced, listed and checked -> REAL, the owned one doesn't hold it back
         done = []
         for row in self.parts:
-            if row["item"] != "Finger materials":
-                done.append(dict(row, **{"listing url": "https://example.com/x"}))
+            if row["item"] == "Finger materials":
+                continue
+            if row["item"] != "Power bank":
+                row = dict(row, **{"listing url (price as listed, checked &lt;date&gt;)": "https://example.com/x",
+                                   "checked": "2026-11-02"})
+            done.append(row)
         entry = dm.parts_metric(done)
         self.assertEqual(entry["status"], "REAL")
-        self.assertEqual(entry["value"], 20.0)
+        self.assertEqual(entry["value"], "$20.00 counted + 1 item already owned")
+        self.assertEqual(entry["counted_total"], 20.0)
 
     def test_qty_times_unit_has_to_match_the_total(self):
-        rows = [{"item": "Servo", "qty": "2", "unit price": "$3", "total": "$7", "listing url": "https://example.com/s"}]
+        rows = [{"item": "Servo", "qty": "2", "unit price": "$3", "total": "$7", "listing url": "https://example.com/s",
+                 "checked": "2026-11-02"}]
         entry = dm.parts_metric(rows)
         self.assertEqual(entry["status"], "NEEDS INPUT")
         self.assertIn("Servo: 2 x $3 isn't $7", entry["need"])
@@ -257,7 +276,7 @@ class CostsTests(unittest.TestCase):
         self.assertIsNone(waiting["value"])
         self.assertIn("parts total", waiting["need"])
 
-        parts_total = {"status": "REAL", "value": 20.0}
+        parts_total = {"status": "REAL", "value": "$20.00 counted + 2 items already owned", "counted_total": 20.0}
         entry = dm.cheaper_by(parts_total, labs, "research_labs")
         self.assertEqual(entry["status"], "REAL")
         self.assertEqual(entry["value"], "40x cheaper")  # 798.59 / 20
@@ -273,13 +292,13 @@ class CostsTests(unittest.TestCase):
         for row in parts:
             items.append(row["item"].lower())
         self.assertFalse(any("timer" in item for item in items), "the timer is the machine, not a part")
-        self.assertFalse(any("power bank" in item for item in items), "optional, left out")
         for row in parts:
-            # store and listing are for Bhavi to fill in, never made up here
-            self.assertEqual((row["store"], row["listing url"]), ("", ""), row)
+            # store, listing and date are for Bhavi to fill in, never made up here
+            self.assertEqual((row["store"], dm.listing_cell(row), row["checked"]), ("", "", ""), row)
         entry = dm.parts_metric(parts)
         self.assertEqual(entry["entered_total"], 20.0)  # $6 + $4 + $7 + $3, as given
         self.assertEqual(entry["proven_total"], 0)
+        self.assertEqual(len(entry["already_owned"]), 2)  # the power bank and the cut USB cable
 
         # one row per Where It Fits card, every one with a price and a source URL
         cards = dm.replace_metrics(tables["replace"])
@@ -287,6 +306,8 @@ class CostsTests(unittest.TestCase):
         for name, card in cards.items():
             self.assertEqual(card["status"], "REAL", name)
             self.assertTrue(card["source"].startswith("https://"), name)
+        # no struck-through list price: the warehouses row is the parcel scale's real price
+        self.assertEqual(cards["cost.replace_machine.warehouses"]["value"], {"low": 945.0, "high": 945.0})
 
 
 if __name__ == "__main__":

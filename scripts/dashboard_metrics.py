@@ -16,7 +16,7 @@ Where the numbers come from:
 - runs/<job_id>/job.json + events.json (committed, see runs/README.md): reliability, speed,
   safety, step.decision (time to decide, tap vs hold) and job.usage (tokens, real runs only)
 - vision/calibration/<device>.sam_summary.json (detect_controls.py --device): SAM detections
-- docs/costs.md (filled in by hand): a part is proven with a listing URL, a replacement or
+- docs/costs.md (filled in by hand): a part is proven with a listing URL and a checked date, a replacement or
   retrofit cost counts with a $ figure and a source URL. parts_vs_replace only once both are REAL
 - docs/hardware.md, backend/devices/*.json, backend/api.py, risk/out/*.scored.json
 
@@ -644,16 +644,33 @@ def is_url(text):
     return (text or "").strip().startswith(("http://", "https://"))
 
 
+ALREADY_OWNED = "already owned, not counted"
+
+
+def listing_cell(row):
+    """The Listing URL column, whatever the rest of its header says."""
+    for name, value in row.items():
+        if name.startswith("listing url"):
+            return value
+    return ""
+
+
+def owned_label(count):
+    return f"{count} item already owned" if count == 1 else f"{count} items already owned"
+
+
 def parts_metric(rows):
     """cost.hardware_parts_total from the Parts table. A row's cost is its Total (or Qty x Unit
-    price when Total is blank). It's proven with a listing URL. The total is only REAL once every
-    row has a cost and a listing. Until then it's NEEDS INPUT, with what's entered and what's
-    proven shown apart."""
+    price when Total is blank). It's proven with a listing URL and the date it was checked.
+    A row noted "already owned, not counted" is left out: not in the total, not holding it back.
+    The total is only REAL once every other row has a cost and is proven. Until then it's NEEDS
+    INPUT, with what's entered and what's proven shown apart."""
     source = "docs/costs.md Parts"
     if not rows:
         return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": source,
                 "need": "rows in the Parts table"}
     detail = []
+    owned = []
     no_cost = []
     unproven = []
     problems = []
@@ -661,6 +678,10 @@ def parts_metric(rows):
     proven = 0
     for row in rows:
         item = row.get("item")
+        if ALREADY_OWNED in (row.get("note") or "").lower():
+            owned.append(item)
+            detail.append({"item": item, "cost": None, "already_owned": True})
+            continue
         qty = money(row.get("qty"))
         unit = money(row.get("unit price"))
         total = money(row.get("total"))
@@ -668,12 +689,15 @@ def parts_metric(rows):
             total = qty * unit
         elif total is not None and qty is not None and unit is not None and abs(qty * unit - total) > 0.005:
             problems.append(f"{item}: {row.get('qty')} x {row.get('unit price')} isn't {row.get('total')}")
-        listing = row.get("listing url", "")
+        listing = listing_cell(row)
+        checked = row.get("checked", "")
         if listing and not is_url(listing):
             problems.append(f"{item}: listing isn't a URL ({listing})")
-        is_proven = is_url(listing)
+        if checked and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", checked):
+            problems.append(f"{item}: checked date isn't YYYY-MM-DD ({checked})")
+        is_proven = is_url(listing) and bool(checked)
         detail.append({"item": item, "cost": total, "proven": is_proven, "listing": listing or None,
-                       "store": row.get("store") or None, "note": row.get("note") or None})
+                       "checked": checked or None, "store": row.get("store") or None, "note": row.get("note") or None})
         if total is None:
             no_cost.append(item)
         else:
@@ -683,21 +707,24 @@ def parts_metric(rows):
         if not is_proven:
             unproven.append(item)
 
-    if not no_cost and not unproven and not problems:
-        return {"value": round(entered, 2), "sample": f"{len(rows)} parts, all with a listing",
+    counted_rows = len(rows) - len(owned)
+    if counted_rows and not no_cost and not unproven and not problems:
+        return {"value": f"${entered:,.2f} counted + {owned_label(len(owned))}", "counted_total": round(entered, 2),
+                "already_owned": owned, "sample": f"{counted_rows} parts with a listing and a checked date",
                 "status": "REAL", "source": source, "parts": detail}
     need = []
     if no_cost:
         need.append("a price for: " + ", ".join(no_cost))
     if unproven:
-        need.append("a listing URL for: " + ", ".join(unproven))
+        need.append("a listing URL and a checked date for: " + ", ".join(unproven))
     if problems:
         need.append("fix: " + "; ".join(problems))
-    priced = len(rows) - len(no_cost)
-    return {"value": None, "sample": f"{priced} of {len(rows)} parts priced, {len(rows) - len(unproven)} with a listing",
+    priced = counted_rows - len(no_cost)
+    return {"value": None, "sample": f"{priced} of {counted_rows} parts priced, {counted_rows - len(unproven)} proven, "
+                                     f"{owned_label(len(owned))}",
             "status": "NEEDS INPUT", "source": source, "need": ". ".join(need),
             "entered_total": round(entered, 2) if priced else None, "proven_total": round(proven, 2),
-            "parts": detail}
+            "already_owned": owned, "parts": detail}
 
 
 def replace_metrics(rows):
@@ -759,12 +786,12 @@ def cheaper_by(parts_entry, replace_entry, card):
         return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": "docs/costs.md",
                 "need": " and ".join(missing) + " has to be REAL first"}
     low = replace_entry["value"]["low"]
-    parts_total = parts_entry["value"]
+    parts_total = parts_entry["counted_total"]
     ratio = low / parts_total
     shown = f"{ratio:.0f}x cheaper" if ratio >= 10 else f"{ratio:.1f}x cheaper"
     return {"value": shown, "ratio": round(ratio, 2), "sample": "1 example machine vs our parts",
             "status": "REAL", "source": "docs/costs.md Parts + Replacing the machine",
-            "note": f"${low:,.2f} (low end, {replace_entry['example']}) / ${parts_total:,.2f} parts"}
+            "note": f"${low:,.2f} (low end, {replace_entry['example']}) / ${parts_total:,.2f} parts counted"}
 
 
 def scored_fixtures(risk_out):

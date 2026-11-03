@@ -3,26 +3,31 @@
 Filled in by hand. `scripts/dashboard_metrics.py` reads the tables below, so keep their headers
 as they are. Add rows freely.
 
-- A part only counts as **proven** with a listing URL: the store page it was bought from.
-  A price without one shows on the dashboard as entered, not proven.
-- Total is what we paid for this row. If it's a share of a multipack, say how in Note:
+- A part only counts as **proven** with a listing URL **and** the date the listing was checked.
+  A price without both shows on the dashboard as entered, not proven.
+- Total is what the listing shows for this row. If it's a share of a multipack, say how in Note:
   `2 of 10 from a $15 pack`.
+- A part we already had gets `already owned, not counted` in Note: it's left out of the total
+  and doesn't hold it back.
 - Prices in USD, e.g. `12.99` or `$12.99`. Never type an estimate in here, leave it blank.
 - A replacement or retrofit cost only counts with a source URL: a retailer, manufacturer or
   article page that shows the figure. Write the figures as the page shows them, with `$`.
 
 ## Parts
 
-The rig as built (`hardware.md`, Parts). The kitchen timer isn't here, it's the machine. The
-power bank and the cut USB cable are left out, they're optional.
+The rig as built (`hardware.md`, Parts). The kitchen timer isn't here, it's the machine.
 
-| Item | Qty | Unit price | Total | Store | Listing URL | Note |
-|---|---|---|---|---|---|---|
-| SG90 servo (180°, not 360°) | 2 | $3 | $6 | | | |
-| USB webcam | 1 | $4 | $4 | | | |
-| Microcontroller (ESP32) | | | $7 | | | |
-| Misc (wire, breadboard) | | | $3 | | | |
-| Finger materials (arms, hot glue, mounting tape, blocks, base board) | | | | | | |
+Prices are what these listings show, not receipts.
+
+| Item | Qty | Unit price | Total | Store | Listing URL (price as listed, checked &lt;date&gt;) | Checked | Note |
+|---|---|---|---|---|---|---|---|
+| SG90 servo (180°, not 360°) | 2 | $3 | $6 | | | | |
+| USB webcam | 1 | $4 | $4 | | | | |
+| Microcontroller (ESP32) | | | $7 | | | | |
+| Misc (wire, breadboard) | | | $3 | | | | |
+| Finger materials (arms, hot glue, mounting tape, blocks, base board) | | | | | | | |
+| Always-on USB power bank | | | | | | | already owned, not counted |
+| USB cable (one end cut off for servo power) | | | | | | | already owned, not counted |
 
 ## Replacing the machine
 
@@ -37,7 +42,7 @@ the price. A range is the lowest and highest price for that kind of machine on t
 | Building ops (boiler panels, HVAC controllers, freezer alarms) | Honeywell T775B2040 electronic temperature controller (2 inputs, 4 relays) | $540.52 | https://www.supplyhouse.com/T775-2000-Series-10000000 | 2026-11-02 |
 | Agriculture (greenhouse and grain dryer controllers) | Link4 S750 iGrow greenhouse environment control kit | $8,745.00 | https://www.growerssupply.com/prod/gs-thermostats-controllers/link4-greenhouse-environmental.html | 2026-11-02 |
 | Commercial kitchens (ovens and fryers) | Frymaster PH155-C 50 lb natural gas fryer, programmable | $6,765.00 | https://www.webstaurantstore.com/frymaster-ph155-c-natural-gas-high-efficiency-fryer-50-lb-with-programmable-computer-controls-and-stainless-steel-door-80-000-btu/369PH155CN.html | 2026-11-02 |
-| Warehouses (label printers, scales, kiosks) | Zebra ZT411 industrial label printer, 203 dpi (ZT41142-T31E000Z) | $2,662.78 | https://www.ptsmobile.com/ZT41142-T31E000Z.html | 2026-11-02 |
+| Warehouses (label printers, scales, kiosks) | Mettler-Toledo BC60 parcel scale, 150 lb (Uline H-5275) | $945.00 | https://www.uline.com/BL_2221/Mettler-Toledo-Parcel-Scale | 2026-11-02 |
 | Home appliances | GE JB256DMWW 30" free-standing electric range | $649.00 to $829.00 | https://www.homedepot.com/b/Appliances-Ranges-Electric-Ranges/GE/N-5yc1vZc3obZlo | 2026-11-02 |
 
 What each page shows:
@@ -46,7 +51,9 @@ What each page shows:
 - Hardware QA: igus's "Hardware Price" for two touch screen test solutions on the same page, hardware only. These are solution packages, not shelf products.
 - Building ops: one controller only. No full boiler panel or freezer alarm was priced.
 - Agriculture: a greenhouse controller only. No grain dryer controller was priced.
-- Warehouses: the store shows $2,662.78 struck through, next to "Add to Cart for Today's Low Price!", so the real selling price is hidden. Label printer only, no scale or kiosk.
+- Warehouses: Uline's price each for one scale ($920 each for 2 or more). A scale only, no label printer
+  or kiosk. The Zebra ZT411 label printer we had first is out: its store only showed a struck-through
+  list price, with the real selling price hidden until it's in the cart.
 - Home appliances: $649.00 sale, $829.00 regular, same listing.
 
 ## Retrofitting with IoT

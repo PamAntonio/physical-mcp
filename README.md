@@ -214,7 +214,7 @@ are here, the rest says so. Every figure, its source page and the date it was ch
 | Replace: building ops temperature controller | $540.52 |
 | Replace: greenhouse environment controller | $8,745.00 |
 | Replace: commercial fryer | $6,765.00 |
-| Replace: industrial label printer | $2,662.78 (list price) |
+| Replace: warehouse parcel scale | $945.00 |
 | Replace: home electric range | $649.00 to $829.00 |
 | Retrofit with IoT: a drill press (Bosch Rexroth) | about $2,000 |
 | Retrofit with IoT: legacy equipment, typical | a couple thousand dollars, up to $10,000 to $20,000 |
