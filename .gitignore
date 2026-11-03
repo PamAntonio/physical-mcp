@@ -27,5 +27,12 @@ web/public/frames/
 # calibrate.py backs the old boxes up before overwriting, and draws a picture of the new ones
 vision/calibration/*.bak.json
 
-# backend/record_run.py output (camera frames add up fast)
-runs/
+# backend/record_run.py output. the run data gets committed (the dashboard numbers come from
+# it), the camera frames don't (they add up fast). anything else in runs/ stays local
+runs/**
+!runs/*/
+!runs/*/job.json
+!runs/*/events.json
+!runs/*/frames.json
+!runs/labels.json
+!runs/README.md
