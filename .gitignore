@@ -36,3 +36,6 @@ runs/**
 !runs/*/frames.json
 !runs/labels.json
 !runs/README.md
+
+# written by scripts/dashboard_metrics.py. the copy the app reads is web/public/metrics.json
+/metrics.json

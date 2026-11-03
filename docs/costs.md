@@ -65,3 +65,15 @@ What adding sensors and connectivity to an old machine cost, from a source that 
 |---|---|---|---|---|
 | Bosch Rexroth retrofit of a SKIL drill press (sensors + IoT Gateway) | about $2,000 | https://www.designdevelopmenttoday.com/industries/iot/video/21072198/making-a-dumb-drill-smart | 2026-11-02 | "All-in, they added about $2,000 worth of technology to the press." |
 | Retrofitting legacy equipment, typical range | a couple thousand dollars, up to $10,000 to $20,000 | https://www.automate.org/robotics/industry-insights/legacy-equipment-digital-transformation | 2026-11-02 | "This kind of addition to your equipment could cost as little as a couple thousand dollars, Tatum notes, or it could cost as much as $10,000 to $20,000." |
+
+## Model prices
+
+List prices per 1M tokens, copied from each provider's own page. `scripts/dashboard_metrics.py` times
+these by `job.usage` for the API cost per job. Hackathon credits paid for every call, so that's cost at
+list price, not what we spent. Cached input has its own lower price on both pages, but `job.usage` doesn't
+record cached tokens, so everything counts at the input price.
+
+| Model | Input $/1M | Output $/1M | Source URL | Date checked | Note |
+|---|---|---|---|---|---|
+| muse-spark-1.3 | $1.25 | $4.25 | https://dev.meta.ai/docs/pricing-rate-limits | 2026-11-03 | Standard mode. The Contributor mode price is for a different model id, which we don't call |
+| meta-models/muse-spark-open-1026 | $1.25 | $4.25 | https://www.baseten.co/library/muse-spark-open/ | 2026-11-03 | The page lists meta-models/muse-spark-open. It doesn't show a separate price for the 1026 id the organizers gave us |

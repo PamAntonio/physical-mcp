@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Every number for the results dashboard, computed from files in this repo. Nothing typed in.
 
-    python scripts/dashboard_metrics.py                 # writes metrics.json at the repo root
+    python scripts/dashboard_metrics.py                 # writes metrics.json at the repo root and web/public/metrics.json
     python scripts/dashboard_metrics.py --runs runs --out metrics.json
 
 Rules this script sticks to:
@@ -17,7 +17,8 @@ Where the numbers come from:
   safety, step.decision (time to decide, tap vs hold) and job.usage (tokens, real runs only)
 - vision/calibration/<device>.sam_summary.json (detect_controls.py --device): SAM detections
 - docs/costs.md (filled in by hand): a part is proven with a listing URL and a checked date, a replacement or
-  retrofit cost counts with a $ figure and a source URL. parts_vs_replace only once both are REAL
+  retrofit cost counts with a $ figure and a source URL. parts_vs_replace only once both are REAL. Model prices
+  times job.usage gives the API cost per job at list price
 - docs/hardware.md, backend/devices/*.json, backend/api.py, risk/out/*.scored.json
 
 Real vs mock for a run: put a runs/labels.json next to the run folders, like
@@ -44,6 +45,19 @@ REAL_SCORER_ID = "meta-models/muse-spark-open-1026"
 # messages api.py writes when a job ends in "stopped", so a STOP press can be told apart
 STOP_BY_USER = "Stopped by you"
 
+# the sections on the results page. every metric lands in exactly one
+METRIC_GROUPS = ("Reliability", "Speed", "Vision", "Safety", "Cost", "Scale")
+# which section a real.* or mock.* metric goes in, by the part after the dot. anything else is Safety
+RUN_METRIC_GROUPS = {
+    "job_success_rate": "Reliability", "job_outcomes": "Reliability", "first_try_verify_rate": "Reliability",
+    "retries_per_job_avg": "Reliability", "missed_presses_caught": "Reliability",
+    "time_per_job_median_s": "Speed", "time_per_step_median_s": "Speed", "planner_time_median_s": "Speed",
+    "risk_scoring_time_median_s": "Speed", "human_approval_time_median_s": "Speed",
+    "press_time_median_s": "Speed", "screen_read_time_median_s": "Speed", "time_to_decide_median_ms": "Speed",
+    "screen_read_confidence_mix": "Vision", "low_confidence_pauses": "Vision",
+    "tokens_per_job": "Cost",
+}
+
 
 # ---- small helpers ----
 
@@ -67,7 +81,7 @@ def seconds_between(start, end):
 
 def rel(path):
     try:
-        return str(Path(path).resolve().relative_to(REPO_ROOT))
+        return Path(path).resolve().relative_to(REPO_ROOT).as_posix()
     except ValueError:
         return str(path)
 
@@ -205,6 +219,60 @@ def job_tokens(run):
     return by_kind
 
 
+def outcome_kind(result):
+    """Which pile a finished job goes in. The messages come from api.py."""
+    outcome = result.get("outcome")
+    message = result.get("message") or ""
+    if outcome == "succeeded":
+        return "succeeded"
+    if outcome == "stopped":
+        return "stopped"
+    if "Can't do this" in message:
+        return "refused"
+    if "attempts" in message:
+        return "gave_up_after_retries"
+    if "Hardware error" in message:
+        return "hardware_error"
+    return "other_failure"
+
+
+def step_timings(run):
+    """(press seconds, screen read seconds) from one run's events. A press is running to
+    verifying. A read runs from verifying, or from the read before it, to the next log note
+    with a read on it. A job stopped mid-read never gets that note, so it isn't counted."""
+    presses = []
+    reads = []
+    pressing_since = None
+    reading_since = None
+    for event in run["events"]:
+        if event["type"] != "step.updated":
+            continue
+        when = parse_ts(event.get("ts"))
+        note = event.get("note") or {}
+        status = event["step"].get("status")
+        if note.get("read") is not None and reading_since is not None:
+            reads.append(seconds_between(reading_since, when))
+            reading_since = when
+        if status == "running":
+            pressing_since = when
+            reading_since = None
+        elif status == "verifying" and pressing_since is not None:
+            presses.append(seconds_between(pressing_since, when))
+            pressing_since = None
+            reading_since = when
+        elif status in ("failed", "succeeded", "skipped"):
+            pressing_since = None
+            reading_since = None
+    return presses, reads
+
+
+def spread(values):
+    """'19.9 to 99.6' for a metric's note."""
+    if not values:
+        return "none"
+    return f"{round(min(values), 2)} to {round(max(values), 2)}"
+
+
 def run_metrics(runs, label):
     """Every run-based metric for one group (real or mock). Returns a dict of name -> entry."""
     group = [run for run in runs if run["label"] == label]
@@ -221,9 +289,13 @@ def run_metrics(runs, label):
     retries_per_job = []
     retry_count_total = 0
     caught_misses = 0
+    outcomes = {"succeeded": 0, "stopped": 0, "refused": 0, "gave_up_after_retries": 0,
+                "hardware_error": 0, "other_failure": 0}
     for run in group:
         result = run["job"].get("result") or {}
         outcome = result.get("outcome")
+        if outcome in ("succeeded", "failed", "stopped"):
+            outcomes[outcome_kind(result)] += 1
         if outcome in ("succeeded", "failed", "stopped"):
             finished += 1
         if outcome == "succeeded":
@@ -245,8 +317,11 @@ def run_metrics(runs, label):
                 caught_misses += 1
 
     out.update(dict([
-        metric(f"{label}.job_success_rate", f"{succeeded}/{finished}", f"{finished} finished jobs", source,
+        metric(f"{label}.job_success_rate", f"{succeeded}/{finished}", f"{finished} finished jobs",
+               f"runs/*/job.json result.outcome ({label})",
                note="result.outcome == succeeded"),
+        metric(f"{label}.job_outcomes", outcomes, f"{finished} finished jobs", source,
+               note="result.outcome, and result.message for why a job failed"),
         metric(f"{label}.first_try_verify_rate", f"{first_try}/{press_steps}", f"{press_steps} press steps that ran", source,
                note="steps with status succeeded and attempts == 1"),
         metric(f"{label}.retries_per_job_avg", average(retries_per_job), f"{len(group)} jobs", source,
@@ -261,7 +336,12 @@ def run_metrics(runs, label):
     plan_seconds = []
     score_seconds = []
     approve_seconds = []
+    press_seconds = []
+    read_seconds = []
     for run in group:
+        presses, reads = step_timings(run)
+        press_seconds.extend(presses)
+        read_seconds.extend(reads)
         events = run["events"]
         created = parse_ts(run["job"].get("created_at"))
         finished_at = None
@@ -316,6 +396,10 @@ def run_metrics(runs, label):
                note="step.started_at to step.finished_at"),
         metric(f"{label}.planner_time_median_s", median(plan_seconds), f"{len(plan_seconds)} jobs", source,
                note="job.created_at to plan.ready ts, includes the pre-plan screen read"),
+        metric(f"{label}.press_time_median_s", median(press_seconds), f"{len(press_seconds)} presses", source,
+               note=f"step status running to verifying, from step.updated events. Range {spread(press_seconds)} s"),
+        metric(f"{label}.screen_read_time_median_s", median(read_seconds), f"{len(read_seconds)} reads", source,
+               note=f"verifying, or the read before, to the next note with a read. Range {spread(read_seconds)} s"),
         metric(f"{label}.risk_scoring_time_median_s", median(score_seconds), f"{len(score_seconds)} scored steps", source,
                note="plan.ready to the first step.updated with risk_tier (upper bound, it's an event ts)"),
         metric(f"{label}.human_approval_time_median_s", median(approve_seconds), f"{len(approve_seconds)} approvals", source,
@@ -483,11 +567,22 @@ def run_metrics(runs, label):
             out.update(dict([
                 metric("real.tokens_per_job", value, f"{len(per_job)} jobs", "runs/*/job.json usage (real)", note=note),
             ]))
+        else:
+            out["real.tokens_per_job"] = {
+                "value": None, "sample": f"0 of {without_usage} jobs have usage", "status": "NEEDS DATA",
+                "source": "runs/*/job.json usage (real)",
+                "need": "real runs recorded since api.py started keeping job.usage"}
 
     # computed from data, but FakeHardware data: never let these read as rig numbers
     if label == "mock":
         for entry in out.values():
             entry["status"] = "MOCK"
+    else:
+        # nothing to compute from (no succeeded job, no approval yet) isn't a real number
+        for entry in out.values():
+            if entry["value"] is None and entry["status"] == "REAL":
+                entry["status"] = "NEEDS DATA"
+                entry["need"] = "real runs where this happened"
     return out
 
 
@@ -622,7 +717,7 @@ def cost_tables(costs_md):
         return None
     text = costs_md.read_text(encoding="utf-8")
     return {"parts": markdown_table(text, "Parts"), "replace": markdown_table(text, "Replacing the machine"),
-            "retrofit": markdown_table(text, "Retrofitting with IoT")}
+            "retrofit": markdown_table(text, "Retrofitting with IoT"), "prices": markdown_table(text, "Model prices")}
 
 
 def dollar_amounts(text):
@@ -798,6 +893,105 @@ def cheaper_by(parts_entry, replace_entry, card):
             "note": f"${low:,.2f} (low end, {replace_entry['example']}) / ${parts_total:,.2f} parts counted"}
 
 
+def model_prices(rows):
+    """{model: (input $/1M, output $/1M)} from the Model prices table. A row only counts with
+    both prices and a source URL."""
+    prices = {}
+    for row in rows:
+        input_price = money(row.get("input $/1m"))
+        output_price = money(row.get("output $/1m"))
+        if input_price is not None and output_price is not None and is_url(row.get("source url")):
+            prices[row.get("model")] = (input_price, output_price)
+    return prices
+
+
+def api_cost_metric(real_runs, prices):
+    """cost.api_cost_per_job_list_price: what each real job's job.usage would cost at list price,
+    median per job, split by kind. Hackathon credits paid for the calls, so it's not what we spent."""
+    source = "runs/*/job.json usage x docs/costs.md Model prices"
+    per_job = []
+    missing_prices = []
+    for run in real_runs:
+        usage = run["job"].get("usage")
+        if usage is None:
+            continue
+        job_cost = {"all": 0.0}
+        for call in usage:
+            price = prices.get(call.get("model"))
+            if price is None:
+                if call.get("model") not in missing_prices:
+                    missing_prices.append(call.get("model"))
+                continue
+            cost = (call.get("prompt_tokens") or 0) / 1000000 * price[0]
+            cost += (call.get("completion_tokens") or 0) / 1000000 * price[1]
+            kind = call.get("kind") or "not labelled"
+            job_cost[kind] = job_cost.get(kind, 0.0) + cost
+            job_cost["all"] += cost
+        per_job.append(job_cost)
+    if not per_job:
+        return {"value": None, "sample": f"0 of {len(real_runs)} real jobs have usage", "status": "NEEDS DATA",
+                "source": source, "need": "real runs recorded since api.py started keeping job.usage"}
+    if missing_prices:
+        names = []
+        for model in missing_prices:
+            names.append(str(model))
+        return {"value": None, "sample": f"{len(per_job)} jobs", "status": "NEEDS INPUT", "source": source,
+                "need": "a price in docs/costs.md Model prices for: " + ", ".join(names)}
+    kinds = []
+    for job_cost in per_job:
+        for kind in job_cost:
+            if kind not in kinds:
+                kinds.append(kind)
+    value = {}
+    for kind in kinds:
+        amounts = []
+        for job_cost in per_job:
+            amounts.append(job_cost.get(kind, 0.0))
+        ordered = sorted(amounts)
+        middle = len(ordered) // 2
+        if len(ordered) % 2 == 1:
+            value[kind] = round(ordered[middle], 4)
+        else:
+            value[kind] = round((ordered[middle - 1] + ordered[middle]) / 2, 4)
+    return {"value": value, "sample": f"{len(per_job)} jobs", "status": "REAL", "source": source,
+            "note": "$ per job at list price, median. Hackathon credits paid for the calls, so it's not what we spent"}
+
+
+def metric_group(name):
+    """Which results page section a metric goes in."""
+    prefix, _, rest = name.partition(".")
+    if prefix in ("real", "mock"):
+        return RUN_METRIC_GROUPS.get(rest, "Safety")
+    if prefix in ("bench", "runs"):
+        return "Reliability"
+    if prefix in ("config", "risk_fixtures"):
+        return "Safety"
+    if prefix == "vision":
+        return "Vision"
+    if prefix == "cost":
+        return "Cost"
+    return "Scale"
+
+
+def same_button_words(context_pair):
+    """The wording for the same START button metric, out of the fixture requests themselves:
+    (headline, label), or (None, None) when two temperatures aren't there to compare."""
+    found = []
+    for request, tier in context_pair.items():
+        hit = re.search(r"(\d+(?:\.\d+)?)\s*°\s*C", request)
+        if hit:
+            found.append((float(hit.group(1)), hit.group(1), tier))
+    if len(found) < 2:
+        return None, None
+    found.sort()
+    tiers = []
+    pieces = []
+    for _number, shown, tier in found:
+        tiers.append(tier)
+        pieces.append(f"{shown} °C {tier}")
+    return " vs ".join(tiers), f"same START button, {' vs '.join(pieces)}, scored by Muse Spark Open"
+
+
 def scored_fixtures(risk_out):
     """The committed Spark Open scores. Real model calls, fixture jobs (not the timer demo)."""
     jobs = []
@@ -876,7 +1070,7 @@ def build(runs_dir, out_path):
                 rebuilt_ok += ok
                 rebuilt_tried += tried
         metrics["bench.press_success_rebuilt_rig"] = {
-            "value": f"{rebuilt_ok}/{rebuilt_tried}", "sample": "rows mentioning the rebuilt rig (Nov 2)",
+            "value": f"{rebuilt_ok}/{rebuilt_tried}", "sample": f"{rebuilt_tried} presses, rows mentioning the rebuilt rig",
             "status": "REAL", "source": "docs/hardware.md 'Reliability so far'",
             "note": "the rig in the video. ST/SP counted on video, H by reading T1",
         }
@@ -930,10 +1124,12 @@ def build(runs_dir, out_path):
         for step_id, gated, tier in job["steps_detail"]:
             if gated and job["device_id"] == "incubator-01":
                 context_pair[job["request"]] = tier
+    headline, label = same_button_words(context_pair)
     metrics["risk_fixtures.same_button_different_risk"] = {
         "value": context_pair, "sample": "START step in 2 fixture jobs", "status": "REAL",
         "source": "risk/out/incubator_start_37.scored.json, incubator_start_90.scored.json (s6 risk_tier)",
         "note": "same START button, the model scores it by context",
+        "headline": headline, "label": label,
     }
 
     # SAM detections: one summary per device, from detect_controls.py --device
@@ -973,11 +1169,12 @@ def build(runs_dir, out_path):
         metrics["cost.parts_vs_replace.research_labs"] = cheaper_by(
             metrics["cost.hardware_parts_total"], metrics.get("cost.replace_machine.research_labs"), "research_labs")
 
-    # the $ per job needs billing pages, the tokens alone don't say what they cost
-    metrics["cost.api_spend_per_job"] = {
-        "value": None, "sample": None, "status": "NEEDS INPUT", "source": None,
-        "need": "Meta Model API + Baseten billing pages for the days of the runs. Tokens per job now come "
-                "from job.usage (real.tokens_per_job), the prices don't"}
+    # at list price: credits paid for the calls, so this isn't what we spent
+    prices = model_prices(tables["prices"]) if tables is not None else {}
+    metrics["cost.api_cost_per_job_list_price"] = api_cost_metric(real_runs, prices)
+
+    for name, entry in metrics.items():
+        entry["group"] = metric_group(name)
 
     output = {"generated_by": "scripts/dashboard_metrics.py", "notes": notes, "metrics": metrics}
     Path(out_path).write_text(json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -988,8 +1185,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Compute dashboard metrics from the repo's files")
     parser.add_argument("--runs", type=Path, default=REPO_ROOT / "runs")
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "metrics.json")
+    parser.add_argument("--web-out", type=Path, default=REPO_ROOT / "web" / "public" / "metrics.json",
+                        help="the copy the /results page reads")
     args = parser.parse_args(argv)
     output = build(args.runs, args.out)
+    args.web_out.write_text(json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for line in output["notes"]:
         print("NOTE:", line)
     for name, entry in output["metrics"].items():
@@ -997,7 +1197,7 @@ def main(argv=None):
         if isinstance(shown, (dict, list)):
             shown = json.dumps(shown, ensure_ascii=False)
         print(f"{entry['status']:<12} {name:<48} {shown}   [{entry.get('sample')}]")
-    print(f"\nwrote {rel(args.out)}")
+    print(f"\nwrote {rel(args.out)} and {rel(args.web_out)}")
     return 0
 
 
