@@ -28,4 +28,7 @@ confidence, and the script uses that to guess "mock" for unlabelled runs. `FAKE_
 fakes the confidences, so an unlabelled one gets counted as real. A label always wins
 over the guess.
 
+The Nov 2 rig runs came from the `test-runs-logs` zip of `record_run.py` output, as `job.json` and
+`events.json` only. They were recorded before `job.usage` existed, so they have no token counts.
+
 How to record a run: `docs/first-loop-checklist.md`, "Recording runs for the dashboard".
