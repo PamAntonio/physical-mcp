@@ -4,29 +4,42 @@
   "metrics": {
     "runs.found": {
       "value": {
-        "real": 10,
+        "real": 23,
         "mock": 0
       },
-      "sample": "10 run folders",
+      "sample": "23 run folders",
       "source": "runs",
       "status": "REAL",
       "labels": {
+        "job_030cc0f5": "real (labels.json)",
+        "job_04b0c61c": "real (labels.json)",
         "job_07f4db12": "real (labels.json)",
+        "job_0b122923": "real (labels.json)",
+        "job_0c742e32": "real (labels.json)",
         "job_1d6b4388": "real (labels.json)",
         "job_31043a6a": "real (labels.json)",
         "job_3a9afa9c": "real (labels.json)",
+        "job_4b88b71c": "real (labels.json)",
         "job_4d62de5b": "real (labels.json)",
         "job_573c4a0b": "real (labels.json)",
+        "job_61a9ee55": "real (labels.json)",
         "job_61fe4fb6": "real (labels.json)",
+        "job_693ec62c": "real (labels.json)",
+        "job_81c3342d": "real (labels.json)",
+        "job_871f2a6f": "real (labels.json)",
         "job_97845bf8": "real (labels.json)",
+        "job_9daa8e2b": "real (labels.json)",
+        "job_dda5d38e": "real (labels.json)",
+        "job_e8845378": "real (labels.json)",
         "job_f1e9b548": "real (labels.json)",
+        "job_f3f05cef": "real (labels.json)",
         "job_f9a6a043": "real (labels.json)"
       },
       "group": "Reliability"
     },
     "real.job_success_rate": {
-      "value": "0/10",
-      "sample": "10 finished jobs",
+      "value": "7/23",
+      "sample": "23 finished jobs",
       "source": "runs/*/job.json result.outcome (real)",
       "status": "REAL",
       "note": "result.outcome == succeeded",
@@ -34,64 +47,62 @@
     },
     "real.job_outcomes": {
       "value": {
-        "succeeded": 0,
-        "stopped": 5,
+        "succeeded": 7,
+        "stopped": 10,
         "refused": 1,
         "gave_up_after_retries": 3,
-        "hardware_error": 1,
+        "hardware_error": 2,
         "other_failure": 0
       },
-      "sample": "10 finished jobs",
+      "sample": "23 finished jobs",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "result.outcome, and result.message for why a job failed",
       "group": "Reliability"
     },
     "real.first_try_verify_rate": {
-      "value": "0/4",
-      "sample": "4 press steps that ran",
+      "value": "14/21",
+      "sample": "21 press steps that ran",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "steps with status succeeded and attempts == 1",
       "group": "Reliability"
     },
     "real.retries_per_job_avg": {
-      "value": 0.6,
-      "sample": "10 jobs",
+      "value": 0.35,
+      "sample": "23 jobs",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
-      "note": "6 retries total, from step.retries",
+      "note": "8 retries total, from step.retries",
       "group": "Reliability"
     },
     "real.missed_presses_caught": {
-      "value": 6,
-      "sample": "10 jobs",
+      "value": 13,
+      "sample": "23 jobs",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "events with note.kind == retry",
       "group": "Reliability"
     },
     "real.time_per_job_median_s": {
-      "value": null,
-      "sample": "0 succeeded jobs",
+      "value": 169.13,
+      "sample": "7 succeeded jobs",
       "source": "runs/*/job.json + events.json (real)",
-      "status": "NEEDS DATA",
+      "status": "REAL",
       "note": "job.created_at to job.finished ts, includes the human's approval wait",
-      "need": "real runs where this happened",
       "group": "Speed"
     },
     "real.time_per_step_median_s": {
-      "value": null,
-      "sample": "0 succeeded steps",
+      "value": 58.94,
+      "sample": "16 succeeded steps",
       "source": "runs/*/job.json + events.json (real)",
-      "status": "NEEDS DATA",
+      "status": "REAL",
       "note": "step.started_at to step.finished_at",
-      "need": "real runs where this happened",
       "group": "Speed"
     },
     "real.planner_time_median_s": {
-      "value": 59.8,
-      "sample": "8 jobs",
+      "value": 56.11,
+      "sample": "19 jobs",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "job.created_at to plan.ready ts, includes the pre-plan screen read",
@@ -99,45 +110,44 @@
     },
     "real.press_time_median_s": {
       "value": 1.39,
-      "sample": "13 presses",
+      "sample": "40 presses",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "step status running to verifying, from step.updated events. Range 1.38 to 1.4 s",
       "group": "Speed"
     },
     "real.screen_read_time_median_s": {
-      "value": 42.0,
-      "sample": "23 reads",
+      "value": 32.48,
+      "sample": "64 reads",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
-      "note": "verifying, or the read before, to the next note with a read. Range 18.65 to 99.64 s",
+      "note": "verifying, or the read before, to the next note with a read. Range 7.86 to 99.64 s",
       "group": "Speed"
     },
     "real.risk_scoring_time_median_s": {
-      "value": 4.76,
-      "sample": "4 scored steps",
+      "value": 9.55,
+      "sample": "10 scored steps",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "plan.ready to the first step.updated with risk_tier (upper bound, it's an event ts)",
       "group": "Speed"
     },
     "real.human_approval_time_median_s": {
-      "value": null,
-      "sample": "0 approvals",
+      "value": 7.48,
+      "sample": "5 approvals",
       "source": "runs/*/job.json + events.json (real)",
-      "status": "NEEDS DATA",
+      "status": "REAL",
       "note": "awaiting_approval to running, from job.status events",
-      "need": "real runs where this happened",
       "group": "Speed"
     },
     "real.screen_read_confidence_mix": {
       "value": {
-        "high": 29,
+        "high": 81,
         "medium": 2,
         "low": 0,
         "none": 0
       },
-      "sample": "31 reads on log notes",
+      "sample": "83 reads on log notes",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "note.read.confidence. A read can show up on more than one note",
@@ -145,15 +155,15 @@
     },
     "real.low_confidence_pauses": {
       "value": 0,
-      "sample": "10 jobs",
+      "sample": "23 jobs",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "note.kind == read_unclear",
       "group": "Vision"
     },
     "real.steps_needing_approval": {
-      "value": "5/37",
-      "sample": "37 planned steps",
+      "value": "11/59",
+      "sample": "59 planned steps",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "step.requires_approval",
@@ -161,55 +171,96 @@
     },
     "real.risk_tier_mix": {
       "value": {
-        "low": 0,
-        "medium": 2,
+        "low": 2,
+        "medium": 6,
         "high": 2
       },
-      "sample": "4 scored steps",
+      "sample": "10 scored steps",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "group": "Safety"
     },
     "real.approvals_vs_rejections": {
       "value": {
-        "approved": 0,
+        "approved": 5,
         "rejected": 0
       },
-      "sample": "0 decisions",
+      "sample": "5 decisions",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "group": "Safety"
     },
     "real.plans_refused": {
       "value": 1,
-      "sample": "10 jobs",
+      "sample": "23 jobs",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "note.kind == planner_refused",
       "group": "Safety"
     },
     "real.stop_presses": {
-      "value": 5,
-      "sample": "10 jobs",
+      "value": 10,
+      "sample": "23 jobs",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "result.outcome stopped with message starting 'Stopped by you'",
       "group": "Safety"
     },
     "real.scored_by_real_spark_open": {
-      "value": "2/4",
-      "sample": "4 scored steps",
+      "value": "8/10",
+      "sample": "10 scored steps",
       "source": "runs/*/job.json + events.json (real)",
       "status": "REAL",
       "note": "fallback 2, other 0 (step.risk_scored_by + risk_reason)",
       "group": "Safety"
     },
+    "real.time_to_decide_median_ms": {
+      "value": 5737,
+      "sample": "1 decisions with a time",
+      "source": "runs/*/events.json step.decision (real)",
+      "status": "REAL",
+      "note": "time_to_decide_ms as the web app sent it, from when the card appeared. 1 approvals, 0 rejections",
+      "group": "Speed"
+    },
+    "real.approval_type_mix": {
+      "value": {
+        "tap": 0,
+        "hold": 1,
+        "not sent": 0
+      },
+      "sample": "1 decisions",
+      "source": "runs/*/events.json step.decision (real)",
+      "status": "REAL",
+      "note": "step.decision.approval_type",
+      "group": "Safety"
+    },
     "real.tokens_per_job": {
-      "value": null,
-      "sample": "0 of 10 jobs have usage",
-      "status": "NEEDS DATA",
+      "value": {
+        "planner": {
+          "prompt": 2061,
+          "completion": 2217,
+          "total": 4278
+        },
+        "screen_read": {
+          "prompt": 6944,
+          "completion": 22705,
+          "total": 29649
+        },
+        "scorer": {
+          "prompt": 1900,
+          "completion": 4174,
+          "total": 6074
+        },
+        "all": {
+          "prompt": 10905,
+          "completion": 29096,
+          "total": 40001
+        }
+      },
+      "sample": "1 jobs",
       "source": "runs/*/job.json usage (real)",
-      "need": "real runs recorded since api.py started keeping job.usage",
+      "status": "REAL",
+      "note": "medians per job from job.usage, by kind (1 planner, 14 screen_read, 1 scorer calls). Completion includes reasoning tokens. No prices, those come from billing. 22 jobs recorded before job.usage existed are left out",
       "group": "Cost"
     },
     "bench.press_success": {
@@ -534,14 +585,6 @@
       "need": "run vision/detect_controls.py <rig frame> --device timer-01 and commit the vision/calibration/timer-01.sam_summary.json it writes",
       "group": "Vision"
     },
-    "vision.time_to_decide_ms_as_sent": {
-      "value": null,
-      "sample": null,
-      "status": "NEEDS DATA",
-      "source": "runs/*/events.json step.decision",
-      "need": "real runs recorded since api.py started keeping step.decision. real.human_approval_time_median_s is the event-timestamp proxy until then",
-      "group": "Vision"
-    },
     "cost.hardware_parts_total": {
       "value": null,
       "sample": "3 of 6 parts priced, 4 proven, 2 items already owned",
@@ -762,11 +805,16 @@
       "group": "Cost"
     },
     "cost.api_cost_per_job_list_price": {
-      "value": null,
-      "sample": "0 of 10 real jobs have usage",
-      "status": "NEEDS DATA",
+      "value": {
+        "all": 0.1373,
+        "screen_read": 0.1052,
+        "planner": 0.012,
+        "scorer": 0.0201
+      },
+      "sample": "1 jobs",
+      "status": "REAL",
       "source": "runs/*/job.json usage x docs/costs.md Model prices",
-      "need": "real runs recorded since api.py started keeping job.usage",
+      "note": "$ per job at list price, median. Hackathon credits paid for the calls, so it's not what we spent",
       "group": "Cost"
     }
   }

@@ -1,0 +1,256 @@
+WEBVTT
+
+00:00.199 --> 00:02.440
+Skilled people stuck pressing the
+
+00:02.440 --> 00:04.759
+same buttons all day
+
+00:04.759 --> 00:06.160
+because that's the only way the
+
+00:06.160 --> 00:07.320
+machine listens.
+
+00:07.965 --> 00:10.525
+We gave machines with no API a
+
+00:10.525 --> 00:13.405
+way to talk to Meta's models.
+
+00:13.405 --> 00:16.085
+This is Physical MCP.
+
+00:16.085 --> 00:19.205
+Four layers, one button press,
+
+00:19.205 --> 00:21.684
+a webcam, two tiny servos, and a
+
+00:21.684 --> 00:23.845
+small board pointed at a machine.
+
+00:25.059 --> 00:25.699
+The eyes.
+
+00:26.099 --> 00:28.539
+SAM 3.1 finds every button
+
+00:28.539 --> 00:29.619
+and reads the screen.
+
+00:30.219 --> 00:32.019
+If it can't read it, it stops.
+
+00:32.419 --> 00:33.929
+It never presses blind.
+
+00:35.059 --> 00:37.339
+The brain. Muse Spark turns a
+
+00:37.339 --> 00:39.339
+plain request into a plan of
+
+00:39.339 --> 00:40.618
+presses.
+
+00:40.618 --> 00:41.899
+And if a job isn't safe or
+
+00:41.899 --> 00:44.099
+possible, it says no.
+
+00:45.058 --> 00:45.978
+The gut check.
+
+00:46.498 --> 00:48.738
+Before anything risky, Muse Spark Open
+
+00:48.738 --> 00:50.858
+scores the risk and explains why.
+
+00:51.218 --> 00:52.978
+Then a human makes the call.
+
+00:53.518 --> 00:54.358
+The fingers,
+
+00:54.638 --> 00:56.318
+two three-dollar servos.
+
+00:56.718 --> 00:58.987
+The AI never sees them.
+
+00:59.522 --> 01:00.923
+Do you want to see it live?
+
+01:01.497 --> 01:03.376
+Here's Physical MCP watching a
+
+01:03.376 --> 01:04.816
+kitchen timer.
+
+01:04.816 --> 01:06.776
+We ask it to set T1 to two
+
+01:06.776 --> 01:08.696
+hours and start it.
+
+01:08.696 --> 01:10.096
+Muse Spark reads the screen and
+
+01:10.096 --> 01:12.936
+plans three presses. H, H, then
+
+01:12.936 --> 01:13.817
+start.
+
+01:14.492 --> 01:15.931
+While the finger gets to work,
+
+01:15.931 --> 01:17.892
+Muse Spark Open scores the plan
+
+01:17.892 --> 01:19.892
+in the background. It flags step
+
+01:19.892 --> 01:22.532
+three as medium risk. The first
+
+01:22.532 --> 01:24.891
+two presses just add hours, so
+
+01:24.891 --> 01:26.612
+they run on their own. After each
+
+01:26.612 --> 01:28.492
+one, the camera checks the screen.
+
+01:28.492 --> 01:30.852
+But starting the timer is a real
+
+01:30.852 --> 01:32.652
+action. So it stops and asks a
+
+01:32.652 --> 01:34.972
+human with the reason right there.
+
+01:34.972 --> 01:36.572
+Hold for one and a half seconds
+
+01:36.572 --> 01:37.852
+to approve
+
+01:37.852 --> 01:39.652
+and it's running. Job done.
+
+01:40.885 --> 01:42.965
+Same brain, different machine. This
+
+01:42.965 --> 01:45.125
+one's a simulated incubator.
+
+01:45.125 --> 01:46.925
+We just ask set it to 37 and
+
+01:46.925 --> 01:48.525
+run it for 2 hours.
+
+01:48.525 --> 01:50.404
+Muse Spark is planning.
+
+01:50.404 --> 01:51.604
+Muse Spark has never seen this
+
+01:51.604 --> 01:52.845
+panel. It plans from what the
+
+01:52.845 --> 01:54.285
+camera finds.
+
+01:54.285 --> 01:56.125
+Six presses. After each one it
+
+01:56.125 --> 01:57.765
+reads the screen and only moves
+
+01:57.765 --> 02:00.004
+on once the number matches.
+
+02:00.004 --> 02:01.485
+Starting heat is risky, so it
+
+02:01.485 --> 02:04.084
+stops. Spark Open says why and I
+
+02:04.084 --> 02:05.845
+hold to approve.
+
+02:05.845 --> 02:08.885
+Succeeded. All six steps verified.
+
+02:08.885 --> 02:10.365
+All six verified
+
+02:10.365 --> 02:11.965
+and every press, every check
+
+02:11.965 --> 02:13.845
+and every approval is locked.
+
+02:14.857 --> 02:16.457
+Replacing a lab machine cost about
+
+02:16.457 --> 02:18.776
+$1,000, retrofitting it 2 to
+
+02:18.776 --> 02:21.736
+20,000. We did it with about $20
+
+02:21.736 --> 02:25.456
+in parts and 14 cents per job. 6
+
+02:25.456 --> 02:27.937
+out of 7 full jobs worked.
+
+02:27.937 --> 02:29.977
+50 for 50 on the bench. Same
+
+02:29.977 --> 02:32.217
+start button, medium risk at 37
+
+02:32.217 --> 02:34.337
+degrees, high at 90.
+
+02:34.337 --> 02:36.176
+Here's the stack we used to build
+
+02:36.176 --> 02:37.657
+and we used Muse Code to build a
+
+02:37.657 --> 02:39.977
+website. Next, onboard any
+
+02:39.977 --> 02:42.096
+machine from one photo. Run fleets
+
+02:42.096 --> 02:44.977
+remotely. Add a hardware e-stop.
+
+02:44.977 --> 02:46.416
+Labs first,
+
+02:46.416 --> 02:48.536
+then factories, kitchens, and
+
+02:48.536 --> 02:49.536
+anyone who can't reach small
+
+02:49.536 --> 02:50.217
+buttons.
+
+02:50.498 --> 02:52.098
+built by Bhavisha and Pam.
+
+02:52.458 --> 02:54.378
+Give your machines an API.
