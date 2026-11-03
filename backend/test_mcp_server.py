@@ -256,6 +256,40 @@ class McpLayerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.hardware.started, [])
         self.assertEqual(run.presses_used, 0)
 
+    async def test_decision_is_kept_on_the_step(self):
+        run = await self.start_job()
+        await self.wait_for_card(run)
+
+        # reject with pause first: the whole body lands on the step, and goes out as an event
+        rejection = {"decision": "reject", "on_reject": "pause", "approval_type": "tap", "time_to_decide_ms": 2400,
+                     "decided_by": "Pam", "decided_at": "2026-11-02T18:00:00.000Z", "note": "not yet"}
+        await self.decide(run, rejection)
+        await self.wait_until(lambda: run.job["status"] == "paused" and run.decision is not None and not run.decision.done())
+        expected_rejection = {"decision": "reject", "approval_type": "tap", "time_to_decide_ms": 2400,
+                              "decided_by": "Pam", "decided_at": "2026-11-02T18:00:00.000Z", "on_reject": "pause"}
+        self.assertEqual(self.step(run, "s1")["decision"], expected_rejection)
+
+        # then approve with a short body: what it left out is null, and it replaces the rejection
+        await self.decide(run, {"decision": "approve", "approval_type": "hold", "time_to_decide_ms": 1800})
+        await self.wait_for_finish(run)
+        self.assertEqual(run.job["status"], "succeeded", run.job["result"])
+        expected_approval = {"decision": "approve", "approval_type": "hold", "time_to_decide_ms": 1800,
+                             "decided_by": None, "decided_at": None, "on_reject": None}
+        self.assertEqual(self.step(run, "s1")["decision"], expected_approval)
+
+        # both decisions are in the events (so in events.json), each the moment it landed
+        decisions = []
+        for event in run.events:
+            if event["type"] == "step.updated" and event["step"]["step_id"] == "s1":
+                decision = event["step"].get("decision")
+                if decision is not None and decision not in decisions:
+                    decisions.append(decision)
+        self.assertEqual(decisions, [expected_rejection, expected_approval])
+
+        # steps nobody decided on don't get one
+        for step_id in ("s2", "s3", "s4"):
+            self.assertNotIn("decision", self.step(run, step_id))
+
     async def test_control_not_in_step_is_refused(self):
         run = self.manual_run("s2")  # s2 presses btn_up
         async with Client(mcp_server.mcp) as client:

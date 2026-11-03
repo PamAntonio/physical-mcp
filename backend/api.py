@@ -965,6 +965,19 @@ async def decide(job_id: str, step_id: str, http_request: Request):
         f"step {step_id}: {what} ({body.get('approval_type', '?')}, {body.get('time_to_decide_ms', '?')}ms,"
         f" by {body.get('decided_by', '?')} at {body.get('decided_at', '?')})"
     )
+    # keep the decision on the step too, not just in the console, so it ends up in job.json and
+    # events.json (the dashboard's time to decide and tap vs hold come from there). whatever the
+    # body sent, keys it left out are null. a later decision on the same step replaces it
+    if waiting_step is not None:
+        waiting_step["decision"] = {
+            "decision": decision,
+            "approval_type": body.get("approval_type"),
+            "time_to_decide_ms": body.get("time_to_decide_ms"),
+            "decided_by": body.get("decided_by"),
+            "decided_at": body.get("decided_at"),
+            "on_reject": body.get("on_reject"),
+        }
+        emit_step(run, waiting_step)
     run.decision.set_result(body)
     await asyncio.sleep(0)  # let the run pick it up so the job we send back is current
     return run.job
