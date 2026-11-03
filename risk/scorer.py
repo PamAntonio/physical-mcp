@@ -18,6 +18,7 @@ Safety rules:
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 from openai import OpenAI, BadRequestError, UnprocessableEntityError
@@ -251,7 +252,24 @@ def build_context(job, step):
 # ---- talking to the model ----
 
 
-def ask_structured(context):
+def usage_entry(response, seconds):
+    """{model, prompt_tokens, completion_tokens, seconds} for one reply, or None if it has no
+    usage. Field names are what Baseten sends back (checked on a real reply): usage.prompt_tokens
+    and usage.completion_tokens (reasoning tokens are counted in the completion ones)."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None
+    return {
+        "model": getattr(response, "model", None) or MODEL,
+        "prompt_tokens": usage.prompt_tokens,
+        "completion_tokens": usage.completion_tokens,
+        "seconds": round(seconds, 2),
+    }
+
+
+def ask_structured(context, usage=None):
+    """usage: a list to add this call's token counts to (left alone if the reply has none)."""
+    started = time.monotonic()
     response = get_client().chat.completions.create(
         model=MODEL,
         messages=[
@@ -264,10 +282,15 @@ def ask_structured(context):
         },
         temperature=0,
     )
+    entry = usage_entry(response, time.monotonic() - started)
+    if usage is not None and entry is not None:
+        usage.append(entry)
     return response.choices[0].message.content
 
 
-def ask_prompt_json(context):
+def ask_prompt_json(context, usage=None):
+    """usage: same as ask_structured."""
+    started = time.monotonic()
     response = get_client().chat.completions.create(
         model=MODEL,
         messages=[
@@ -276,6 +299,9 @@ def ask_prompt_json(context):
         ],
         temperature=0,
     )
+    entry = usage_entry(response, time.monotonic() - started)
+    if usage is not None and entry is not None:
+        usage.append(entry)
     return response.choices[0].message.content
 
 
@@ -312,10 +338,11 @@ def parse_score(text):
 
 
 def score_step_with_raw(job, step):
-    """Same as score_step, but also returns a debug record with the raw model reply."""
+    """Same as score_step, but also returns a debug record with the raw model reply.
+    raw["usage"]: token counts for every call that got a reply (api.py adds them to job usage)."""
     global working_path, structured_outputs_rejected
 
-    raw = {"step_id": step.get("step_id"), "path": None, "raw_reply": None, "error": None}
+    raw = {"step_id": step.get("step_id"), "path": None, "raw_reply": None, "error": None, "usage": []}
 
     try:
         context = build_context(job, step)
@@ -328,14 +355,14 @@ def score_step_with_raw(job, step):
         if not structured_outputs_rejected:
             try:
                 raw["path"] = "json_schema"
-                raw["raw_reply"] = ask_structured(context)
+                raw["raw_reply"] = ask_structured(context, raw["usage"])
             except (BadRequestError, UnprocessableEntityError) as err:
                 # the model/endpoint doesn't take a JSON schema, ask in the prompt from now on
                 structured_outputs_rejected = True
                 raw["structured_outputs_error"] = str(err)
         if structured_outputs_rejected:
             raw["path"] = "prompt_json"
-            raw["raw_reply"] = ask_prompt_json(context)
+            raw["raw_reply"] = ask_prompt_json(context, raw["usage"])
     except Exception as err:  # timeout, auth, network, 5xx, missing key...
         raw["error"] = f"{type(err).__name__}: {err}"
         return fallback_score(), raw

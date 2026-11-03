@@ -15,6 +15,9 @@ What it writes, so a real run can stand in for the mock sample in the web app la
     runs/<job_id>/frames/0001.jpg each new camera frame while the job ran
     runs/<job_id>/frames.json     [{"file", "ts"}]: when each frame was taken, same clock as the events
 
+job.json, events.json and frames.json get committed (the dashboard reads them), frames/ stays
+local. Label each run real or mock in runs/labels.json, see runs/README.md.
+
 Frames come from web/public/frames/<device_id>-latest.jpg, the file the real rig (and
 backend/fake_camera.py) keep writing, so run this on the same computer as the backend.
 On plain FakeHardware there's no camera, so no frames, just the events.

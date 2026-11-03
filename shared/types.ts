@@ -5,7 +5,8 @@
 // ApprovalDecision.approval_type / time_to_decide_ms, Control kind "indicator",
 // and Expectation.indicator_on.
 // Proposed (not locked with Pam yet): Step.risk_tier / risk_reason / risk_scored_by,
-// JobStatus "paused", ApprovalDecision.decided_by / decided_at / on_reject.
+// JobStatus "paused", ApprovalDecision.decided_by / decided_at / on_reject, Step.decision,
+// Job.usage.
 //
 // The web app never speaks MCP. Muse Spark makes one JSON plan, and the step runner in
 // backend/api.py is the MCP client: every action reaches the machine through the tools in
@@ -178,6 +179,11 @@ export interface Step {
   evidence: Evidence;
   error: string | null;
   retries?: Retry[];
+  // PROPOSED, not locked with Pam yet: the latest approval decision on this step, as the
+  // backend got it. Set when the decision lands, so it's in job.json and events.json (the
+  // dashboard's time to decide comes from here). A step rejected with "pause" and approved
+  // later keeps the approval; the rejection is still in the job's events. Missing = never decided
+  decision?: StepDecision;
 }
 
 export interface Plan {
@@ -206,6 +212,17 @@ export interface Job {
   // PROPOSED: while status is "paused", why (a low-confidence read, or a step rejected with
   // "pause"). null otherwise. Missing = an older backend
   pause_reason?: string | null;
+  // PROPOSED: one entry per model reply this job used (the planner, then the risk scorer as
+  // each score lands). Token counts as the API reported them, no prices. Missing = an older backend
+  usage?: ModelCall[];
+}
+
+// PROPOSED: one model reply's usage. completion_tokens includes reasoning tokens.
+export interface ModelCall {
+  model: string; // "muse-spark-1.3" (planner) or "meta-models/muse-spark-open-1026" (scorer)
+  prompt_tokens: number;
+  completion_tokens: number;
+  seconds: number; // how long the call took, round trip
 }
 
 export interface CreateJobRequest {
@@ -228,6 +245,18 @@ export interface ApprovalDecision {
   decided_by?: string; // who decided, e.g. the operator name from the web app's config
   decided_at?: string; // ISO 8601, when the decision was made
   on_reject?: RejectBehavior; // only meaningful with decision "reject", backend default "pause"
+}
+
+// PROPOSED, not locked with Pam yet: an ApprovalDecision as it's kept on Step.decision.
+// Every key is there, null when the request didn't send it (on_reject is null on an approve
+// unless the web app sent one).
+export interface StepDecision {
+  decision: "approve" | "reject";
+  approval_type: "tap" | "hold" | null;
+  time_to_decide_ms: number | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  on_reject: RejectBehavior | null;
 }
 
 // WebSocket events. Each carries enough to update the UI without refetching.
