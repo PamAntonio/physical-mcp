@@ -268,6 +268,34 @@ def test_skip_led_slits():
     assert printed.count("skipping button") == 2, printed
 
 
+def test_sam_summary():
+    boxes = {
+        "button": [sam_box(10, 200, 62, 46, 0.94), sam_box(100, 200, 60, 44, 0.88)],
+        "display screen": [sam_box(300, 300, 290, 76, 0.97)],
+    }
+    with contextlib.redirect_stderr(io.StringIO()):
+        controls = detect_controls.to_controls(boxes)
+
+    with tempfile.TemporaryDirectory() as folder:
+        path = detect_controls.write_sam_summary("timer-01", Path(folder) / "rig frame 3.jpg", controls, boxes,
+                                                 out_dir=folder)
+        assert path.name == "timer-01.sam_summary.json", path
+        summary = json.loads(path.read_text(encoding="utf-8"))
+
+    assert summary["frame_file"] == "rig frame 3.jpg"
+    assert summary["frame_size"] == [959, 1280]  # SAM's own w/h, no image needed
+    assert summary["timestamp"].endswith("Z")
+    assert summary["from_saved_response"] is False
+    assert summary["controls"] == [
+        {"label": "button_1", "bbox": [10, 200, 62, 46], "confidence": 0.94},
+        {"label": "button_2", "bbox": [100, 200, 60, 44], "confidence": 0.88},
+        {"label": "screen_1", "bbox": [300, 300, 290, 76], "confidence": 0.97},
+    ]
+    # no image and no raw response in it, just the summary
+    assert set(summary) == {"device_id", "frame_file", "frame_size", "timestamp", "model",
+                            "from_saved_response", "controls"}
+
+
 # ---- timer-01 calibration ----
 
 def test_timer_calibration_file():
@@ -415,6 +443,7 @@ def main():
         test_row_box,
         test_vote_timer,
         test_skip_led_slits,
+        test_sam_summary,
         test_timer_calibration_file,
         test_find_lcd_rows,
         test_suggest_timer_buttons,

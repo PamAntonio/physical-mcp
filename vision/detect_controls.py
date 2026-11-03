@@ -13,8 +13,13 @@ Usage (MODEL_API_KEY comes from the repo-root .env, or the environment):
     python vision/detect_controls.py panel.jpg --draw        # also panel.boxes.png to eyeball
     python vision/detect_controls.py panel.jpg --from-raw panel.sam_raw.json --draw
                                                              # re-parse a saved response, no API call
+    python vision/detect_controls.py frame.jpg --device timer-01
+                                                             # also vision/calibration/timer-01.sam_summary.json
 
-The raw API responses always get saved to <image>.sam_raw.json for debugging.
+The raw API responses always get saved to <image>.sam_raw.json for debugging (gitignored).
+With --device, a small summary goes in vision/calibration/<device>.sam_summary.json too:
+frame name and size, when, and each control's label, bbox and confidence. No image, no raw
+response, so it gets committed (the dashboard's SAM numbers come from it).
 """
 
 import argparse
@@ -26,7 +31,10 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
+
+CALIBRATION_DIR = Path(__file__).resolve().parent / "calibration"
 
 # ---- things to tune on real frames ----
 
@@ -256,6 +264,46 @@ def to_controls(boxes_by_prompt):
 
 
 # ---------------------------------------------------------------------------
+# --device: the summary that gets committed
+# ---------------------------------------------------------------------------
+
+def frame_size(image_path, boxes_by_prompt):
+    """[width, height] of the frame SAM looked at: from SAM's own w/h on the boxes, or the
+    image file if it found nothing (needs Pillow). None if neither works."""
+    for boxes in boxes_by_prompt.values():
+        for box in boxes:
+            if box["image_width"] and box["image_height"]:
+                return [box["image_width"], box["image_height"]]
+    try:
+        from PIL import Image
+        with Image.open(image_path) as image:
+            return [image.width, image.height]
+    except Exception:
+        return None
+
+
+def write_sam_summary(device_id, image_path, controls, boxes_by_prompt, from_saved_response=False,
+                      out_dir=CALIBRATION_DIR):
+    """vision/calibration/<device>.sam_summary.json. Returns the path it wrote."""
+    summary = {
+        "device_id": device_id,
+        "frame_file": Path(image_path).name,
+        "frame_size": frame_size(image_path, boxes_by_prompt),
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "model": MODEL,
+        # --from-raw: SAM ran earlier, the timestamp is when this summary was made
+        "from_saved_response": from_saved_response,
+        "controls": [],
+    }
+    for control in controls:
+        summary["controls"].append({"label": control["label"], "bbox": control["bbox"],
+                                    "confidence": control["confidence"]})
+    out_path = Path(out_dir) / f"{device_id}.sam_summary.json"
+    out_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return out_path
+
+
+# ---------------------------------------------------------------------------
 # --draw
 # ---------------------------------------------------------------------------
 
@@ -333,6 +381,7 @@ def main():
     parser.add_argument("--raw-out", type=Path, help="where to save the raw API responses (default: <image>.sam_raw.json)")
     parser.add_argument("--draw", action="store_true", help="also save <image>.boxes.png with the boxes drawn on")
     parser.add_argument("--from-raw", type=Path, help="re-parse a saved .sam_raw.json instead of calling the API")
+    parser.add_argument("--device", help="device id (e.g. timer-01): also write vision/calibration/<device>.sam_summary.json")
     args = parser.parse_args()
 
     image_path = args.image
@@ -382,6 +431,13 @@ def main():
     controls = to_controls(boxes_by_prompt)
     out_path.write_text(json.dumps(controls, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"{len(controls)} controls written to {out_path}", file=sys.stderr)
+
+    if args.device:
+        summary_path = write_sam_summary(args.device, image_path, controls, boxes_by_prompt,
+                                         from_saved_response=args.from_raw is not None)
+        print(f"Summary for the dashboard written to {summary_path} (commit this one)", file=sys.stderr)
+    else:
+        print("No --device, so no sam_summary.json (the dashboard needs one per device)", file=sys.stderr)
 
     if args.draw:
         draw_path = Path(f"{base}.boxes.png")
