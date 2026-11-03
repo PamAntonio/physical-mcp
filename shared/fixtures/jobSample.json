@@ -7,7 +7,7 @@
   "status": "awaiting_approval",
   "device": {
     "device_id": "incubator-01",
-    "name": "Benchtop incubator (demo device, placeholder)",
+    "name": "Benchtop incubator (placeholder)",
     "camera": {
       "camera_id": "cam-0",
       "frame_width": 1280,
