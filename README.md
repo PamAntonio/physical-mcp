@@ -241,7 +241,7 @@ Full jobs through the app on the real rig: **7/23 worked** (`real.job_success_ra
 | Failed, hardware error | 2 |
 <!-- reliability:end -->
 
-The site and demo say 6/7: the Nov 3 runs from 19:16 to 19:57 UTC, once the rig was working, not counting jobs stopped by hand. A later run also succeeded, and every recorded run is counted in the 7/23 above.
+The site says 7/8: the last 8 full jobs on Nov 3, from 19:16 UTC, not counting jobs stopped by hand. The demo video says 6 of 7 because it was made before the last of those runs. Every recorded run is counted in the 7/23 above.
 
 In the Nov 2 runs no H press changed T1: the frames show the H finger landing on the lower edge of the button after the timer was moved. In the Nov 3 runs, full jobs worked. The camera read of T1, the plans, the refusal, the retry and Stop all did their job in the rig runs. The refusal was correct: T1 was already past the time asked for. One hardware error was another program holding the serial port. The other, on Nov 3, was `The read operation timed out`. Reads checked vs. reads right isn't measured yet.
 
