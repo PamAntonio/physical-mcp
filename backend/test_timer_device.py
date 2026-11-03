@@ -1052,11 +1052,11 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(controls["btn_stsp"]["turns_on_output"], True)
         self.assertIs(controls["btn_h"]["turns_on_output"], False)
         self.assertIs(controls["btn_h"]["risky"], False)
-        self.assertEqual(controls["btn_t2"]["bbox"], [700, 386, 82, 81])
+        self.assertEqual(controls["btn_t2"]["bbox"], [1650, 418, 129, 127])
 
         device = await api.get_device(DEVICE)
         self.assertEqual(device["camera"]["latest_frame_url"], "/mock/timer-01.svg")
-        self.assertEqual((device["camera"]["frame_width"], device["camera"]["frame_height"]), (959, 1280))
+        self.assertEqual((device["camera"]["frame_width"], device["camera"]["frame_height"]), (2560, 1440))
 
 
 if __name__ == "__main__":
