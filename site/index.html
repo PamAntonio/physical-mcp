@@ -8,6 +8,8 @@
 <meta property="og:title" content="Physical MCP: an API for machines that have none">
 <meta property="og:description" content="An AI that sees a control panel, presses the buttons, and asks a human before anything risky.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://physicalmcp.dev/">
+<link rel="canonical" href="https://physicalmcp.dev/">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -302,8 +304,8 @@
       <p class="sec-sub">Only numbers with a source are here. Everything else says so. Full table, sources and check dates: <span class="mono">docs/costs.md</span>.</p>
       <div class="statgrid">
         <div class="stat"><p class="stat-v">&asymp;$20</p><p class="stat-k">Rig parts</p><p class="fine">Servos, webcam, ESP32, wiring. Entered prices, listings not attached yet.</p></div>
-        <div class="stat"><p class="stat-v">Not measured</p><p class="stat-k">Cost per job</p><p class="fine">Planner, screen reads, scorer. No made-up values.</p></div>
-        <div class="stat"><p class="stat-v">Not measured</p><p class="stat-k">Success rate on the rig</p><p class="fine">Jobs that finished right, retries per job. Runs are recorded, the rig time isn&rsquo;t in yet.</p></div>
+        <div class="stat"><p class="stat-v">$0.14</p><p class="stat-k">API cost per job</p><p class="fine">Planner, screen reads, scorer, at list price. From the one run so far with token usage recorded. Hackathon credits paid for the calls.</p></div>
+        <div class="stat"><p class="stat-v">6/7</p><p class="stat-k">Full jobs worked on the rig</p><p class="fine">Nov 3 runs, not counting jobs stopped by hand. All 23 recorded runs, debugging included, are in <span class="mono">runs/</span>.</p></div>
       </div>
       <h3>Replace the machine, or give it an API</h3>
       <div class="tblwrap"><table class="tbl costs">

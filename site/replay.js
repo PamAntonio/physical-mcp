@@ -5,7 +5,7 @@
 
 /* Paste the demo video link here and it plays in the #video section.
    MP4/file URLs use <video>; youtube.com/watch and youtu.be links embed. */
-const VIDEO_URL = "";
+const VIDEO_URL = "demo.mp4";
 
 const $ = (id) => document.getElementById(id);
 
@@ -547,6 +547,13 @@ hold.addEventListener("keyup", () => engine.holdCancel());
     node.controls = true;
     node.playsInline = true;
     node.preload = "metadata";
+    node.poster = "demo-poster.webp";
+    const captions = document.createElement("track");
+    captions.kind = "captions";
+    captions.src = "demo.vtt";
+    captions.srclang = "en";
+    captions.label = "English";
+    node.appendChild(captions);
   }
   shell.innerHTML = "";
   shell.appendChild(node);
