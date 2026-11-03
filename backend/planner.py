@@ -22,12 +22,19 @@ import json
 import os
 import re
 import sys
+import threading
+import time
 from pathlib import Path
 
 from openai import OpenAI
 
 BASE_URL = "https://api.meta.ai/v1"
 MODEL = "muse-spark-1.3"
+
+# model usage per call, for the dashboard. off unless a caller sets usage_log.calls to a list
+# on its own thread (api.py does, around make_plan): then call_model adds one entry per reply.
+# per thread, so two plannings at once never mix their calls up
+usage_log = threading.local()
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -507,8 +514,26 @@ def _extract_content(response):
     return str(content)
 
 
+def record_usage(response, seconds):
+    """Adds {model, prompt_tokens, completion_tokens, seconds} to usage_log.calls, if a caller
+    set that up. Field names are what api.meta.ai sends back (checked on a real reply):
+    usage.prompt_tokens and usage.completion_tokens (reasoning tokens are counted in the
+    completion ones). No usage on the reply, nothing added."""
+    calls = getattr(usage_log, "calls", None)
+    usage = getattr(response, "usage", None)
+    if calls is None or usage is None:
+        return
+    calls.append({
+        "model": getattr(response, "model", None) or MODEL,
+        "prompt_tokens": usage.prompt_tokens,
+        "completion_tokens": usage.completion_tokens,
+        "seconds": round(seconds, 2),
+    })
+
+
 def call_model(client, messages):
     """Call the model; retry once without response_format if it is rejected."""
+    started = time.monotonic()
     try:
         response = client.chat.completions.create(
             model=MODEL,
@@ -518,10 +543,12 @@ def call_model(client, messages):
     except Exception as exc:
         if not _is_response_format_rejection(exc):
             raise
+        started = time.monotonic()  # the rejected try sends nothing back to count
         response = client.chat.completions.create(
             model=MODEL,
             messages=messages,
         )
+    record_usage(response, time.monotonic() - started)
     return _extract_content(response)
 
 

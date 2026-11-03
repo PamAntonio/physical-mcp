@@ -271,6 +271,16 @@ def make_plan(device_id, request, screen_readings=None):
     return plan
 
 
+def make_plan_counting_usage(usage, device_id, request, screen_readings=None):
+    """make_plan on this worker thread, with planner.call_model adding every reply's token
+    counts to `usage` (a list the caller keeps, so a refused or failed plan still counts)."""
+    planner.usage_log.calls = usage
+    try:
+        return make_plan(device_id, request, screen_readings)
+    finally:
+        planner.usage_log.calls = None
+
+
 async def score_in_background(run, step):
     loop = asyncio.get_running_loop()
     # the scorer gets its own copies, the run keeps changing the real ones
@@ -282,6 +292,9 @@ async def score_in_background(run, step):
     except Exception as err:
         score = scorer.fallback_score()
         raw = {"error": f"{type(err).__name__}: {err}"}
+    # the tokens were spent either way, so they count even if the job's over by now
+    for call in raw.get("usage") or []:
+        run.job.setdefault("usage", []).append(call)
     if raw.get("error"):
         # still high, but say it's a fallback so nobody reads it as a real score
         log(f"scoring {step['step_id']} failed, sent high: {raw['error']}")
@@ -511,7 +524,8 @@ async def run_job(run):
     async with Client(mcp_server.mcp) as client:
         readings = await read_screens_for_planning(run, client, job["device"], run.profile)
         try:
-            plan = await asyncio.to_thread(make_plan, device_id, job["request"], readings)
+            usage = job.setdefault("usage", [])
+            plan = await asyncio.to_thread(make_plan_counting_usage, usage, device_id, job["request"], readings)
         except PlanRefused as err:
             log(f"planner refused: {err}")
             reason = str(err).strip()
@@ -901,6 +915,7 @@ async def create_job(http_request: Request):
         "plan": None,
         "result": None,
         "pause_reason": None,
+        "usage": [],  # one {model, prompt_tokens, completion_tokens, seconds} per planner/scorer reply
     }
     run = JobRun(job)
     runs[job["job_id"]] = run
