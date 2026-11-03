@@ -12,6 +12,13 @@ Rules this script sticks to:
 - the risk/out/*.scored.json files are real Muse Spark Open calls, but on fixture jobs (the
   incubator and the Inkbird), not on the timer demo. They're reported as their own group.
 
+Where the numbers come from:
+- runs/<job_id>/job.json + events.json (committed, see runs/README.md): reliability, speed,
+  safety, step.decision (time to decide, tap vs hold) and job.usage (tokens, real runs only)
+- vision/calibration/<device>.sam_summary.json (detect_controls.py --device): SAM detections
+- docs/costs.md (filled in by hand): a cost only counts with a receipt or a source URL
+- docs/hardware.md, backend/devices/*.json, backend/api.py, risk/out/*.scored.json
+
 Real vs mock for a run: put a runs/labels.json next to the run folders, like
     {"job_1a2b3c4d": "real", "job_9f8e7d6c": "mock"}
 That wins. With no label, the script guesses from the reads: FakeHardware reads have no
@@ -149,6 +156,41 @@ def all_notes(run):
         if note:
             notes.append((event, note))
     return notes
+
+
+def run_decisions(run):
+    """Every approval decision in a run: step.decision on the step.updated events (api.py puts it
+    there when a decision lands). The same decision rides along on that step's later events, so
+    each one counts once. A step rejected with pause and approved later has two."""
+    decisions = []
+    seen = set()
+    for event in run["events"]:
+        if event["type"] != "step.updated":
+            continue
+        decision = event["step"].get("decision")
+        if not decision:
+            continue
+        key = (event["step"]["step_id"], decision.get("decision"), decision.get("decided_at"),
+               decision.get("time_to_decide_ms"), decision.get("approval_type"))
+        if key in seen:
+            continue
+        seen.add(key)
+        decisions.append(decision)
+    return decisions
+
+
+def job_tokens(run):
+    """(prompt, completion, calls) summed over job.usage, or None if the job has no usage list
+    (recorded before api.py kept one)."""
+    usage = run["job"].get("usage")
+    if usage is None:
+        return None
+    prompt = 0
+    completion = 0
+    for call in usage:
+        prompt += call.get("prompt_tokens") or 0
+        completion += call.get("completion_tokens") or 0
+    return prompt, completion, len(usage)
 
 
 def run_metrics(runs, label):
@@ -352,6 +394,65 @@ def run_metrics(runs, label):
         metric(f"{label}.scored_by_real_spark_open", f"{scored_real}/{scored_total}", f"{scored_total} scored steps", source,
                note=f"fallback {scored_fallback}, other {scored_other} (step.risk_scored_by + risk_reason)"),
     ]))
+
+    # ---- decisions, as the web app sent them (step.decision) ----
+    decide_ms = []
+    approval_types = {"tap": 0, "hold": 0, "not sent": 0}
+    approved = 0
+    rejected = 0
+    for run in group:
+        for decision in run_decisions(run):
+            if decision.get("time_to_decide_ms") is not None:
+                decide_ms.append(decision["time_to_decide_ms"])
+            kind = decision.get("approval_type")
+            if kind in approval_types:
+                approval_types[kind] += 1
+            else:
+                approval_types["not sent"] += 1
+            if decision.get("decision") == "approve":
+                approved += 1
+            else:
+                rejected += 1
+    decisions_total = approved + rejected
+    if decisions_total:
+        out.update(dict([
+            metric(f"{label}.time_to_decide_median_ms", median(decide_ms), f"{len(decide_ms)} decisions with a time",
+                   source.replace("job.json + events.json", "events.json step.decision"),
+                   note=f"time_to_decide_ms as the web app sent it, from when the card appeared. "
+                        f"{approved} approvals, {rejected} rejections"),
+            metric(f"{label}.approval_type_mix", approval_types, f"{decisions_total} decisions",
+                   source.replace("job.json + events.json", "events.json step.decision"),
+                   note="step.decision.approval_type"),
+        ]))
+
+    # ---- model usage (real runs only: what the demo's jobs actually cost in tokens) ----
+    if label == "real":
+        prompt_per_job = []
+        completion_per_job = []
+        calls = 0
+        without_usage = 0
+        for run in group:
+            tokens = job_tokens(run)
+            if tokens is None:
+                without_usage += 1
+                continue
+            prompt_per_job.append(tokens[0])
+            completion_per_job.append(tokens[1])
+            calls += tokens[2]
+        if prompt_per_job:
+            totals = []
+            for index in range(len(prompt_per_job)):
+                totals.append(prompt_per_job[index] + completion_per_job[index])
+            note = (f"medians per job over {calls} planner + scorer calls (job.usage). Screen reads aren't "
+                    f"counted yet. Completion includes reasoning tokens. No prices, those come from billing")
+            if without_usage:
+                note += f". {without_usage} jobs recorded before job.usage existed are left out"
+            out.update(dict([
+                metric("real.tokens_per_job", {"prompt": median(prompt_per_job), "completion": median(completion_per_job),
+                                               "total": median(totals)},
+                       f"{len(prompt_per_job)} jobs", "runs/*/job.json usage (real)", note=note),
+            ]))
+
     # computed from data, but FakeHardware data: never let these read as rig numbers
     if label == "mock":
         for entry in out.values():
@@ -429,6 +530,95 @@ def calibration_files(calibration_dir):
     return files
 
 
+def sam_summaries(calibration_dir):
+    """vision/calibration/<device>.sam_summary.json, written by detect_controls.py --device."""
+    summaries = {}
+    for path in sorted(Path(calibration_dir).glob("*.sam_summary.json")):
+        summary = load_json(path)
+        confidences = []
+        for control in summary.get("controls") or []:
+            if control.get("confidence") is not None:
+                confidences.append(control["confidence"])
+        summaries[summary.get("device_id") or path.name.split(".")[0]] = {
+            "file": rel(path), "frame_file": summary.get("frame_file"), "frame_size": summary.get("frame_size"),
+            "timestamp": summary.get("timestamp"), "from_saved_response": summary.get("from_saved_response"),
+            "controls": len(summary.get("controls") or []), "average_confidence": average(confidences),
+        }
+    return summaries
+
+
+def markdown_table(text, heading):
+    """The first table under '## heading', as a list of dicts keyed by the lowercased header cells."""
+    rows = []
+    header = None
+    in_section = False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            if in_section:
+                break
+            in_section = line[3:].strip().lower() == heading.lower()
+            continue
+        if not in_section or not line.strip().startswith("|"):
+            continue
+        cells = []
+        for cell in line.strip().strip("|").split("|"):
+            cells.append(cell.strip())
+        if header is None:
+            header = []
+            for cell in cells:
+                header.append(cell.lower())
+            continue
+        if set("".join(cells)) <= set("-: "):
+            continue  # the |---|---| line
+        row = {}
+        for index, name in enumerate(header):
+            row[name] = cells[index] if index < len(cells) else ""
+        rows.append(row)
+    return rows
+
+
+def money(text):
+    """'$1,299.00' or '12.99' -> a number. Blank or anything else -> None (never a guess)."""
+    cleaned = (text or "").replace("$", "").replace(",", "").replace("USD", "").strip()
+    if not re.fullmatch(r"\d+(\.\d+)?", cleaned):
+        return None
+    return float(cleaned)
+
+
+def cost_tables(costs_md):
+    """(parts, comparison) rows from docs/costs.md, or (None, None) if there's no such file."""
+    if not costs_md.is_file():
+        return None, None
+    text = costs_md.read_text(encoding="utf-8")
+    return markdown_table(text, "Parts"), markdown_table(text, "Comparison")
+
+
+def comparison_metric(rows, wanted, need):
+    """cost.replace_machine / cost.iot_retrofit: every comparison row of that kind that has a
+    cost and a source URL. REAL once there's at least one, NEEDS INPUT before that."""
+    counted = []
+    waiting = []
+    for row in rows:
+        option = row.get("option", "")
+        is_retrofit = "retrofit" in option.lower()
+        if is_retrofit != (wanted == "retrofit"):
+            continue
+        price = money(row.get("cost"))
+        source = row.get("source url", "")
+        if price is not None and source:
+            counted.append({"option": option, "cost": price, "source": source})
+        else:
+            waiting.append(option)
+    if not counted:
+        return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": "docs/costs.md Comparison",
+                "need": need + (f" (blank in docs/costs.md: {', '.join(waiting)})" if waiting else "")}
+    entry = {"value": counted, "sample": f"{len(counted)} cited options", "status": "REAL",
+             "source": "docs/costs.md Comparison"}
+    if waiting:
+        entry["note"] = f"still blank: {', '.join(waiting)}"
+    return entry
+
+
 def scored_fixtures(risk_out):
     """The committed Spark Open scores. Real model calls, fixture jobs (not the timer demo)."""
     jobs = []
@@ -480,8 +670,9 @@ def build(runs_dir, out_path):
                              "status": "REAL" if runs else "NEEDS DATA",
                              "labels": {run["job_id"]: f"{run['label']} ({run['label_source']})" for run in runs}}
     if not runs:
-        notes.append(f"No recorded runs in {rel(runs_dir)}. runs/ is gitignored, so record with "
-                     "backend/record_run.py on the rig laptop and run this script there.")
+        notes.append(f"No recorded runs in {rel(runs_dir)}. Record them with backend/record_run.py on the rig "
+                     "laptop, label them in runs/labels.json and commit job.json + events.json "
+                     "(docs/first-loop-checklist.md, 'Recording runs for the dashboard').")
     metrics.update(run_metrics(runs, "real"))
     metrics.update(run_metrics(runs, "mock"))
 
@@ -566,19 +757,69 @@ def build(runs_dir, out_path):
         "note": "same START button, the model scores it by context",
     }
 
-    # things the repo can't give us
-    for name, what in (
-        ("cost.hardware_parts_total", "receipts (servos, ESP32, webcam, power bank, timer). Nothing in the repo"),
-        ("cost.api_spend_per_job", "Meta Model API + Baseten billing pages for the days of the runs, divided by real jobs. "
-                                   "The backend doesn't log tokens"),
-        ("cost.replace_machine", "a cited price for a new 4-channel timer or the lab machine it stands in for"),
-        ("cost.iot_retrofit", "a cited source (plan has the Bosch drill press ~$2,000 and A3's ranges)"),
-        ("vision.sam_detection_confidence", "SAM 3.1 raw outputs (*.controls.json, *.sam_raw.json) are gitignored, "
-                                            "and the device controls' confidence values come from fixtures"),
-        ("vision.time_to_decide_ms_as_sent", "api.py only prints time_to_decide_ms to the console. "
-                                             "Event timestamps above are the recorded proxy"),
-    ):
-        metrics[name] = {"value": None, "sample": None, "status": "NEEDS INPUT", "source": None, "need": what}
+    # SAM detections: one summary per device, from detect_controls.py --device
+    summaries = sam_summaries(REPO_ROOT / "vision" / "calibration")
+    for device_id, info in summaries.items():
+        note = f"frame {info['frame_file']} {info['frame_size']}, {info['timestamp']}"
+        if info["from_saved_response"]:
+            note += ", re-parsed from a saved response"
+        metrics[f"vision.sam_controls_detected.{device_id}"] = {
+            "value": info["controls"], "sample": "1 frame", "status": "REAL", "source": info["file"], "note": note}
+        metrics[f"vision.sam_average_confidence.{device_id}"] = {
+            "value": info["average_confidence"], "sample": f"{info['controls']} controls", "status": "REAL",
+            "source": info["file"] + " controls[].confidence", "note": note}
+    if not summaries:
+        metrics["vision.sam_detection_confidence"] = {
+            "value": None, "sample": None, "status": "NEEDS DATA", "source": "vision/calibration/*.sam_summary.json",
+            "need": "run vision/detect_controls.py <rig frame> --device timer-01 and commit the "
+                    "vision/calibration/timer-01.sam_summary.json it writes"}
+
+    # time to decide, as the web app sent it: the headline number from the real runs
+    if "real.time_to_decide_median_ms" not in metrics:
+        metrics["vision.time_to_decide_ms_as_sent"] = {
+            "value": None, "sample": None, "status": "NEEDS DATA", "source": "runs/*/events.json step.decision",
+            "need": "real runs recorded since api.py started keeping step.decision. "
+                    "real.human_approval_time_median_s is the event-timestamp proxy until then"}
+
+    # costs, from docs/costs.md (filled in by hand from receipts and cited sources)
+    parts, comparison = cost_tables(REPO_ROOT / "docs" / "costs.md")
+    if parts is None:
+        for name in ("cost.hardware_parts_total", "cost.replace_machine", "cost.iot_retrofit"):
+            metrics[name] = {"value": None, "sample": None, "status": "NEEDS INPUT", "source": None,
+                             "need": "docs/costs.md with the Parts and Comparison tables"}
+    else:
+        counted = []
+        waiting = []
+        for row in parts:
+            price = money(row.get("price"))
+            receipt = row.get("receipt file or order number", "")
+            if price is not None and receipt:
+                counted.append({"item": row.get("item"), "price": price, "receipt": receipt})
+            else:
+                waiting.append(row.get("item"))
+        so_far = 0
+        for part in counted:
+            so_far += part["price"]
+        if parts and not waiting:
+            metrics["cost.hardware_parts_total"] = {
+                "value": round(so_far, 2), "sample": f"{len(counted)} parts with receipts", "status": "REAL",
+                "source": "docs/costs.md Parts", "parts": counted}
+        else:
+            metrics["cost.hardware_parts_total"] = {
+                "value": None, "sample": f"{len(counted)} of {len(parts)} parts have a price and a receipt",
+                "status": "NEEDS INPUT", "source": "docs/costs.md Parts",
+                "need": "a price and a receipt file or order number for: " + ", ".join(waiting),
+                "receipted_so_far": round(so_far, 2) if counted else None}
+        metrics["cost.replace_machine"] = comparison_metric(
+            comparison, "replace", "a cost and a source URL for a new 4-channel timer or the lab machine it stands in for")
+        metrics["cost.iot_retrofit"] = comparison_metric(
+            comparison, "retrofit", "a cost and a source URL for an IoT retrofit")
+
+    # the $ per job needs billing pages, the tokens alone don't say what they cost
+    metrics["cost.api_spend_per_job"] = {
+        "value": None, "sample": None, "status": "NEEDS INPUT", "source": None,
+        "need": "Meta Model API + Baseten billing pages for the days of the runs. Tokens per job now come "
+                "from job.usage (real.tokens_per_job), the prices don't"}
 
     output = {"generated_by": "scripts/dashboard_metrics.py", "notes": notes, "metrics": metrics}
     Path(out_path).write_text(json.dumps(output, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
