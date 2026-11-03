@@ -16,7 +16,8 @@ Where the numbers come from:
 - runs/<job_id>/job.json + events.json (committed, see runs/README.md): reliability, speed,
   safety, step.decision (time to decide, tap vs hold) and job.usage (tokens, real runs only)
 - vision/calibration/<device>.sam_summary.json (detect_controls.py --device): SAM detections
-- docs/costs.md (filled in by hand): a cost only counts with a receipt or a source URL
+- docs/costs.md (filled in by hand): a part is proven with an order number or a proof file in
+  docs/receipts/, a comparison counts with a source URL
 - docs/hardware.md, backend/devices/*.json, backend/api.py, risk/out/*.scored.json
 
 Real vs mock for a run: put a runs/labels.json next to the run folders, like
@@ -593,6 +594,85 @@ def cost_tables(costs_md):
     return markdown_table(text, "Parts"), markdown_table(text, "Comparison")
 
 
+def link_target(cell):
+    """'[name](receipts/x.pdf)' -> 'receipts/x.pdf'. A bare path comes back as it is."""
+    found = re.search(r"\]\(([^)]+)\)", cell or "")
+    if found:
+        return found.group(1).strip()
+    return (cell or "").strip()
+
+
+def proof_problem(cell, docs_dir):
+    """None if the Proof file cell points at a file that's really there (relative to docs/).
+    Otherwise why it doesn't count. Blank cell -> 'no proof file'."""
+    target = link_target(cell)
+    if not target:
+        return "no proof file"
+    if target.startswith("http://") or target.startswith("https://"):
+        return "a URL isn't proof, it has to be a file in docs/receipts/"
+    path = (Path(docs_dir) / target).resolve()
+    if path.name.lower() == "readme.md" or not path.is_file():
+        return f"proof file {target} isn't in the repo"
+    return None
+
+
+def parts_metric(rows, docs_dir):
+    """cost.hardware_parts_total from the Parts table. A row's cost is its Total (or Qty x Unit
+    price when Total is blank). It's proven with an order number or a proof file that exists.
+    The total is only REAL once every row has a cost and is proven. Until then it's NEEDS INPUT,
+    with what's entered and what's proven shown apart."""
+    source = "docs/costs.md Parts"
+    if not rows:
+        return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": source,
+                "need": "rows in the Parts table"}
+    detail = []
+    no_cost = []
+    unproven = []
+    problems = []
+    entered = 0
+    proven = 0
+    for row in rows:
+        item = row.get("item")
+        qty = money(row.get("qty"))
+        unit = money(row.get("unit price"))
+        total = money(row.get("total"))
+        if total is None and qty is not None and unit is not None:
+            total = qty * unit
+        elif total is not None and qty is not None and unit is not None and abs(qty * unit - total) > 0.005:
+            problems.append(f"{item}: {row.get('qty')} x {row.get('unit price')} isn't {row.get('total')}")
+        order = row.get("order number", "")
+        why_not = proof_problem(row.get("proof file"), docs_dir)
+        if why_not and why_not != "no proof file":
+            problems.append(f"{item}: {why_not}")
+        is_proven = bool(order) or why_not is None
+        detail.append({"item": item, "cost": total, "proven": is_proven, "order_number": order or None,
+                       "proof_file": link_target(row.get("proof file")) or None, "note": row.get("note") or None})
+        if total is None:
+            no_cost.append(item)
+        else:
+            entered += total
+            if is_proven:
+                proven += total
+        if not is_proven:
+            unproven.append(item)
+
+    if not no_cost and not unproven and not problems:
+        return {"value": round(entered, 2), "sample": f"{len(rows)} parts, all with an order number or proof file",
+                "status": "REAL", "source": source, "parts": detail}
+    need = []
+    if no_cost:
+        need.append("a price for: " + ", ".join(no_cost))
+    if unproven:
+        need.append("an order number or a proof file in docs/receipts/ for: " + ", ".join(unproven))
+    if problems:
+        need.append("fix: " + "; ".join(problems))
+    priced = len(rows) - len(no_cost)
+    return {"value": None, "sample": f"{priced} of {len(rows)} parts priced, {len(rows) - len(unproven)} proven",
+            "status": "NEEDS INPUT", "source": source, "need": ". ".join(need),
+            "entered_total": round(entered, 2) if priced else None, "proven_total": round(proven, 2),
+            "parts": detail}
+
+
 def comparison_metric(rows, wanted, need):
     """cost.replace_machine / cost.iot_retrofit: every comparison row of that kind that has a
     cost and a source URL. REAL once there's at least one, NEEDS INPUT before that."""
@@ -788,28 +868,7 @@ def build(runs_dir, out_path):
             metrics[name] = {"value": None, "sample": None, "status": "NEEDS INPUT", "source": None,
                              "need": "docs/costs.md with the Parts and Comparison tables"}
     else:
-        counted = []
-        waiting = []
-        for row in parts:
-            price = money(row.get("price"))
-            receipt = row.get("receipt file or order number", "")
-            if price is not None and receipt:
-                counted.append({"item": row.get("item"), "price": price, "receipt": receipt})
-            else:
-                waiting.append(row.get("item"))
-        so_far = 0
-        for part in counted:
-            so_far += part["price"]
-        if parts and not waiting:
-            metrics["cost.hardware_parts_total"] = {
-                "value": round(so_far, 2), "sample": f"{len(counted)} parts with receipts", "status": "REAL",
-                "source": "docs/costs.md Parts", "parts": counted}
-        else:
-            metrics["cost.hardware_parts_total"] = {
-                "value": None, "sample": f"{len(counted)} of {len(parts)} parts have a price and a receipt",
-                "status": "NEEDS INPUT", "source": "docs/costs.md Parts",
-                "need": "a price and a receipt file or order number for: " + ", ".join(waiting),
-                "receipted_so_far": round(so_far, 2) if counted else None}
+        metrics["cost.hardware_parts_total"] = parts_metric(parts, REPO_ROOT / "docs")
         metrics["cost.replace_machine"] = comparison_metric(
             comparison, "replace", "a cost and a source URL for a new 4-channel timer or the lab machine it stands in for")
         metrics["cost.iot_retrofit"] = comparison_metric(
