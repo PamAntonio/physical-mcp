@@ -1,0 +1,18 @@
+[
+  {
+    "type": "job.status",
+    "job_id": "job_f3f05cef",
+    "ts": "2026-11-03T19:56:27.706Z",
+    "status": "planning"
+  },
+  {
+    "type": "job.finished",
+    "job_id": "job_f3f05cef",
+    "ts": "2026-11-03T19:56:57.312Z",
+    "result": {
+      "outcome": "stopped",
+      "message": "Stopped by you. Finger retracted.",
+      "final_screen_text": null
+    }
+  }
+]

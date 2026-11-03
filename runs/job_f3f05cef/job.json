@@ -1,0 +1,239 @@
+{
+  "job_id": "job_f3f05cef",
+  "created_at": "2026-11-03T19:56:27.706Z",
+  "updated_at": "2026-11-03T19:56:57.312Z",
+  "request": "Set T1 to 1 hour",
+  "approval_mode": "risky_steps",
+  "press_budget": 30,
+  "status": "stopped",
+  "device": {
+    "device_id": "timer-01",
+    "name": "4-channel kitchen timer (placeholder boxes from a hand-held photo)",
+    "camera": {
+      "camera_id": "cam-0",
+      "frame_width": 2560,
+      "frame_height": 1440,
+      "latest_frame_url": "/frames/timer-01-latest.jpg?t=1793735787706"
+    },
+    "controls_version": 1,
+    "controls": [
+      {
+        "control_id": "screen_t1",
+        "label": "T1 time",
+        "kind": "screen",
+        "bbox": [
+          1086,
+          230,
+          463,
+          136
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t2",
+        "label": "T2 time",
+        "kind": "screen",
+        "bbox": [
+          1087,
+          378,
+          460,
+          133
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t3",
+        "label": "T3 time",
+        "kind": "screen",
+        "bbox": [
+          1088,
+          521,
+          456,
+          134
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t4",
+        "label": "T4 time",
+        "kind": "screen",
+        "bbox": [
+          1089,
+          654,
+          454,
+          148
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t1",
+        "label": "T1",
+        "kind": "button",
+        "bbox": [
+          1731,
+          188,
+          133,
+          137
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t2",
+        "label": "T2",
+        "kind": "button",
+        "bbox": [
+          1733,
+          347,
+          133,
+          135
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t3",
+        "label": "T3",
+        "kind": "button",
+        "bbox": [
+          1737,
+          507,
+          134,
+          133
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t4",
+        "label": "T4",
+        "kind": "button",
+        "bbox": [
+          1741,
+          666,
+          136,
+          134
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_h",
+        "label": "H",
+        "kind": "button",
+        "bbox": [
+          899,
+          871,
+          146,
+          110
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_m",
+        "label": "M",
+        "kind": "button",
+        "bbox": [
+          1072,
+          872,
+          145,
+          109
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_s",
+        "label": "S",
+        "kind": "button",
+        "bbox": [
+          1245,
+          874,
+          144,
+          110
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_10m",
+        "label": "10M",
+        "kind": "button",
+        "bbox": [
+          897,
+          1004,
+          148,
+          112
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_5m",
+        "label": "5M",
+        "kind": "button",
+        "bbox": [
+          1073,
+          1005,
+          144,
+          111
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_10s",
+        "label": "10S",
+        "kind": "button",
+        "bbox": [
+          1247,
+          1007,
+          142,
+          111
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_reset",
+        "label": "RESET",
+        "kind": "button",
+        "bbox": [
+          1445,
+          961,
+          161,
+          157
+        ],
+        "confidence": 0.9,
+        "risky": true,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_stsp",
+        "label": "ST/SP",
+        "kind": "button",
+        "bbox": [
+          1657,
+          962,
+          239,
+          158
+        ],
+        "confidence": 0.9,
+        "risky": true,
+        "reachable": true
+      }
+    ]
+  },
+  "plan": null,
+  "result": {
+    "outcome": "stopped",
+    "message": "Stopped by you. Finger retracted.",
+    "final_screen_text": null
+  },
+  "pause_reason": null
+}
