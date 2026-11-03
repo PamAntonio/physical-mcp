@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { ApprovalDecision, ApprovalMode, Control, Device, RejectBehavior, Step } from "@contract/types";
 import { createBackend, type ConnectionState, type JobBackend } from "@/lib/backend";
@@ -239,6 +240,7 @@ export default function Home() {
           )}
         </div>
         <div className="topbar-right">
+          <Link href="/results" className="btn-log">Results</Link>
           {job && <span className={`status status-${job.status}`}>{job.status.replace("_", " ")}</span>}
           <button
             type="button"

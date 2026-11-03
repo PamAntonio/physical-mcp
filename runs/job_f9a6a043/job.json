@@ -1,0 +1,239 @@
+{
+  "job_id": "job_f9a6a043",
+  "created_at": "2026-11-03T01:03:02.876Z",
+  "updated_at": "2026-11-03T01:03:33.687Z",
+  "request": "Set T1 to 5 hours and start it",
+  "approval_mode": "risky_steps",
+  "press_budget": 30,
+  "status": "failed",
+  "device": {
+    "device_id": "timer-01",
+    "name": "4-channel kitchen timer (placeholder boxes from a hand-held photo)",
+    "camera": {
+      "camera_id": "cam-0",
+      "frame_width": 1920,
+      "frame_height": 1080,
+      "latest_frame_url": "/frames/timer-01-latest.jpg?t=1793667782876"
+    },
+    "controls_version": 1,
+    "controls": [
+      {
+        "control_id": "screen_t1",
+        "label": "T1 time",
+        "kind": "screen",
+        "bbox": [
+          863,
+          175,
+          359,
+          106
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t2",
+        "label": "T2 time",
+        "kind": "screen",
+        "bbox": [
+          869,
+          291,
+          356,
+          103
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t3",
+        "label": "T3 time",
+        "kind": "screen",
+        "bbox": [
+          875,
+          402,
+          352,
+          103
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t4",
+        "label": "T4 time",
+        "kind": "screen",
+        "bbox": [
+          881,
+          505,
+          349,
+          113
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t1",
+        "label": "T1",
+        "kind": "button",
+        "bbox": [
+          1361,
+          125,
+          101,
+          107
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t2",
+        "label": "T2",
+        "kind": "button",
+        "bbox": [
+          1366,
+          249,
+          100,
+          105
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t3",
+        "label": "T3",
+        "kind": "button",
+        "bbox": [
+          1373,
+          373,
+          101,
+          103
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t4",
+        "label": "T4",
+        "kind": "button",
+        "bbox": [
+          1380,
+          496,
+          102,
+          103
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_h",
+        "label": "H",
+        "kind": "button",
+        "bbox": [
+          745,
+          684,
+          115,
+          83
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_m",
+        "label": "M",
+        "kind": "button",
+        "bbox": [
+          877,
+          678,
+          114,
+          83
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_s",
+        "label": "S",
+        "kind": "button",
+        "bbox": [
+          1008,
+          673,
+          112,
+          84
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_10m",
+        "label": "10M",
+        "kind": "button",
+        "bbox": [
+          749,
+          784,
+          116,
+          84
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_5m",
+        "label": "5M",
+        "kind": "button",
+        "bbox": [
+          882,
+          779,
+          113,
+          83
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_10s",
+        "label": "10S",
+        "kind": "button",
+        "bbox": [
+          1014,
+          774,
+          110,
+          83
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_reset",
+        "label": "RESET",
+        "kind": "button",
+        "bbox": [
+          1163,
+          731,
+          122,
+          118
+        ],
+        "confidence": 0.9,
+        "risky": true,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_stsp",
+        "label": "ST/SP",
+        "kind": "button",
+        "bbox": [
+          1324,
+          723,
+          178,
+          118
+        ],
+        "confidence": 0.9,
+        "risky": true,
+        "reachable": true
+      }
+    ]
+  },
+  "plan": null,
+  "result": {
+    "outcome": "failed",
+    "message": "Can't do this on this rig: Cannot set T1 to 5 hours because T1 shows 16:00 00 which is already above 5 hours and cannot be decreased - please reset the timer by hand. Nothing was pressed.",
+    "final_screen_text": null
+  },
+  "pause_reason": null
+}

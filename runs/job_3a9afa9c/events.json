@@ -1,0 +1,579 @@
+[
+  {
+    "type": "job.status",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:39:11.755Z",
+    "status": "planning"
+  },
+  {
+    "type": "plan.ready",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:42:10.750Z",
+    "plan": {
+      "planner": "muse-spark-1.3",
+      "summary": "Press H once to set T1 from 00:00 00 to 01:00 00",
+      "steps": [
+        {
+          "step_id": "s1",
+          "index": 1,
+          "intent": "Press H to add 1 hour to T1",
+          "action": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1,
+            "hold_ms": 1000
+          },
+          "expect": {
+            "control_id": "screen_t1",
+            "text_contains": "01:00 00"
+          },
+          "requires_approval": false,
+          "status": "pending",
+          "attempts": 0,
+          "started_at": null,
+          "finished_at": null,
+          "evidence": {
+            "before_frame_url": null,
+            "after_frame_url": null,
+            "screen_text": null
+          },
+          "error": null
+        }
+      ]
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Planned from screen_t1 reads '00:00 00' (medium)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "medium"
+      }
+    }
+  },
+  {
+    "type": "job.status",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:42:10.750Z",
+    "status": "running"
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:42:10.752Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to add 1 hour to T1",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "running",
+      "attempts": 1,
+      "started_at": "2026-11-03T02:42:10.752Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "medium"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:42:12.151Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to add 1 hour to T1",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T02:42:10.752Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "medium"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:43:36.696Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to add 1 hour to T1",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T02:42:10.752Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "screen_t1 reads '00:00 00' (high), wanted '01:00 00', looking again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:44:22.773Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to add 1 hour to T1",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "running",
+      "attempts": 2,
+      "started_at": "2026-11-03T02:42:10.752Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "retries": [
+        {
+          "attempt": 1,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        }
+      ]
+    },
+    "note": {
+      "kind": "retry",
+      "message": "Retry: screen_t1 still reads '00:00 00', same as before the press, so the press didn't register. Pressing btn_h x1 again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:44:24.166Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to add 1 hour to T1",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 2,
+      "started_at": "2026-11-03T02:42:10.752Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "retries": [
+        {
+          "attempt": 1,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        }
+      ]
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:45:11.983Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to add 1 hour to T1",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 2,
+      "started_at": "2026-11-03T02:42:10.752Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "retries": [
+        {
+          "attempt": 1,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        }
+      ]
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "screen_t1 reads '00:00 00' (high), wanted '01:00 00', looking again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:46:15.983Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to add 1 hour to T1",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "running",
+      "attempts": 3,
+      "started_at": "2026-11-03T02:42:10.752Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "retries": [
+        {
+          "attempt": 1,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        },
+        {
+          "attempt": 2,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        }
+      ]
+    },
+    "note": {
+      "kind": "retry",
+      "message": "Retry: screen_t1 still reads '00:00 00', same as before the press, so the press didn't register. Pressing btn_h x1 again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:46:17.365Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to add 1 hour to T1",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 3,
+      "started_at": "2026-11-03T02:42:10.752Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "retries": [
+        {
+          "attempt": 1,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        },
+        {
+          "attempt": 2,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        }
+      ]
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:47:07.666Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to add 1 hour to T1",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 3,
+      "started_at": "2026-11-03T02:42:10.752Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "retries": [
+        {
+          "attempt": 1,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        },
+        {
+          "attempt": 2,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        }
+      ]
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "screen_t1 reads '00:00 00' (high), wanted '01:00 00', looking again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:48:27.469Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to add 1 hour to T1",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "failed",
+      "attempts": 3,
+      "started_at": "2026-11-03T02:42:10.752Z",
+      "finished_at": "2026-11-03T02:48:27.469Z",
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": "Still reads '00:00 00' after 3 attempts, wanted '01:00 00'. Gave up so it doesn't overshoot.",
+      "retries": [
+        {
+          "attempt": 1,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        },
+        {
+          "attempt": 2,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '00:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        }
+      ]
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Failed after reading: screen_t1 reads '00:00 00' (high)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "job.finished",
+    "job_id": "job_3a9afa9c",
+    "ts": "2026-11-03T02:48:27.469Z",
+    "result": {
+      "outcome": "failed",
+      "message": "Job failed at step 1: Still reads '00:00 00' after 3 attempts, wanted '01:00 00'. Gave up so it doesn't overshoot.",
+      "final_screen_text": "00:00 00"
+    }
+  }
+]

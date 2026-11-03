@@ -7,8 +7,8 @@ as they are. Add rows freely.
   A price without both shows on the dashboard as entered, not proven.
 - Total is what the listing shows for this row. If it's a share of a multipack, say how in Note:
   `2 of 10 from a $15 pack`.
-- A part we already had gets `already owned, not counted` in Note: it's left out of the total
-  and doesn't hold it back.
+- A part we already had gets `already owned (we had them at home), not counted` in Note: it's left
+  out of the total and doesn't hold it back.
 - Prices in USD, e.g. `12.99` or `$12.99`. Never type an estimate in here, leave it blank.
 - A replacement or retrofit cost only counts with a source URL: a retailer, manufacturer or
   article page that shows the figure. Write the figures as the page shows them, with `$`.
@@ -21,13 +21,14 @@ Prices are what these listings show, not receipts.
 
 | Item | Qty | Unit price | Total | Store | Listing URL (price as listed, checked &lt;date&gt;) | Checked | Note |
 |---|---|---|---|---|---|---|---|
-| SG90 servo (180°, not 360°) | 2 | $3 | $6 | | | | |
-| USB webcam | 1 | $4 | $4 | | | | |
+| MG90S micro servo, metal gear (180°) | 2 | $3 | $6 | Amazon | https://www.amazon.com/dp/B0CP98TZJ2 | 2026-11-03 | &lt;N&gt; of &lt;M&gt; from a $&lt;pack price&gt; pack |
+| Kyusrd 1080P USB webcam | 1 | $4.02 | $4.02 | Walmart | https://www.walmart.com/ip/16109623001 | 2026-11-03 | plus $6.39 shipping, not counted |
 | Microcontroller (ESP32) | | | $7 | | | | |
-| Misc (wire, breadboard) | | | $3 | | | | |
+| Jumper wires | | | | AliExpress | https://www.aliexpress.us/item/3256809267678383.html | 2026-11-03 | |
+| Mini breadboard, Olimex BREADBOARD-MINI | | | | DigiKey | https://www.digikey.com/en/products/detail/olimex-ltd/BREADBOARD-MINI/21662495 | 2026-11-03 | |
 | Finger materials (arms, hot glue, mounting tape, blocks, base board) | | | | | | | |
-| Always-on USB power bank | | | | | | | already owned, not counted |
-| USB cable (one end cut off for servo power) | | | | | | | already owned, not counted |
+| Always-on USB power bank | | | | | | | already owned (we had them at home), not counted |
+| USB cable (one end cut off for servo power) | | | | | | | already owned (we had them at home), not counted |
 
 ## Replacing the machine
 
@@ -64,3 +65,15 @@ What adding sensors and connectivity to an old machine cost, from a source that 
 |---|---|---|---|---|
 | Bosch Rexroth retrofit of a SKIL drill press (sensors + IoT Gateway) | about $2,000 | https://www.designdevelopmenttoday.com/industries/iot/video/21072198/making-a-dumb-drill-smart | 2026-11-02 | "All-in, they added about $2,000 worth of technology to the press." |
 | Retrofitting legacy equipment, typical range | a couple thousand dollars, up to $10,000 to $20,000 | https://www.automate.org/robotics/industry-insights/legacy-equipment-digital-transformation | 2026-11-02 | "This kind of addition to your equipment could cost as little as a couple thousand dollars, Tatum notes, or it could cost as much as $10,000 to $20,000." |
+
+## Model prices
+
+List prices per 1M tokens, copied from each provider's own page. `scripts/dashboard_metrics.py` times
+these by `job.usage` for the API cost per job. Hackathon credits paid for every call, so that's cost at
+list price, not what we spent. Cached input has its own lower price on both pages, but `job.usage` doesn't
+record cached tokens, so everything counts at the input price.
+
+| Model | Input $/1M | Output $/1M | Source URL | Date checked | Note |
+|---|---|---|---|---|---|
+| muse-spark-1.3 | $1.25 | $4.25 | https://dev.meta.ai/docs/pricing-rate-limits | 2026-11-03 | Standard mode. The Contributor mode price is for a different model id, which we don't call |
+| meta-models/muse-spark-open-1026 | $1.25 | $4.25 | https://www.baseten.co/library/muse-spark-open/ | 2026-11-03 | The page lists meta-models/muse-spark-open. It doesn't show a separate price for the 1026 id the organizers gave us |

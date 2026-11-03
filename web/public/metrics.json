@@ -1,0 +1,773 @@
+{
+  "generated_by": "scripts/dashboard_metrics.py",
+  "notes": [],
+  "metrics": {
+    "runs.found": {
+      "value": {
+        "real": 10,
+        "mock": 0
+      },
+      "sample": "10 run folders",
+      "source": "runs",
+      "status": "REAL",
+      "labels": {
+        "job_07f4db12": "real (labels.json)",
+        "job_1d6b4388": "real (labels.json)",
+        "job_31043a6a": "real (labels.json)",
+        "job_3a9afa9c": "real (labels.json)",
+        "job_4d62de5b": "real (labels.json)",
+        "job_573c4a0b": "real (labels.json)",
+        "job_61fe4fb6": "real (labels.json)",
+        "job_97845bf8": "real (labels.json)",
+        "job_f1e9b548": "real (labels.json)",
+        "job_f9a6a043": "real (labels.json)"
+      },
+      "group": "Reliability"
+    },
+    "real.job_success_rate": {
+      "value": "0/10",
+      "sample": "10 finished jobs",
+      "source": "runs/*/job.json result.outcome (real)",
+      "status": "REAL",
+      "note": "result.outcome == succeeded",
+      "group": "Reliability"
+    },
+    "real.job_outcomes": {
+      "value": {
+        "succeeded": 0,
+        "stopped": 5,
+        "refused": 1,
+        "gave_up_after_retries": 3,
+        "hardware_error": 1,
+        "other_failure": 0
+      },
+      "sample": "10 finished jobs",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "result.outcome, and result.message for why a job failed",
+      "group": "Reliability"
+    },
+    "real.first_try_verify_rate": {
+      "value": "0/4",
+      "sample": "4 press steps that ran",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "steps with status succeeded and attempts == 1",
+      "group": "Reliability"
+    },
+    "real.retries_per_job_avg": {
+      "value": 0.6,
+      "sample": "10 jobs",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "6 retries total, from step.retries",
+      "group": "Reliability"
+    },
+    "real.missed_presses_caught": {
+      "value": 6,
+      "sample": "10 jobs",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "events with note.kind == retry",
+      "group": "Reliability"
+    },
+    "real.time_per_job_median_s": {
+      "value": null,
+      "sample": "0 succeeded jobs",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "NEEDS DATA",
+      "note": "job.created_at to job.finished ts, includes the human's approval wait",
+      "need": "real runs where this happened",
+      "group": "Speed"
+    },
+    "real.time_per_step_median_s": {
+      "value": null,
+      "sample": "0 succeeded steps",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "NEEDS DATA",
+      "note": "step.started_at to step.finished_at",
+      "need": "real runs where this happened",
+      "group": "Speed"
+    },
+    "real.planner_time_median_s": {
+      "value": 59.8,
+      "sample": "8 jobs",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "job.created_at to plan.ready ts, includes the pre-plan screen read",
+      "group": "Speed"
+    },
+    "real.press_time_median_s": {
+      "value": 1.39,
+      "sample": "13 presses",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "step status running to verifying, from step.updated events. Range 1.38 to 1.4 s",
+      "group": "Speed"
+    },
+    "real.screen_read_time_median_s": {
+      "value": 42.0,
+      "sample": "23 reads",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "verifying, or the read before, to the next note with a read. Range 18.65 to 99.64 s",
+      "group": "Speed"
+    },
+    "real.risk_scoring_time_median_s": {
+      "value": 4.76,
+      "sample": "4 scored steps",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "plan.ready to the first step.updated with risk_tier (upper bound, it's an event ts)",
+      "group": "Speed"
+    },
+    "real.human_approval_time_median_s": {
+      "value": null,
+      "sample": "0 approvals",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "NEEDS DATA",
+      "note": "awaiting_approval to running, from job.status events",
+      "need": "real runs where this happened",
+      "group": "Speed"
+    },
+    "real.screen_read_confidence_mix": {
+      "value": {
+        "high": 29,
+        "medium": 2,
+        "low": 0,
+        "none": 0
+      },
+      "sample": "31 reads on log notes",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "note.read.confidence. A read can show up on more than one note",
+      "group": "Vision"
+    },
+    "real.low_confidence_pauses": {
+      "value": 0,
+      "sample": "10 jobs",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "note.kind == read_unclear",
+      "group": "Vision"
+    },
+    "real.steps_needing_approval": {
+      "value": "5/37",
+      "sample": "37 planned steps",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "step.requires_approval",
+      "group": "Safety"
+    },
+    "real.risk_tier_mix": {
+      "value": {
+        "low": 0,
+        "medium": 2,
+        "high": 2
+      },
+      "sample": "4 scored steps",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "group": "Safety"
+    },
+    "real.approvals_vs_rejections": {
+      "value": {
+        "approved": 0,
+        "rejected": 0
+      },
+      "sample": "0 decisions",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "group": "Safety"
+    },
+    "real.plans_refused": {
+      "value": 1,
+      "sample": "10 jobs",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "note.kind == planner_refused",
+      "group": "Safety"
+    },
+    "real.stop_presses": {
+      "value": 5,
+      "sample": "10 jobs",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "result.outcome stopped with message starting 'Stopped by you'",
+      "group": "Safety"
+    },
+    "real.scored_by_real_spark_open": {
+      "value": "2/4",
+      "sample": "4 scored steps",
+      "source": "runs/*/job.json + events.json (real)",
+      "status": "REAL",
+      "note": "fallback 2, other 0 (step.risk_scored_by + risk_reason)",
+      "group": "Safety"
+    },
+    "real.tokens_per_job": {
+      "value": null,
+      "sample": "0 of 10 jobs have usage",
+      "status": "NEEDS DATA",
+      "source": "runs/*/job.json usage (real)",
+      "need": "real runs recorded since api.py started keeping job.usage",
+      "group": "Cost"
+    },
+    "bench.press_success": {
+      "value": "50/50",
+      "sample": "3 bench tests",
+      "status": "REAL",
+      "source": "docs/hardware.md 'Reliability so far'",
+      "note": "presses sent straight from serial_hardware.py, not through the AI loop",
+      "rows": [
+        {
+          "test": "H, first rig, 20 presses through Python, 1 s hold (Oct 30)",
+          "ok": 20,
+          "tried": 20
+        },
+        {
+          "test": "ST/SP, rebuilt rig, 10 presses through Python, 1 s hold (Nov 2): start/stop toggles counted on video",
+          "ok": 10,
+          "tried": 10
+        },
+        {
+          "test": "H, rebuilt rig, 20 presses through Python, 1 s hold (Nov 2): T1 read 20:00 00",
+          "ok": 20,
+          "tried": 20
+        }
+      ],
+      "group": "Reliability"
+    },
+    "bench.press_success_rebuilt_rig": {
+      "value": "30/30",
+      "sample": "30 presses, rows mentioning the rebuilt rig",
+      "status": "REAL",
+      "source": "docs/hardware.md 'Reliability so far'",
+      "note": "the rig in the video. ST/SP counted on video, H by reading T1",
+      "group": "Reliability"
+    },
+    "config.press_budget_per_job": {
+      "value": 30,
+      "sample": "config",
+      "status": "REAL",
+      "source": "backend/api.py DEFAULT_PRESS_BUDGET",
+      "group": "Safety"
+    },
+    "config.max_attempts_per_step": {
+      "value": 3,
+      "sample": "config",
+      "status": "REAL",
+      "source": "backend/api.py DEFAULT_MAX_ATTEMPTS",
+      "group": "Safety"
+    },
+    "config.max_correction_presses": {
+      "value": 5,
+      "sample": "config",
+      "status": "REAL",
+      "source": "backend/api.py MAX_CORRECTION_PRESSES",
+      "group": "Safety"
+    },
+    "config.hold_ms_timer": {
+      "value": {
+        "hold_ms": 1000,
+        "max_hold_ms": 1800
+      },
+      "sample": "config",
+      "status": "REAL",
+      "source": "backend/devices/timer-01.json hold_ms, max_hold_ms",
+      "group": "Safety"
+    },
+    "scale.device_profiles": {
+      "value": 3,
+      "sample": "3 files",
+      "status": "REAL",
+      "source": "backend/devices/*.json",
+      "devices": {
+        "incubator-01": {
+          "file": "backend/devices/incubator-01.json",
+          "controls": 7,
+          "buttons": 6,
+          "buttons_with_a_finger": 6,
+          "screens_and_leds": 1,
+          "risky_buttons": 1,
+          "says_placeholder": false
+        },
+        "inkbird-01": {
+          "file": "backend/devices/inkbird-01.json",
+          "controls": 7,
+          "buttons": 3,
+          "buttons_with_a_finger": 3,
+          "screens_and_leds": 4,
+          "risky_buttons": 0,
+          "says_placeholder": false
+        },
+        "timer-01": {
+          "file": "backend/devices/timer-01.json",
+          "controls": 16,
+          "buttons": 12,
+          "buttons_with_a_finger": 2,
+          "screens_and_leds": 4,
+          "risky_buttons": 2,
+          "says_placeholder": false
+        }
+      },
+      "note": "incubator-01 is a placeholder device, inkbird-01 is cut from the demo",
+      "group": "Scale"
+    },
+    "scale.controls.incubator-01": {
+      "value": 7,
+      "sample": "1 profile",
+      "status": "REAL",
+      "source": "backend/devices/incubator-01.json controls",
+      "note": "6 buttons (6 with a finger), 1 screens/LEDs, 1 risky",
+      "group": "Scale"
+    },
+    "scale.controls.inkbird-01": {
+      "value": 7,
+      "sample": "1 profile",
+      "status": "REAL",
+      "source": "backend/devices/inkbird-01.json controls",
+      "note": "3 buttons (3 with a finger), 4 screens/LEDs, 0 risky",
+      "group": "Scale"
+    },
+    "scale.controls.timer-01": {
+      "value": 16,
+      "sample": "1 profile",
+      "status": "REAL",
+      "source": "backend/devices/timer-01.json controls",
+      "note": "12 buttons (2 with a finger), 4 screens/LEDs, 2 risky",
+      "group": "Scale"
+    },
+    "vision.calibrated_boxes.inkbird-01": {
+      "value": 7,
+      "sample": "frame [2560, 1440]",
+      "source": "vision/calibration/inkbird-01.boxes.json boxes",
+      "status": "NEEDS DATA",
+      "note": "file says PLACEHOLDER (hand-held photo / mock frame), not a rig frame",
+      "group": "Vision"
+    },
+    "vision.calibrated_boxes.timer-01": {
+      "value": 16,
+      "sample": "frame [959, 1280]",
+      "source": "vision/calibration/timer-01.boxes.json boxes",
+      "status": "NEEDS DATA",
+      "note": "file says PLACEHOLDER (hand-held photo / mock frame), not a rig frame",
+      "group": "Vision"
+    },
+    "risk_fixtures.scored_by_real_spark_open": {
+      "value": "18/18",
+      "sample": "4 fixture jobs",
+      "status": "REAL",
+      "source": "risk/out/*.scored.json risk_scored_by + risk_reason",
+      "note": "real Spark Open calls, but on fixture jobs (incubator, Inkbird), not the timer demo",
+      "jobs": [
+        {
+          "file": "risk/out/incubator_start_37.scored.json",
+          "device_id": "incubator-01",
+          "request": "Set the incubator to 37 °C and run it for 2 hours",
+          "steps": 6,
+          "real": 6,
+          "fallback": 0,
+          "tiers": {
+            "low": 5,
+            "medium": 1,
+            "high": 0
+          },
+          "steps_detail": [
+            [
+              "s1",
+              false,
+              "low"
+            ],
+            [
+              "s2",
+              false,
+              "low"
+            ],
+            [
+              "s3",
+              false,
+              "low"
+            ],
+            [
+              "s4",
+              false,
+              "low"
+            ],
+            [
+              "s5",
+              false,
+              "low"
+            ],
+            [
+              "s6",
+              true,
+              "medium"
+            ]
+          ]
+        },
+        {
+          "file": "risk/out/incubator_start_90.scored.json",
+          "device_id": "incubator-01",
+          "request": "Set the incubator to 90 °C and run it for 2 hours",
+          "steps": 6,
+          "real": 6,
+          "fallback": 0,
+          "tiers": {
+            "low": 3,
+            "medium": 0,
+            "high": 3
+          },
+          "steps_detail": [
+            [
+              "s1",
+              false,
+              "low"
+            ],
+            [
+              "s2",
+              false,
+              "high"
+            ],
+            [
+              "s3",
+              false,
+              "high"
+            ],
+            [
+              "s4",
+              false,
+              "low"
+            ],
+            [
+              "s5",
+              false,
+              "low"
+            ],
+            [
+              "s6",
+              true,
+              "high"
+            ]
+          ]
+        },
+        {
+          "file": "risk/out/inkbird_heat_80f.scored.json",
+          "device_id": "inkbird-01",
+          "request": "Set the heater to turn on at 80 °F",
+          "steps": 4,
+          "real": 4,
+          "fallback": 0,
+          "tiers": {
+            "low": 2,
+            "medium": 2,
+            "high": 0
+          },
+          "steps_detail": [
+            [
+              "s1",
+              true,
+              "medium"
+            ],
+            [
+              "s2",
+              false,
+              "low"
+            ],
+            [
+              "s3",
+              false,
+              "medium"
+            ],
+            [
+              "s4",
+              false,
+              "low"
+            ]
+          ]
+        },
+        {
+          "file": "risk/out/press_up_only.scored.json",
+          "device_id": "incubator-01",
+          "request": "Nudge the incubator set-point up by 1 °C",
+          "steps": 2,
+          "real": 2,
+          "fallback": 0,
+          "tiers": {
+            "low": 2,
+            "medium": 0,
+            "high": 0
+          },
+          "steps_detail": [
+            [
+              "s1",
+              false,
+              "low"
+            ],
+            [
+              "s2",
+              false,
+              "low"
+            ]
+          ]
+        }
+      ],
+      "group": "Safety"
+    },
+    "risk_fixtures.same_button_different_risk": {
+      "value": {
+        "Set the incubator to 37 °C and run it for 2 hours": "medium",
+        "Set the incubator to 90 °C and run it for 2 hours": "high"
+      },
+      "sample": "START step in 2 fixture jobs",
+      "status": "REAL",
+      "source": "risk/out/incubator_start_37.scored.json, incubator_start_90.scored.json (s6 risk_tier)",
+      "note": "same START button, the model scores it by context",
+      "headline": "medium vs high",
+      "label": "same START button, 37 °C medium vs 90 °C high, scored by Muse Spark Open",
+      "group": "Safety"
+    },
+    "vision.sam_detection_confidence": {
+      "value": null,
+      "sample": null,
+      "status": "NEEDS DATA",
+      "source": "vision/calibration/*.sam_summary.json",
+      "need": "run vision/detect_controls.py <rig frame> --device timer-01 and commit the vision/calibration/timer-01.sam_summary.json it writes",
+      "group": "Vision"
+    },
+    "vision.time_to_decide_ms_as_sent": {
+      "value": null,
+      "sample": null,
+      "status": "NEEDS DATA",
+      "source": "runs/*/events.json step.decision",
+      "need": "real runs recorded since api.py started keeping step.decision. real.human_approval_time_median_s is the event-timestamp proxy until then",
+      "group": "Vision"
+    },
+    "cost.hardware_parts_total": {
+      "value": null,
+      "sample": "3 of 6 parts priced, 4 proven, 2 items already owned",
+      "status": "NEEDS INPUT",
+      "source": "docs/costs.md Parts",
+      "need": "a price for: Jumper wires, Mini breadboard, Olimex BREADBOARD-MINI, Finger materials (arms, hot glue, mounting tape, blocks, base board). a listing URL and a checked date for: Microcontroller (ESP32), Finger materials (arms, hot glue, mounting tape, blocks, base board)",
+      "entered_total": 17.02,
+      "proven_total": 10.02,
+      "already_owned": [
+        "Always-on USB power bank",
+        "USB cable (one end cut off for servo power)"
+      ],
+      "parts": [
+        {
+          "item": "MG90S micro servo, metal gear (180°)",
+          "cost": 6.0,
+          "proven": true,
+          "listing": "https://www.amazon.com/dp/B0CP98TZJ2",
+          "checked": "2026-11-03",
+          "store": "Amazon",
+          "note": "&lt;N&gt; of &lt;M&gt; from a $&lt;pack price&gt; pack"
+        },
+        {
+          "item": "Kyusrd 1080P USB webcam",
+          "cost": 4.02,
+          "proven": true,
+          "listing": "https://www.walmart.com/ip/16109623001",
+          "checked": "2026-11-03",
+          "store": "Walmart",
+          "note": "plus $6.39 shipping, not counted"
+        },
+        {
+          "item": "Microcontroller (ESP32)",
+          "cost": 7.0,
+          "proven": false,
+          "listing": null,
+          "checked": null,
+          "store": null,
+          "note": null
+        },
+        {
+          "item": "Jumper wires",
+          "cost": null,
+          "proven": true,
+          "listing": "https://www.aliexpress.us/item/3256809267678383.html",
+          "checked": "2026-11-03",
+          "store": "AliExpress",
+          "note": null
+        },
+        {
+          "item": "Mini breadboard, Olimex BREADBOARD-MINI",
+          "cost": null,
+          "proven": true,
+          "listing": "https://www.digikey.com/en/products/detail/olimex-ltd/BREADBOARD-MINI/21662495",
+          "checked": "2026-11-03",
+          "store": "DigiKey",
+          "note": null
+        },
+        {
+          "item": "Finger materials (arms, hot glue, mounting tape, blocks, base board)",
+          "cost": null,
+          "proven": false,
+          "listing": null,
+          "checked": null,
+          "store": null,
+          "note": null
+        },
+        {
+          "item": "Always-on USB power bank",
+          "cost": null,
+          "already_owned": true
+        },
+        {
+          "item": "USB cable (one end cut off for servo power)",
+          "cost": null,
+          "already_owned": true
+        }
+      ],
+      "group": "Cost"
+    },
+    "cost.replace_machine.research_labs": {
+      "source": "https://www.tequipment.net/life-sciences-equipment/Incubators/",
+      "card": "Research labs (incubators, shakers, hot plates, ovens)",
+      "example": "Yamato IC-103C benchtop incubator, 37 L",
+      "date_checked": "2026-11-02",
+      "value": {
+        "low": 798.59,
+        "high": 1185.0
+      },
+      "status": "REAL",
+      "sample": "1 example machine, price as the page shows it",
+      "group": "Cost"
+    },
+    "cost.replace_machine.legacy_manufacturing": {
+      "source": "https://www.automationdirect.com/c-more/ea9/hardware/10_tft",
+      "card": "Legacy manufacturing (old controllers and HMIs)",
+      "example": "AutomationDirect C-more EA9-T10CL 10\" HMI touch panel",
+      "date_checked": "2026-11-02",
+      "value": {
+        "low": 1718.0,
+        "high": 1718.0
+      },
+      "status": "REAL",
+      "sample": "1 example machine, price as the page shows it",
+      "group": "Cost"
+    },
+    "cost.replace_machine.hardware_qa": {
+      "source": "https://rbtx.com/en-US/solutions/automate-touch-screen-test-with-robot",
+      "card": "Hardware QA (pressing device buttons to test firmware)",
+      "example": "igus RBTX touch screen test robot (3-axis, presses displays and buttons)",
+      "date_checked": "2026-11-02",
+      "value": {
+        "low": 12243.75,
+        "high": 12288.75
+      },
+      "status": "REAL",
+      "sample": "1 example machine, price as the page shows it",
+      "group": "Cost"
+    },
+    "cost.replace_machine.building_ops": {
+      "source": "https://www.supplyhouse.com/T775-2000-Series-10000000",
+      "card": "Building ops (boiler panels, HVAC controllers, freezer alarms)",
+      "example": "Honeywell T775B2040 electronic temperature controller (2 inputs, 4 relays)",
+      "date_checked": "2026-11-02",
+      "value": {
+        "low": 540.52,
+        "high": 540.52
+      },
+      "status": "REAL",
+      "sample": "1 example machine, price as the page shows it",
+      "group": "Cost"
+    },
+    "cost.replace_machine.agriculture": {
+      "source": "https://www.growerssupply.com/prod/gs-thermostats-controllers/link4-greenhouse-environmental.html",
+      "card": "Agriculture (greenhouse and grain dryer controllers)",
+      "example": "Link4 S750 iGrow greenhouse environment control kit",
+      "date_checked": "2026-11-02",
+      "value": {
+        "low": 8745.0,
+        "high": 8745.0
+      },
+      "status": "REAL",
+      "sample": "1 example machine, price as the page shows it",
+      "group": "Cost"
+    },
+    "cost.replace_machine.commercial_kitchens": {
+      "source": "https://www.webstaurantstore.com/frymaster-ph155-c-natural-gas-high-efficiency-fryer-50-lb-with-programmable-computer-controls-and-stainless-steel-door-80-000-btu/369PH155CN.html",
+      "card": "Commercial kitchens (ovens and fryers)",
+      "example": "Frymaster PH155-C 50 lb natural gas fryer, programmable",
+      "date_checked": "2026-11-02",
+      "value": {
+        "low": 6765.0,
+        "high": 6765.0
+      },
+      "status": "REAL",
+      "sample": "1 example machine, price as the page shows it",
+      "group": "Cost"
+    },
+    "cost.replace_machine.warehouses": {
+      "source": "https://www.uline.com/BL_2221/Mettler-Toledo-Parcel-Scale",
+      "card": "Warehouses (label printers, scales, kiosks)",
+      "example": "Mettler-Toledo BC60 parcel scale, 150 lb (Uline H-5275)",
+      "date_checked": "2026-11-02",
+      "value": {
+        "low": 945.0,
+        "high": 945.0
+      },
+      "status": "REAL",
+      "sample": "1 example machine, price as the page shows it",
+      "group": "Cost"
+    },
+    "cost.replace_machine.home_appliances": {
+      "source": "https://www.homedepot.com/b/Appliances-Ranges-Electric-Ranges/GE/N-5yc1vZc3obZlo",
+      "card": "Home appliances",
+      "example": "GE JB256DMWW 30\" free-standing electric range",
+      "date_checked": "2026-11-02",
+      "value": {
+        "low": 649.0,
+        "high": 829.0
+      },
+      "status": "REAL",
+      "sample": "1 example machine, price as the page shows it",
+      "group": "Cost"
+    },
+    "cost.iot_retrofit": {
+      "value": [
+        {
+          "option": "Bosch Rexroth retrofit of a SKIL drill press (sensors + IoT Gateway)",
+          "cost": "about $2,000",
+          "amounts": [
+            2000.0
+          ],
+          "source": "https://www.designdevelopmenttoday.com/industries/iot/video/21072198/making-a-dumb-drill-smart",
+          "date_checked": "2026-11-02"
+        },
+        {
+          "option": "Retrofitting legacy equipment, typical range",
+          "cost": "a couple thousand dollars, up to $10,000 to $20,000",
+          "amounts": [
+            10000.0,
+            20000.0
+          ],
+          "source": "https://www.automate.org/robotics/industry-insights/legacy-equipment-digital-transformation",
+          "date_checked": "2026-11-02"
+        }
+      ],
+      "sample": "2 cited sources",
+      "status": "REAL",
+      "source": "docs/costs.md Retrofitting with IoT",
+      "group": "Cost"
+    },
+    "cost.parts_vs_replace.research_labs": {
+      "value": null,
+      "sample": null,
+      "status": "NEEDS INPUT",
+      "source": "docs/costs.md",
+      "need": "the parts total (cost.hardware_parts_total) has to be REAL first",
+      "group": "Cost"
+    },
+    "cost.api_cost_per_job_list_price": {
+      "value": null,
+      "sample": "0 of 10 real jobs have usage",
+      "status": "NEEDS DATA",
+      "source": "runs/*/job.json usage x docs/costs.md Model prices",
+      "need": "real runs recorded since api.py started keeping job.usage",
+      "group": "Cost"
+    }
+  }
+}

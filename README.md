@@ -71,7 +71,7 @@ LED indicators are a pixel check, no model.
 | `backend/mcp_server.py` | The MCP tools every press and read goes through, with the approval gate in `press` | Working, in memory only (no HTTP transport yet) |
 | `backend/planner.py` | Muse Spark planner, plan validation, the timer plan check | Working with the live model |
 | `backend/devices/` | Device profiles: buttons, servo angles, holds, notes for the planner | `timer-01` main (H and ST/SP angles set). `inkbird-01` not tested on the rig. `incubator-01` placeholder, no rig |
-| `backend/serial_hardware.py`, `firmware/` | ESP32 servo fingers over USB serial, plus the webcam | Working on the bench: 50 of 50 direct presses. Also tested against a fake ESP32 |
+| `backend/serial_hardware.py`, `firmware/` | ESP32 servo fingers over USB serial, plus the webcam | Working on the bench, see Reliability. Also tested against a fake ESP32 |
 | `backend/calibrate.py`, `web/app/calibrate/` | Moves a device's control boxes to a new camera view from 4 clicked corners | Working, unit tested. The boxes on file are still marked placeholder |
 | `backend/record_run.py` | Records a run: every event plus every camera frame, into `runs/<job_id>/` | Working, tested against the real HTTP backend |
 | `backend/fake_camera.py` | The backend on FakeHardware plus a fake live webcam, to try the camera view with no rig | Working |
@@ -79,7 +79,9 @@ LED indicators are a pixel check, no model.
 | `risk/` | Muse Spark Open step scorer, CLI and a small HTTP endpoint | Working with the live model. Scored fixtures in `risk/out/` |
 | `shared/` | The contract (`types.ts`) and sample jobs both sides build on | v1, with newer fields marked PROPOSED |
 | `scripts/dashboard_metrics.py` | Computes every dashboard number from files in this repo and writes `metrics.json`. Anything it can't compute stays empty and says what's missing | Working, unit tested |
-| `runs/` | Recorded runs for the dashboard, labelled real or mock in `labels.json` | No runs committed yet |
+| `runs/` | Recorded runs for the dashboard, labelled real or mock in `labels.json` | The Nov 2 rig runs are in, as `job.json` and `events.json` |
+| `web/app/results/` | The results page: five tiles to film and every metric underneath, read from `web/public/metrics.json` | Working |
+| `scripts/readme_cost_table.py` | Writes the README's Cost, Reliability and Speed numbers from `web/public/metrics.json` | Working, unit tested |
 | `docs/` | `hardware.md` (how the rig is built, wired and calibrated), `first-loop-checklist.md` (first full run on the rig), `costs.md` (prices and sources) | Current |
 
 ## Run it
@@ -194,7 +196,10 @@ The servos run off their own power bank with ground shared with the ESP32. Build
 
 ```bash
 .venv/bin/python scripts/dashboard_metrics.py
+.venv/bin/python scripts/readme_cost_table.py --write
 ```
+
+Open `/results` in the web app to see them. The page reads `web/public/metrics.json`, which `scripts/dashboard_metrics.py` writes.
 
 ### Tests
 
@@ -205,6 +210,7 @@ The tests need the hardware requirements too (Pillow and OpenCV), but no rig and
 .venv/bin/python -m unittest discover -s backend -p "test_*.py"
 .venv/bin/python vision/test_read_screen.py
 .venv/bin/python -m unittest scripts/test_dashboard_metrics.py
+.venv/bin/python -m unittest scripts/test_readme_cost_table.py
 cd web && npx tsc --noEmit
 ```
 
@@ -212,48 +218,58 @@ On Windows, keep the repo in a short path. Next.js fails with a path length erro
 
 ## Reliability
 
-Presses sent directly from Python, with no AI in the loop (from [`docs/hardware.md`](docs/hardware.md)):
+<!-- reliability:start, written by scripts/readme_cost_table.py -->
+Presses sent directly from Python, with no AI in the loop:
 
-| Test | Result |
-|---|---|
-| H, first rig, 1 s hold (Oct 30) | 20 / 20 |
-| ST/SP, rebuilt rig, 1 s hold (Nov 2) | 10 / 10 |
-| H, rebuilt rig, 1 s hold (Nov 2) | 20 / 20 |
-
-Full jobs through the app on the real rig (Nov 2): **0 of 10 worked**. These logs aren't in `runs/` yet.
-
-| Result | Jobs | Why |
+| Test | Worked | Tried |
 |---|---|---|
-| Stopped by hand | 5 | Four during testing with H not changing T1, one before a plan came back |
-| Failed after 3 tries | 3 | T1 never changed |
-| Failed, ESP32 didn't answer | 1 | Another program was using the serial port |
-| Refused, nothing pressed | 1 | Correct: T1 showed 16:00 00 and 5 hours was asked for |
+| H, first rig, 20 presses through Python, 1 s hold (Oct 30) | 20 | 20 |
+| ST/SP, rebuilt rig, 10 presses through Python, 1 s hold (Nov 2): start/stop toggles counted on video | 10 | 10 |
+| H, rebuilt rig, 20 presses through Python, 1 s hold (Nov 2): T1 read 20:00 00 | 20 | 20 |
 
-The camera read of T1, the plans, the refusal, the retry and Stop all did their job in these runs. No H press registered, because of the finger position described in [What it does](#what-it-does). Reads checked vs. reads right isn't measured yet.
+Full jobs through the app on the real rig: **0/10 worked** (`real.job_success_rate`).
+
+| Result | Jobs |
+|---|---|
+| Worked | 0 |
+| Stopped by hand | 5 |
+| Refused, nothing pressed | 1 |
+| Failed, gave up after 3 tries | 3 |
+| Failed, hardware error | 1 |
+<!-- reliability:end -->
+
+The camera read of T1, the plans, the refusal, the retry and Stop all did their job in the rig runs. No H press registered, because of the finger position described in [What it does](#what-it-does). The refusal was correct: T1 was already past the time asked for. The hardware error was another program holding the serial port. Reads checked vs. reads right isn't measured yet.
 
 ## Speed
 
-Almost all of a job's time is model calls. A press takes about 1.4 s.
+Almost all of a job's time is model calls, not presses. From the Nov 2 rig runs in `runs/`, when a read's model calls ran one after another:
 
-| Part | Time | Measured on |
-|---|---|---|
-| One screen read (2 or 3 model calls) | median 42 s, range 19 to 100 s, from 23 reads | Nov 2 rig runs, when the calls ran one after another |
-| Reading T1 and planning, together | median 60 s, range 39 to 179 s, from 8 jobs | Nov 2 rig runs |
-| Planner call alone | 23 s and 27 s, from 2 jobs | Nov 3, on FakeHardware |
-| Risk score | 4 s and 6 s, from 2 jobs. Runs in the background | Nov 3, on FakeHardware |
+<!-- speed:start, written by scripts/readme_cost_table.py -->
+| Part | Median | Sample | How it's measured |
+|---|---|---|---|
+| One press | 1.39 s | 13 presses | step status running to verifying, from step.updated events. Range 1.38 to 1.4 s |
+| One screen read (2 or 3 model calls) | 42.0 s | 23 reads | verifying, or the read before, to the next note with a read. Range 18.65 to 99.64 s |
+| Reading T1 and planning, together | 59.8 s | 8 jobs | job.created_at to plan.ready ts, includes the pre-plan screen read |
+| Risk score, in the background | 4.76 s | 4 scored steps | plan.ready to the first step.updated with risk_tier (upper bound, it's an event ts) |
+<!-- speed:end -->
 
-Since those rig runs, a read's first two calls run at the same time, and the planner retries at most once. That hasn't been timed on the rig yet. Each job now records the time of every model call in `job.usage`.
+Since those runs, a read's first two calls run at the same time, and the planner retries at most once. That hasn't been timed on the rig yet. Each job now records the time of every model call in `job.usage`.
 
 ## Cost
 
-What the rig costs next to replacing the machine or retrofitting it. Only numbers with a source
-are here, the rest says so. Every figure, its source page and the date it was checked are in
-[`docs/costs.md`](docs/costs.md).
+What the rig costs next to replacing the machine or retrofitting it. Only numbers with a source are here, the rest says so. Every figure, its source page and the date it was checked are in [`docs/costs.md`](docs/costs.md).
+
+<!-- cost:start, written by scripts/readme_cost_table.py -->
+**Rig parts:** NEEDS INPUT. Still needs a price for: Jumper wires, Mini breadboard, Olimex BREADBOARD-MINI, Finger materials (arms, hot glue, mounting tape, blocks, base board). a listing URL and a checked date for: Microcontroller (ESP32), Finger materials (arms, hot glue, mounting tape, blocks, base board).
+
+**Rig vs replacing a lab incubator:** not sourced yet (the parts total (cost.hardware_parts_total) has to be REAL first).
+
+Model calls were paid with hackathon credits, so the API figures are cost at list price, not what we spent.
 
 | | Cost |
 |---|---|
-| Our rig (servos, webcam, ESP32, wiring) | not sourced yet (prices entered, listings still to add) |
-| API cost per job | not sourced yet (tokens are recorded per job, prices need the billing pages) |
+| API cost per job, at list price | not sourced yet (real runs recorded since api.py started keeping job.usage) |
+| Tokens per job, real runs | not sourced yet (real runs recorded since api.py started keeping job.usage) |
 | Replace: research lab benchtop incubator | $798.59 to $1,185.00 |
 | Replace: legacy manufacturing HMI panel | $1,718.00 |
 | Replace: hardware QA touch screen test robot | $12,243.75 to $12,288.75 |
@@ -264,7 +280,7 @@ are here, the rest says so. Every figure, its source page and the date it was ch
 | Replace: home electric range | $649.00 to $829.00 |
 | Retrofit with IoT: a drill press (Bosch Rexroth) | about $2,000 |
 | Retrofit with IoT: legacy equipment, typical | a couple thousand dollars, up to $10,000 to $20,000 |
-| Rig vs replacing a lab incubator | not sourced yet |
+<!-- cost:end -->
 
 ## Team
 

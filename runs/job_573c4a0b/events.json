@@ -1,0 +1,297 @@
+[
+  {
+    "type": "job.status",
+    "job_id": "job_573c4a0b",
+    "ts": "2026-11-03T00:11:23.519Z",
+    "status": "planning"
+  },
+  {
+    "type": "plan.ready",
+    "job_id": "job_573c4a0b",
+    "ts": "2026-11-03T00:12:36.931Z",
+    "plan": {
+      "planner": "muse-spark-1.3",
+      "summary": "Set T1 to 2 hours with 2 H presses and start it",
+      "steps": [
+        {
+          "step_id": "s1",
+          "index": 1,
+          "intent": "Add 1 hour to T1 (00:00 00 to 01:00 00)",
+          "action": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1,
+            "hold_ms": 1000
+          },
+          "expect": {
+            "control_id": "screen_t1",
+            "text_contains": "01:00 00"
+          },
+          "requires_approval": false,
+          "status": "pending",
+          "attempts": 0,
+          "started_at": null,
+          "finished_at": null,
+          "evidence": {
+            "before_frame_url": null,
+            "after_frame_url": null,
+            "screen_text": null
+          },
+          "error": null
+        },
+        {
+          "step_id": "s2",
+          "index": 2,
+          "intent": "Add 1 hour to T1 (01:00 00 to 02:00 00)",
+          "action": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1,
+            "hold_ms": 1000
+          },
+          "expect": {
+            "control_id": "screen_t1",
+            "text_contains": "02:00 00"
+          },
+          "requires_approval": false,
+          "status": "pending",
+          "attempts": 0,
+          "started_at": null,
+          "finished_at": null,
+          "evidence": {
+            "before_frame_url": null,
+            "after_frame_url": null,
+            "screen_text": null
+          },
+          "error": null
+        },
+        {
+          "step_id": "s3",
+          "index": 3,
+          "intent": "Start T1 countdown",
+          "action": {
+            "type": "press",
+            "control_id": "btn_stsp",
+            "count": 1,
+            "hold_ms": 1000
+          },
+          "expect": {
+            "control_id": "screen_t1",
+            "text_contains": "01:59"
+          },
+          "requires_approval": true,
+          "approval_reason": "Starting the countdown is the output",
+          "turns_on_output": true,
+          "status": "pending",
+          "attempts": 0,
+          "started_at": null,
+          "finished_at": null,
+          "evidence": {
+            "before_frame_url": null,
+            "after_frame_url": null,
+            "screen_text": null
+          },
+          "error": null
+        }
+      ]
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Planned from screen_t1 reads '00:00 00' (high)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "job.status",
+    "job_id": "job_573c4a0b",
+    "ts": "2026-11-03T00:12:36.931Z",
+    "status": "running"
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_573c4a0b",
+    "ts": "2026-11-03T00:12:36.932Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Add 1 hour to T1 (00:00 00 to 01:00 00)",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "running",
+      "attempts": 1,
+      "started_at": "2026-11-03T00:12:36.932Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_573c4a0b",
+    "ts": "2026-11-03T00:12:36.934Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Start T1 countdown",
+      "action": {
+        "type": "press",
+        "control_id": "btn_stsp",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:59"
+      },
+      "requires_approval": true,
+      "approval_reason": "Starting the countdown is the output",
+      "turns_on_output": true,
+      "status": "pending",
+      "attempts": 0,
+      "started_at": null,
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": null
+      },
+      "error": null,
+      "risk_tier": "high",
+      "risk_reason": "Couldn't score this step, treating it as high risk.",
+      "risk_scored_by": "fallback (scorer error)"
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_573c4a0b",
+    "ts": "2026-11-03T00:12:38.325Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Add 1 hour to T1 (00:00 00 to 01:00 00)",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T00:12:36.932Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_573c4a0b",
+    "ts": "2026-11-03T00:13:57.363Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Add 1 hour to T1 (00:00 00 to 01:00 00)",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T00:12:36.932Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "screen_t1 reads '00:00 00' (high), wanted '01:00 00', looking again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_573c4a0b",
+    "ts": "2026-11-03T00:14:01.139Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Add 1 hour to T1 (00:00 00 to 01:00 00)",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "skipped",
+      "attempts": 1,
+      "started_at": "2026-11-03T00:12:36.932Z",
+      "finished_at": "2026-11-03T00:14:01.139Z",
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": "Stopped mid-step"
+    }
+  },
+  {
+    "type": "job.finished",
+    "job_id": "job_573c4a0b",
+    "ts": "2026-11-03T00:14:01.139Z",
+    "result": {
+      "outcome": "stopped",
+      "message": "Stopped by you. Finger retracted.",
+      "final_screen_text": null
+    }
+  }
+]

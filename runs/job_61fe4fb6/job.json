@@ -1,0 +1,505 @@
+{
+  "job_id": "job_61fe4fb6",
+  "created_at": "2026-11-03T02:10:59.338Z",
+  "updated_at": "2026-11-03T02:12:12.611Z",
+  "request": "click h button 10 times",
+  "approval_mode": "risky_steps",
+  "press_budget": 30,
+  "status": "stopped",
+  "device": {
+    "device_id": "timer-01",
+    "name": "4-channel kitchen timer (placeholder boxes from a hand-held photo)",
+    "camera": {
+      "camera_id": "cam-0",
+      "frame_width": 2560,
+      "frame_height": 1440,
+      "latest_frame_url": "/frames/timer-01-latest.jpg?t=1793671859338"
+    },
+    "controls_version": 1,
+    "controls": [
+      {
+        "control_id": "screen_t1",
+        "label": "T1 time",
+        "kind": "screen",
+        "bbox": [
+          1175,
+          372,
+          358,
+          104
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t2",
+        "label": "T2 time",
+        "kind": "screen",
+        "bbox": [
+          1179,
+          489,
+          356,
+          102
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t3",
+        "label": "T3 time",
+        "kind": "screen",
+        "bbox": [
+          1183,
+          602,
+          353,
+          103
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t4",
+        "label": "T4 time",
+        "kind": "screen",
+        "bbox": [
+          1187,
+          707,
+          350,
+          114
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t1",
+        "label": "T1",
+        "kind": "button",
+        "bbox": [
+          1673,
+          323,
+          100,
+          107
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t2",
+        "label": "T2",
+        "kind": "button",
+        "bbox": [
+          1677,
+          449,
+          100,
+          105
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t3",
+        "label": "T3",
+        "kind": "button",
+        "bbox": [
+          1684,
+          575,
+          100,
+          104
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t4",
+        "label": "T4",
+        "kind": "button",
+        "bbox": [
+          1690,
+          700,
+          102,
+          105
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_h",
+        "label": "H",
+        "kind": "button",
+        "bbox": [
+          1045,
+          889,
+          115,
+          87
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_m",
+        "label": "M",
+        "kind": "button",
+        "bbox": [
+          1178,
+          885,
+          115,
+          85
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_s",
+        "label": "S",
+        "kind": "button",
+        "bbox": [
+          1312,
+          880,
+          112,
+          86
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_10m",
+        "label": "10M",
+        "kind": "button",
+        "bbox": [
+          1046,
+          995,
+          117,
+          87
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_5m",
+        "label": "5M",
+        "kind": "button",
+        "bbox": [
+          1182,
+          990,
+          114,
+          86
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_10s",
+        "label": "10S",
+        "kind": "button",
+        "bbox": [
+          1316,
+          985,
+          112,
+          87
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_reset",
+        "label": "RESET",
+        "kind": "button",
+        "bbox": [
+          1469,
+          942,
+          123,
+          122
+        ],
+        "confidence": 0.9,
+        "risky": true,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_stsp",
+        "label": "ST/SP",
+        "kind": "button",
+        "bbox": [
+          1632,
+          934,
+          180,
+          123
+        ],
+        "confidence": 0.9,
+        "risky": true,
+        "reachable": true
+      }
+    ]
+  },
+  "plan": {
+    "planner": "muse-spark-1.3",
+    "summary": "Press H 10 times to set T1 from 00:00 00 to 10:00 00",
+    "steps": [
+      {
+        "step_id": "s1",
+        "index": 1,
+        "intent": "Press H 1st time to set T1 to 01:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "01:00 00"
+        },
+        "requires_approval": false,
+        "status": "skipped",
+        "attempts": 1,
+        "started_at": "2026-11-03T02:11:42.453Z",
+        "finished_at": "2026-11-03T02:12:12.610Z",
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": "00:00 00",
+          "screen_confidence": "high"
+        },
+        "error": "Stopped mid-step"
+      },
+      {
+        "step_id": "s2",
+        "index": 2,
+        "intent": "Press H 2nd time to set T1 to 02:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "02:00 00"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      },
+      {
+        "step_id": "s3",
+        "index": 3,
+        "intent": "Press H 3rd time to set T1 to 03:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "03:00 00"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      },
+      {
+        "step_id": "s4",
+        "index": 4,
+        "intent": "Press H 4th time to set T1 to 04:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "04:00 00"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      },
+      {
+        "step_id": "s5",
+        "index": 5,
+        "intent": "Press H 5th time to set T1 to 05:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "05:00 00"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      },
+      {
+        "step_id": "s6",
+        "index": 6,
+        "intent": "Press H 6th time to set T1 to 06:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "06:00 00"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      },
+      {
+        "step_id": "s7",
+        "index": 7,
+        "intent": "Press H 7th time to set T1 to 07:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "07:00 00"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      },
+      {
+        "step_id": "s8",
+        "index": 8,
+        "intent": "Press H 8th time to set T1 to 08:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "08:00 00"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      },
+      {
+        "step_id": "s9",
+        "index": 9,
+        "intent": "Press H 9th time to set T1 to 09:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "09:00 00"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      },
+      {
+        "step_id": "s10",
+        "index": 10,
+        "intent": "Press H 10th time to set T1 to 10:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "10:00 00"
+        },
+        "requires_approval": false,
+        "status": "pending",
+        "attempts": 0,
+        "started_at": null,
+        "finished_at": null,
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": null
+        },
+        "error": null
+      }
+    ]
+  },
+  "result": {
+    "outcome": "stopped",
+    "message": "Stopped by you. Finger retracted.",
+    "final_screen_text": null
+  },
+  "pause_reason": null
+}

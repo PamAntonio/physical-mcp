@@ -211,6 +211,12 @@ class CostsTests(unittest.TestCase):
         self.assertNotIn("Power bank", entry["need"])  # no price or listing asked for
         self.assertIn("1 item already owned", entry["sample"])
 
+    def test_already_owned_note_wording(self):
+        self.assertTrue(dm.is_already_owned("already owned (we had them at home), not counted"))
+        self.assertTrue(dm.is_already_owned("already owned, not counted"))
+        self.assertFalse(dm.is_already_owned("plus $6.39 shipping, not counted"))
+        self.assertFalse(dm.is_already_owned(""))
+
     def test_total_stays_needs_input_until_everything_is_listed(self):
         entry = dm.parts_metric(self.parts)
         self.assertEqual(entry["status"], "NEEDS INPUT")
@@ -292,13 +298,15 @@ class CostsTests(unittest.TestCase):
         for row in parts:
             items.append(row["item"].lower())
         self.assertFalse(any("timer" in item for item in items), "the timer is the machine, not a part")
-        for row in parts:
-            # store, listing and date are for Bhavi to fill in, never made up here
-            self.assertEqual((row["store"], dm.listing_cell(row), row["checked"]), ("", "", ""), row)
         entry = dm.parts_metric(parts)
-        self.assertEqual(entry["entered_total"], 20.0)  # $6 + $4 + $7 + $3, as given
-        self.assertEqual(entry["proven_total"], 0)
+        # a filled-in listing always comes with its date, a half-filled row is a typo
+        for row in parts:
+            self.assertEqual(bool(dm.listing_cell(row)), bool(row["checked"]), row)
         self.assertEqual(len(entry["already_owned"]), 2)  # the power bank and the cut USB cable
+        # the total only goes REAL with no row left waiting
+        if entry["status"] != "REAL":
+            self.assertIsNone(entry["value"])
+            self.assertTrue(entry["need"])
 
         # one row per Where It Fits card, every one with a price and a source URL
         cards = dm.replace_metrics(tables["replace"])
@@ -308,6 +316,104 @@ class CostsTests(unittest.TestCase):
             self.assertTrue(card["source"].startswith("https://"), name)
         # no struck-through list price: the warehouses row is the parcel scale's real price
         self.assertEqual(cards["cost.replace_machine.warehouses"]["value"], {"low": 945.0, "high": 945.0})
+
+
+class TimingAndOutcomeTests(unittest.TestCase):
+    def test_step_timings(self):
+        def update(second, status, read=False):
+            event = {"type": "step.updated", "ts": f"2026-11-03T10:00:{second:02d}.000Z", "step": {"status": status}}
+            if read:
+                event["note"] = {"kind": "screen_read", "read": {"text": "x"}}
+            return event
+
+        events = [update(0, "running"), update(1, "verifying"), update(11, "verifying", read=True),
+                  update(31, "running", read=True), update(32, "verifying"), update(40, "skipped")]
+        presses, reads = dm.step_timings({"events": events})
+        self.assertEqual(presses, [1.0, 1.0])
+        self.assertEqual(reads, [10.0, 20.0])  # the read cut off by the stop isn't counted
+
+    def test_outcome_kind(self):
+        self.assertEqual(dm.outcome_kind({"outcome": "succeeded"}), "succeeded")
+        self.assertEqual(dm.outcome_kind({"outcome": "stopped"}), "stopped")
+        self.assertEqual(dm.outcome_kind({"outcome": "failed", "message": "Can't do this on this rig"}), "refused")
+        self.assertEqual(dm.outcome_kind({"outcome": "failed", "message": "Still reads x after 3 attempts"}),
+                         "gave_up_after_retries")
+        self.assertEqual(dm.outcome_kind({"outcome": "failed", "message": "Hardware error: no"}), "hardware_error")
+        self.assertEqual(dm.outcome_kind({"outcome": "failed", "message": "Planning failed"}), "other_failure")
+
+
+class ApiCostTests(unittest.TestCase):
+    PRICES = {"muse-spark-1.3": (2.0, 10.0), "meta-models/muse-spark-open-1026": (1.0, 1.0)}
+
+    def run_with(self, usage):
+        return {"job": {"usage": usage}}
+
+    def test_cost_is_split_by_kind(self):
+        runs = [self.run_with([call("planner", 1000000, 100000), call("scorer", 500000, 500000)]),
+                self.run_with([call("planner", 2000000, 0), call("screen_read", 1000000, 0)]),
+                self.run_with(None)]
+        entry = dm.api_cost_metric(runs, self.PRICES)
+        self.assertEqual(entry["status"], "REAL")
+        self.assertEqual(entry["sample"], "2 jobs")
+        self.assertEqual(entry["value"]["planner"], 3.5)  # 3 and 4
+        self.assertEqual(entry["value"]["scorer"], 0.5)  # 1 and 0
+        self.assertEqual(entry["value"]["screen_read"], 1.0)  # 0 and 2
+        self.assertEqual(entry["value"]["all"], 5.0)  # 4 and 6
+
+    def test_no_usage_or_no_price_is_never_a_number(self):
+        entry = dm.api_cost_metric([self.run_with(None)], self.PRICES)
+        self.assertEqual((entry["status"], entry["value"]), ("NEEDS DATA", None))
+        entry = dm.api_cost_metric([self.run_with([call("planner", 1, 1)])], {})
+        self.assertEqual((entry["status"], entry["value"]), ("NEEDS INPUT", None))
+        self.assertIn("muse-spark-1.3", entry["need"])
+
+    def test_a_price_needs_both_numbers_and_a_source(self):
+        rows = [{"model": "a", "input $/1m": "$1.25", "output $/1m": "$4.25", "source url": "https://example.com"},
+                {"model": "b", "input $/1m": "", "output $/1m": "$4.25", "source url": "https://example.com"},
+                {"model": "c", "input $/1m": "$1", "output $/1m": "$4", "source url": ""}]
+        self.assertEqual(dm.model_prices(rows), {"a": (1.25, 4.25)})
+
+    def test_the_repo_prices_have_the_models_we_call(self):
+        tables = dm.cost_tables(dm.REPO_ROOT / "docs" / "costs.md")
+        prices = dm.model_prices(tables["prices"])
+        self.assertIn("muse-spark-1.3", prices)
+        self.assertIn("meta-models/muse-spark-open-1026", prices)
+
+
+class ResultsPageDataTests(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.root = Path(self.folder.name)
+
+    def tearDown(self):
+        self.folder.cleanup()
+
+    def test_every_metric_has_a_group_and_nothing_empty_reads_as_real(self):
+        runs = self.root / "runs"
+        write_run(runs, "job_real", [], None)
+        (runs / "labels.json").write_text(json.dumps({"job_real": "real"}), encoding="utf-8")
+        metrics = dm.build(runs, self.root / "metrics.json")["metrics"]
+        for name, entry in metrics.items():
+            self.assertIn(entry["group"], dm.METRIC_GROUPS, name)
+            if entry["status"] == "REAL":
+                self.assertIsNotNone(entry["value"], name)
+        self.assertEqual(metrics["real.human_approval_time_median_s"]["status"], "NEEDS DATA")
+        self.assertEqual(metrics["real.tokens_per_job"]["status"], "NEEDS DATA")
+        self.assertEqual(metrics["real.job_success_rate"]["group"], "Reliability")
+        self.assertEqual(metrics["real.screen_read_time_median_s"]["group"], "Speed")
+        self.assertEqual(metrics["cost.api_cost_per_job_list_price"]["group"], "Cost")
+
+    def test_main_writes_the_web_copy_too(self):
+        out = self.root / "metrics.json"
+        web_out = self.root / "web.json"
+        dm.main(["--runs", str(self.root / "no-runs"), "--out", str(out), "--web-out", str(web_out)])
+        self.assertEqual(out.read_text(encoding="utf-8"), web_out.read_text(encoding="utf-8"))
+
+    def test_same_button_words_come_from_the_requests(self):
+        headline, label = dm.same_button_words({"Set it to 90 °C": "high", "Set it to 37 °C": "medium"})
+        self.assertEqual(headline, "medium vs high")
+        self.assertEqual(label, "same START button, 37 °C medium vs 90 °C high, scored by Muse Spark Open")
+        self.assertEqual(dm.same_button_words({"Set it to 37 °C": "medium"}), (None, None))
 
 
 if __name__ == "__main__":

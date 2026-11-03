@@ -1,0 +1,22 @@
+[
+  {
+    "type": "job.status",
+    "job_id": "job_f9a6a043",
+    "ts": "2026-11-03T01:03:02.877Z",
+    "status": "planning"
+  },
+  {
+    "type": "job.finished",
+    "job_id": "job_f9a6a043",
+    "ts": "2026-11-03T01:03:33.687Z",
+    "result": {
+      "outcome": "failed",
+      "message": "Can't do this on this rig: Cannot set T1 to 5 hours because T1 shows 16:00 00 which is already above 5 hours and cannot be decreased - please reset the timer by hand. Nothing was pressed.",
+      "final_screen_text": null
+    },
+    "note": {
+      "kind": "planner_refused",
+      "message": "Can't do this on this rig: Cannot set T1 to 5 hours because T1 shows 16:00 00 which is already above 5 hours and cannot be decreased - please reset the timer by hand. Nothing was pressed."
+    }
+  }
+]
