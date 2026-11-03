@@ -127,6 +127,33 @@ class VisionReadHardware(RecordingHardware):
         return detail
 
 
+class PlannerClientTests(unittest.TestCase):
+    def test_planner_client_retries_once_at_most(self):
+        made_with = {}
+
+        class Stop(Exception):
+            pass
+
+        def fake_openai(**kwargs):
+            made_with.update(kwargs)
+            return object()
+
+        def stop_here(client, messages):
+            raise Stop()
+
+        self.addCleanup(setattr, api, "OpenAI", api.OpenAI)
+        self.addCleanup(setattr, planner, "call_model", planner.call_model)
+        self.addCleanup(os.environ.__setitem__, "MODEL_API_KEY", os.environ.get("MODEL_API_KEY", ""))
+        api.OpenAI = fake_openai
+        planner.call_model = stop_here
+        os.environ["MODEL_API_KEY"] = "test-key"
+
+        with self.assertRaises(Stop):
+            api.make_plan("timer-01", "Set T1 to 2 hours and start it", [])
+        self.assertEqual(made_with["max_retries"], 1)
+        self.assertEqual(made_with["timeout"], api.PLANNER_TIMEOUT_SECONDS)
+
+
 class JobUsageTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.saved = (api.hardware, api.make_plan, scorer.score_step_with_raw)

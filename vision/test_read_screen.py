@@ -12,6 +12,7 @@ import io
 import json
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -97,12 +98,27 @@ def test_padded_box_clamps():
 def stub_reader(answers):
     """A read_once() that hands out answers in order and counts the calls."""
     calls = []
+    lock = threading.Lock()  # the vote's first two reads run side by side
 
     def read_once():
-        calls.append(1)
-        return answers[len(calls) - 1]
+        with lock:
+            calls.append(1)
+            return answers[len(calls) - 1]
 
     return read_once, calls
+
+
+def test_vote_reads_twice_side_by_side():
+    # the barrier only opens with both reads inside it at once. one after the other, it times out
+    barrier = threading.Barrier(2, timeout=5)
+
+    def read_once():
+        barrier.wait()
+        return "86.8"
+
+    result = vote_reads(read_once)
+    assert result["confidence"] == "high"
+    assert result["reads"] == ["86.8", "86.8"]
 
 
 def test_vote_agree():
@@ -488,6 +504,7 @@ def main():
         test_skip_led_slits,
         test_usage_entry,
         test_read_screen_reports_its_model_calls,
+        test_vote_reads_twice_side_by_side,
         test_sam_summary,
         test_timer_calibration_file,
         test_find_lcd_rows,
