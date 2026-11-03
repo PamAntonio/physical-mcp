@@ -28,7 +28,7 @@ The AI only ever calls tools: `get_controls`, `press`, `read_screen`, `get_frame
 
 **On the rig, as of Nov 3:** full jobs now work through the app, including "Set T1 to 2 hours and start it" with the hold-to-approve on ST/SP. The rig has one finger per button, with H and ST/SP angles in `backend/devices/timer-01.json`. See [Reliability](#reliability).
 
-The Inkbird temperature controller (`inkbird-01`) is a second profile. It has **not been tested on the rig**: its menu behaviour comes from the manual and every servo angle is still empty. `incubator-01` is a made-up placeholder device that runs on the mock and on FakeHardware, never on the rig.
+The Inkbird temperature controller (`inkbird-01`) is a second profile. It was **tried once on the rig (job_04b0c61c, stopped by hand), servo angles still empty**. Its menu behaviour comes from the manual. `incubator-01` is a made-up placeholder device that runs on the mock and on FakeHardware, never on the rig.
 
 ## Safety rules
 
@@ -72,7 +72,7 @@ LED indicators are a pixel check, no model.
 | `backend/api.py` | FastAPI server for the web app: planning, scoring, the step runner, approvals, pauses, Stop | Working on FakeHardware and on the rig (see Reliability) |
 | `backend/mcp_server.py` | The MCP tools every press and read goes through, with the approval gate in `press` | Working, in memory only (no HTTP transport yet) |
 | `backend/planner.py` | Muse Spark planner, plan validation, the timer plan check | Working with the live model |
-| `backend/devices/` | Device profiles: buttons, servo angles, holds, notes for the planner | `timer-01` main (H and ST/SP angles set). `inkbird-01` not tested on the rig. `incubator-01` placeholder, no rig |
+| `backend/devices/` | Device profiles: buttons, servo angles, holds, notes for the planner | `timer-01` main (H and ST/SP angles set). `inkbird-01` tried once on the rig (job_04b0c61c, stopped by hand), servo angles still empty. `incubator-01` placeholder, no rig |
 | `backend/serial_hardware.py`, `firmware/` | ESP32 servo fingers over USB serial, plus the webcam | Working on the bench, see Reliability. Also tested against a fake ESP32 |
 | `backend/calibrate.py`, `web/app/calibrate/` | Moves a device's control boxes to a new camera view from 4 clicked corners | Working, unit tested. The boxes on file are still marked placeholder |
 | `backend/record_run.py` | Records a run: every event plus every camera frame, into `runs/<job_id>/` | Working, tested against the real HTTP backend |
