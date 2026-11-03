@@ -1,0 +1,672 @@
+[
+  {
+    "type": "job.status",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:21:59.168Z",
+    "status": "planning"
+  },
+  {
+    "type": "plan.ready",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:22:55.278Z",
+    "plan": {
+      "planner": "muse-spark-1.3",
+      "summary": "Set T1 from 02:00 00 to 05:00 00 with 3 H presses",
+      "steps": [
+        {
+          "step_id": "s1",
+          "index": 1,
+          "intent": "Press H to go from 2 hours to 3 hours",
+          "action": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1,
+            "hold_ms": 1000
+          },
+          "expect": {
+            "control_id": "screen_t1",
+            "text_contains": "03:00 00"
+          },
+          "requires_approval": false,
+          "status": "pending",
+          "attempts": 0,
+          "started_at": null,
+          "finished_at": null,
+          "evidence": {
+            "before_frame_url": null,
+            "after_frame_url": null,
+            "screen_text": null
+          },
+          "error": null
+        },
+        {
+          "step_id": "s2",
+          "index": 2,
+          "intent": "Press H to go from 3 hours to 4 hours",
+          "action": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1,
+            "hold_ms": 1000
+          },
+          "expect": {
+            "control_id": "screen_t1",
+            "text_contains": "04:00 00"
+          },
+          "requires_approval": false,
+          "status": "pending",
+          "attempts": 0,
+          "started_at": null,
+          "finished_at": null,
+          "evidence": {
+            "before_frame_url": null,
+            "after_frame_url": null,
+            "screen_text": null
+          },
+          "error": null
+        },
+        {
+          "step_id": "s3",
+          "index": 3,
+          "intent": "Press H to go from 4 hours to 5 hours",
+          "action": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1,
+            "hold_ms": 1000
+          },
+          "expect": {
+            "control_id": "screen_t1",
+            "text_contains": "05:00 00"
+          },
+          "requires_approval": false,
+          "status": "pending",
+          "attempts": 0,
+          "started_at": null,
+          "finished_at": null,
+          "evidence": {
+            "before_frame_url": null,
+            "after_frame_url": null,
+            "screen_text": null
+          },
+          "error": null
+        }
+      ]
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Planned from screen_t1 reads '02:00 00' (high)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "02:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "job.status",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:22:55.278Z",
+    "status": "running"
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:22:55.279Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to go from 2 hours to 3 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "03:00 00"
+      },
+      "requires_approval": false,
+      "status": "running",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:22:55.279Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "02:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:22:56.669Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to go from 2 hours to 3 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "03:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:22:55.279Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "02:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:23:21.492Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to go from 2 hours to 3 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "03:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:22:55.279Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "02:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "screen_t1 reads '02:00 00' (high), wanted '03:00 00', looking again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "02:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:23:49.341Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to go from 2 hours to 3 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "03:00 00"
+      },
+      "requires_approval": false,
+      "status": "running",
+      "attempts": 2,
+      "started_at": "2026-11-03T19:22:55.279Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "02:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "retries": [
+        {
+          "attempt": 1,
+          "screen_text": "02:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '02:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        }
+      ]
+    },
+    "note": {
+      "kind": "retry",
+      "message": "Retry: screen_t1 still reads '02:00 00', same as before the press, so the press didn't register. Pressing btn_h x1 again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "02:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:23:50.722Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to go from 2 hours to 3 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "03:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 2,
+      "started_at": "2026-11-03T19:22:55.279Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "02:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "retries": [
+        {
+          "attempt": 1,
+          "screen_text": "02:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '02:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        }
+      ]
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:24:18.523Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Press H to go from 2 hours to 3 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "03:00 00"
+      },
+      "requires_approval": false,
+      "status": "succeeded",
+      "attempts": 2,
+      "started_at": "2026-11-03T19:22:55.279Z",
+      "finished_at": "2026-11-03T19:24:18.523Z",
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "03:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "retries": [
+        {
+          "attempt": 1,
+          "screen_text": "02:00 00",
+          "screen_confidence": "high",
+          "problem": "screen_t1 still reads '02:00 00', same as before the press, so the press didn't register",
+          "correction": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1
+          }
+        }
+      ]
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Verified: screen_t1 reads '03:00 00' (high)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "03:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:24:18.523Z",
+    "step": {
+      "step_id": "s2",
+      "index": 2,
+      "intent": "Press H to go from 3 hours to 4 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "04:00 00"
+      },
+      "requires_approval": false,
+      "status": "running",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:24:18.523Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "03:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:24:19.900Z",
+    "step": {
+      "step_id": "s2",
+      "index": 2,
+      "intent": "Press H to go from 3 hours to 4 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "04:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:24:18.523Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "03:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:24:52.983Z",
+    "step": {
+      "step_id": "s2",
+      "index": 2,
+      "intent": "Press H to go from 3 hours to 4 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "04:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:24:18.523Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "03:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "screen_t1 reads '03:00 00' (high), wanted '04:00 00', looking again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "03:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:25:17.579Z",
+    "step": {
+      "step_id": "s2",
+      "index": 2,
+      "intent": "Press H to go from 3 hours to 4 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "04:00 00"
+      },
+      "requires_approval": false,
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:24:18.523Z",
+      "finished_at": "2026-11-03T19:25:17.579Z",
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "04:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Verified: screen_t1 reads '04:00 00' (high)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "04:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:25:17.580Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Press H to go from 4 hours to 5 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "05:00 00"
+      },
+      "requires_approval": false,
+      "status": "running",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:25:17.580Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "04:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:25:18.958Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Press H to go from 4 hours to 5 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "05:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:25:17.580Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "04:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:25:44.852Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Press H to go from 4 hours to 5 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "05:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:25:17.580Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "04:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "screen_t1 reads '04:00 00' (high), wanted '05:00 00', looking again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "04:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:26:12.845Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Press H to go from 4 hours to 5 hours",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "05:00 00"
+      },
+      "requires_approval": false,
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:25:17.580Z",
+      "finished_at": "2026-11-03T19:26:12.845Z",
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "05:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Verified: screen_t1 reads '05:00 00' (high)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "05:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "job.finished",
+    "job_id": "job_61a9ee55",
+    "ts": "2026-11-03T19:26:12.847Z",
+    "result": {
+      "outcome": "succeeded",
+      "message": "Job done, all 3 steps verified.",
+      "final_screen_text": "05:00 00"
+    }
+  }
+]
