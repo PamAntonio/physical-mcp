@@ -20,12 +20,12 @@ export const REJECT_BEHAVIOR: RejectBehavior = pickRejectBehavior(process.env.NE
 export const OPERATOR_NAME = process.env.NEXT_PUBLIC_OPERATOR_NAME || "operator";
 
 // the device the page opens on. the picker next to the request box switches between DEVICES
-export const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "inkbird-01";
+export const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "timer-01";
 
 export const DEVICES: { id: string; name: string }[] = [
+  { id: "timer-01", name: "Kitchen timer (demo)" },
   { id: "inkbird-01", name: "Inkbird heater" },
-  { id: "timer-01", name: "Kitchen timer" },
-  { id: "incubator-01", name: "Incubator (demo)" },
+  { id: "incubator-01", name: "Incubator (placeholder)" },
 ];
 
 // MOCK ONLY: add a fake retry where the fixture has none (Inkbird s2), so the retry UI shows up.

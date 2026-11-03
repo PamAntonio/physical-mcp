@@ -1,4 +1,4 @@
-// Draws a fake 1280x720 camera frame of the demo incubator as an SVG data URL.
+// Draws a fake 1280x720 camera frame of the placeholder incubator as an SVG data URL.
 // NOT a real photo. The buttons sit exactly on the bboxes in shared/fixtures/jobSample.json,
 // so the camera overlay lines up. Mock mode only; the real backend sends real frames.
 //
