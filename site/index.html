@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Physical MCP: an API for machines that have none</title>
+<meta name="description" content="A webcam watches the panel, a servo finger presses the buttons, and every risky step waits for a human. Same brain, different machine: kitchen timer and incubator replays.">
+<meta property="og:title" content="Physical MCP: an API for machines that have none">
+<meta property="og:description" content="An AI that sees a control panel, presses the buttons, and asks a human before anything risky.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body id="top">
+<a class="skip" href="#try">Skip to the replay</a>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span>Physical MCP</a>
+    <nav aria-label="Sections">
+      <a href="#rig">The rig</a>
+      <a href="#try">Replay</a>
+      <a href="#how">How it works</a>
+      <a href="#models">Models</a>
+      <a href="#safety">Safety</a>
+      <a href="#numbers">Numbers</a>
+      <a href="#run">Run it</a>
+    </nav>
+    <a class="github" href="https://github.com/PamAntonio/physical-mcp">GitHub</a>
+  </div>
+</header>
+
+<main>
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="kicker">Meta Global AI Developer Hackathon &middot; Indie track</p>
+        <h1>This timer has no API. So we gave it one.</h1>
+        <p class="lede">An AI that sees a control panel, presses the buttons, and asks a human before anything risky. A webcam watches the panel, a servo finger does the pressing, and every action goes through MCP tools with an approval gate in front of anything risky.</p>
+        <div class="hero-links">
+          <a class="btn" href="https://github.com/PamAntonio/physical-mcp">GitHub repo</a>
+          <a class="btn ghost" href="#video">Demo video</a>
+          <a class="btn ghost" href="#try">Try the replay</a>
+        </div>
+        <dl class="hero-facts">
+          <div><dt>Brain</dt><dd>Muse Spark plans, Muse Spark Open scores risk</dd></div>
+          <div><dt>Eyes</dt><dd>SAM 3.1 finds the controls, Spark reads the screen</dd></div>
+          <div><dt>Gut</dt><dd>Muse Spark Open scores risk, a human makes the call</dd></div>
+          <div><dt>Finger</dt><dd>Two servos on the rig: H and ST/SP</dd></div>
+        </dl>
+      </div>
+      <figure class="hero-frame">
+        <svg viewBox="0 0 480 600" role="img" aria-label="Sketch of the timer panel with the H and ST/SP fingers">
+          <rect x="40" y="20" width="400" height="560" rx="26" class="hf-body"/>
+          <rect x="90" y="60" width="300" height="150" rx="10" class="hf-lcd"/>
+          <text x="240" y="125" text-anchor="middle" class="hf-lcdtext">02:00 00</text>
+          <text x="240" y="160" text-anchor="middle" class="hf-lcdsub">T1 &middot; STANDBY</text>
+          <g class="hf-btns" text-anchor="middle">
+            <rect x="90" y="250" width="86" height="60" rx="10"/><text x="133" y="288">H</text>
+            <rect x="197" y="250" width="86" height="60" rx="10"/><text x="240" y="288">M</text>
+            <rect x="304" y="250" width="86" height="60" rx="10"/><text x="347" y="288">S</text>
+            <rect x="90" y="330" width="140" height="60" rx="30"/><text x="160" y="368">RESET</text>
+            <rect x="250" y="330" width="140" height="60" rx="30" class="hf-hot"/><text x="320" y="368">ST/SP</text>
+          </g>
+          <g class="hf-finger" aria-hidden="true">
+            <rect x="312" y="400" width="16" height="120" rx="8"/>
+            <circle cx="320" cy="404" r="12"/>
+          </g>
+          <text x="240" y="560" text-anchor="middle" class="hf-cap">two fingers &middot; H + ST/SP</text>
+        </svg>
+        <figcaption>Two-finger rig on the kitchen timer. The incubator below runs the same pipeline.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ============ THE RIG ============ -->
+  <section class="section" id="rig">
+    <div class="wrap">
+      <p class="sec-no">01</p>
+      <h2>Meet the rig</h2>
+      <p class="sec-sub">Drag it to turn it and pull it apart. Pick a layer to see what it does.</p>
+
+      <!-- rig.js draws the film frames and layer clips here. Source clips: site/rig/ -->
+      <div class="rig-stage" id="rig-stage">
+        <canvas id="rig-canvas" role="img" aria-label="Rendered model of the rig: a webcam on a gooseneck over the timer, two servo fingers on arms, and the approval screen. It pulls apart into four layers: eyes, brain, gut check and fingers."></canvas>
+        <noscript><img src="rig/frames/93.webp" alt="The rig pulled apart into its layers: eyes, brain, gut check, fingers and the machine."></noscript>
+        <!-- x, w are fractions of the film frame, on the labelled parts of the pulled-apart rig. The buttons below are the accessible controls. -->
+        <button class="rig-hot" data-layer="0" data-x="0.52" data-w="0.42" style="top:8%;height:8%" tabindex="-1" aria-hidden="true"></button>
+        <button class="rig-hot" data-layer="1" data-x="0.52" data-w="0.42" style="top:17.5%;height:10%" tabindex="-1" aria-hidden="true"></button>
+        <button class="rig-hot" data-layer="2" data-x="0.52" data-w="0.42" style="top:28.5%;height:9%" tabindex="-1" aria-hidden="true"></button>
+        <button class="rig-hot" data-layer="3" data-x="0.52" data-w="0.42" style="top:38.5%;height:16%" tabindex="-1" aria-hidden="true"></button>
+        <div class="rig-lead whole" aria-hidden="true"><p class="rl-title">The rig</p><p class="rl-sub">A demo machine, 2 servos and a webcam.</p></div>
+        <div class="rig-lead layers" aria-hidden="true"><p class="rl-title">Four layers</p><p class="rl-sub">Click one to see what it does.</p></div>
+        <p class="rig-hint" id="rig-hint" aria-hidden="true">Drag to turn it &harr;</p>
+      </div>
+
+      <div class="rig-bar">
+        <label class="rig-range">
+          <span>Whole</span>
+          <input type="range" id="rig-slider" min="0" max="93" step="0.01" value="0" aria-label="Turn the rig and pull it apart">
+          <span>Layers</span>
+        </label>
+        <button class="btn ghost small" id="rig-tour" type="button">Play it all</button>
+        <button class="btn ghost small" id="rig-sound" type="button" aria-pressed="false">Sound off</button>
+      </div>
+
+      <div class="rig-chips" role="group" aria-label="Layers of the rig">
+        <button class="rig-chip" type="button" aria-pressed="false"><span class="rc-no">01</span><span class="rc-name">Eyes</span><span class="rc-sub">SAM 3.1 + Muse Spark</span></button>
+        <button class="rig-chip" type="button" aria-pressed="false"><span class="rc-no">02</span><span class="rc-name">Brain</span><span class="rc-sub">Muse Spark</span></button>
+        <button class="rig-chip" type="button" aria-pressed="false"><span class="rc-no">03</span><span class="rc-name">Gut check</span><span class="rc-sub">Muse Spark Open on Baseten</span></button>
+        <button class="rig-chip" type="button" aria-pressed="false"><span class="rc-no">04</span><span class="rc-name">Fingers</span><span class="rc-sub">MCP tool: press</span></button>
+      </div>
+
+      <div class="rig-panels" aria-live="polite">
+        <p class="rig-panel" data-layer="rig">A webcam over the panel, two servo fingers on H and ST/SP, and the screen where a human approves. Pull it apart to see the four layers.</p>
+        <p class="rig-panel" data-layer="0" hidden><strong>Eyes.</strong> A webcam watches the panel. SAM 3.1 finds the buttons and the screens; Muse Spark reads what the screens say, voting across reads. A low-confidence read pauses the job instead of pressing blind.</p>
+        <p class="rig-panel" data-layer="1" hidden><strong>Brain.</strong> Muse Spark turns a plain request into presses. The plan is checked in code against the live screen read before anything moves, and a plan that doesn&rsquo;t add up gets refused with a plain reason.</p>
+        <p class="rig-panel" data-layer="2" hidden><strong>Gut check.</strong> Muse Spark Open scores each risky step with a tier and a one-line reason. It can only add, never remove an approval. Steps that turn something on always need a human to hold approve.</p>
+        <p class="rig-panel" data-layer="3" hidden><strong>Fingers.</strong> An ESP32 drives the servos that press the real buttons: H and ST/SP. The approval gate lives inside the press tool, so the agent can&rsquo;t skip it, and STOP lifts the finger right away.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VIDEO ============ -->
+  <section class="section" id="video">
+    <div class="wrap">
+      <p class="sec-no">02</p>
+      <h2>Watch it press buttons</h2>
+      <div class="video-shell" id="video-shell">
+        <!-- VIDEO_URL lives in replay.js: paste the demo video link there and it plays here. -->
+        <div class="video-ph" id="video-ph">
+          <p class="video-ph-title">Full demo video</p>
+          <p class="video-ph-sub">Filmed on the rig: H, H, then the hold-to-approve on ST/SP.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TRY IT YOURSELF ============ -->
+  <section class="section" id="try">
+    <div class="wrap">
+      <p class="sec-no">03</p>
+      <h2>Try it yourself</h2>
+      <p class="sec-sub">Two replays, one pipeline. <strong>Same brain, different machine.</strong> Press play, watch the finger work, and be the human on the risky step. The timer is the real rig device; the incubator is a demo profile showing the same code driving a second machine.</p>
+
+      <div class="machine-tabs" role="tablist" aria-label="Pick a machine">
+        <button role="tab" aria-selected="true" data-machine="timer" id="tab-timer">
+          <span class="mt-name">Kitchen timer</span>
+          <span class="mt-sub">T1 to 2 hours, then start</span>
+        </button>
+        <button role="tab" aria-selected="false" data-machine="incubator" id="tab-incubator">
+          <span class="mt-name">Incubator</span>
+          <span class="mt-sub">37 &deg;C for 2 hours, then start</span>
+        </button>
+      </div>
+
+      <div class="replay" id="replay">
+        <div class="rp-main">
+          <div class="rp-head">
+            <div>
+              <p class="rp-label">Request</p>
+              <p class="rp-request" id="rp-request">&hellip;</p>
+            </div>
+            <div class="rp-statusrow">
+              <span class="rp-status" id="rp-status">queued</span>
+              <span class="rp-clock mono" id="rp-clock">0.0 s</span>
+            </div>
+          </div>
+          <div class="rp-screenline">
+            <p class="rp-label">Screen read</p>
+            <p class="mono" id="rp-screen">&hellip;</p>
+          </div>
+          <div class="rp-frame" id="rp-frame" role="img" aria-label="Replay camera frame"></div>
+          <div class="rp-controls">
+            <button class="btn small" id="rp-play">Play</button>
+            <button class="btn ghost small" id="rp-skip">Skip to approval</button>
+            <button class="btn ghost small" id="rp-restart">Restart</button>
+            <button class="btn ghost small" id="rp-speed" aria-label="Toggle playback speed">1&times;</button>
+          </div>
+          <div class="rp-steps" id="rp-steps" aria-label="Plan steps"></div>
+        </div>
+
+        <div class="rp-side">
+          <section class="panel" id="rp-approval" hidden>
+            <h3>Approval needed</h3>
+            <p class="ap-intro" id="ap-intro"></p>
+            <dl class="ap-facts">
+              <div><dt>Action</dt><dd id="ap-action">&hellip;</dd></div>
+              <div><dt>Target button</dt><dd id="ap-target">&hellip;</dd></div>
+              <div><dt>Risk tier</dt><dd><span class="tier" id="ap-tier">&hellip;</span></dd></div>
+              <div><dt>Risk reason</dt><dd id="ap-reason">&hellip;</dd></div>
+              <div><dt>Scored by</dt><dd class="mono small" id="ap-scorer">&hellip;</dd></div>
+              <div><dt>Screen now</dt><dd class="mono" id="ap-screen">&hellip;</dd></div>
+            </dl>
+            <button class="hold" id="ap-hold">
+              <span class="hold-fill" id="ap-holdfill"></span>
+              <span class="hold-label" id="ap-holdlabel">Hold 1.5 s to approve</span>
+            </button>
+            <div class="ap-row">
+              <button class="btn ghost small" id="ap-reject">Reject</button>
+              <p class="ap-note" id="ap-note"></p>
+            </div>
+          </section>
+
+          <section class="panel" id="rp-pause" hidden>
+            <h3>Paused on an unclear read</h3>
+            <p id="pause-text"></p>
+            <button class="btn small" id="pause-resume">Resume</button>
+          </section>
+
+          <section class="panel log-panel">
+            <h3>Log</h3>
+            <ol class="log mono" id="rp-log"></ol>
+          </section>
+        </div>
+      </div>
+      <p class="fine">Replays run from fixed scripts in this page, built from the real fixtures and a recorded risk score. The full stack &mdash; planner, vision, scorer, finger &mdash; runs in the repo below.</p>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS ============ -->
+  <section class="section" id="how">
+    <div class="wrap">
+      <p class="sec-no">04</p>
+      <h2>How it works</h2>
+      <ol class="how">
+        <li><strong>Eyes.</strong> A webcam watches the panel. SAM 3.1 finds the buttons and the screens; Muse Spark reads what the screens say, voting across reads.</li>
+        <li><strong>Brain.</strong> Muse Spark plans the presses from the live screen read, then the plan is checked in code against that same read before anything moves.</li>
+        <li><strong>Finger.</strong> An ESP32 drives a servo that presses the real button. Two fingers on the rig: H and ST/SP.</li>
+        <li><strong>Gut check.</strong> Muse Spark Open scores each risky step with a tier and a one-line reason. It can only add, never remove an approval.</li>
+        <li><strong>The call.</strong> A human holds approve. Steps that turn something on always need the hold, whatever the score says.</li>
+      </ol>
+      <figure class="arch">
+        <figcaption>One process owns the finger</figcaption>
+        <pre>web app  &rarr;  backend (HTTP + WebSocket)  &rarr;  MCP tools: get_controls, press, read_screen, get_frame, stop
+                          &uarr;                              &darr; press holds the approval gate
+              Muse Spark (plan) + SAM 3.1 (find)      ESP32 + servo &rarr; machine
+              Muse Spark Open on Baseten (risk)       webcam &rarr; screen reads</pre>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ============ MODELS ============ -->
+  <section class="section" id="models">
+    <div class="wrap">
+      <p class="sec-no">05</p>
+      <h2>Which Meta model does what</h2>
+      <div class="tblwrap"><table class="tbl">
+        <thead><tr><th>Model</th><th>Job</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">sam-3.1</td><td>Finds the buttons and the screens on the panel.</td></tr>
+          <tr><td class="mono">muse-spark-1.3</td><td>Plans the presses and reads the screens, voting across reads for confidence.</td></tr>
+          <tr><td class="mono">meta-models/muse-spark-open-1026</td><td>Muse Spark Open on Baseten: scores each risky step with a tier and a one-line reason. It can only add, never remove an approval.</td></tr>
+          <tr><td>Muse Code</td><td>Built this site.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3>Two real risk cards, one per replay</h3>
+      <div class="risks">
+        <article class="risk">
+          <p class="risk-step">Timer, step 3: Start T1 (press ST/SP)</p>
+          <p><span class="tier medium">medium</span> Starts T1 countdown from 2 hours as requested.</p>
+          <p class="fine">Scored by <span class="mono">meta-models/muse-spark-open-1026</span>. Recorded score from the run data.</p>
+        </article>
+        <article class="risk">
+          <p class="risk-step">Incubator, step 6: Start the run (press START)</p>
+          <p><span class="tier medium">medium</span> Starts incubator at 37 &deg;C for 2 hours as requested.</p>
+          <p class="fine">Scored by <span class="mono">meta-models/muse-spark-open-1026</span>. Real scorer output, <span class="mono">risk/out/incubator_start_37.scored.json</span>.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SAFETY ============ -->
+  <section class="section" id="safety">
+    <div class="wrap">
+      <p class="sec-no">06</p>
+      <h2>Safety</h2>
+      <p class="sec-sub">Every rule below lives in the code, not just on this page.</p>
+      <ul class="checks">
+        <li>The approval gate lives inside the <span class="mono">press</span> tool, so the agent can&rsquo;t skip it. (<span class="mono">backend/mcp_server.py</span>)</li>
+        <li>Steps that turn on output always need hold-to-approve, whatever the risk score. The backend refuses a tap. (<span class="mono">backend/api.py</span>)</li>
+        <li>The risk scorer can only add a tier and a reason, never remove an approval. If it fails, the step scores high. (<span class="mono">risk/scorer.py</span>)</li>
+        <li>Reads are voted: two reads agree, or a third breaks the tie. A low-confidence read pauses the job instead of pressing blind.</li>
+        <li>Press budget: 30 presses per job. Going over is refused, nothing pressed.</li>
+        <li>Plans that don&rsquo;t add up get refused with a plain reason. (<span class="mono">backend/planner.py</span> checks the plan against the screen)</li>
+        <li>A press that didn&rsquo;t register gets retried &mdash; never on an approval step, where a double-press would undo the job.</li>
+        <li>Buttons with no finger are never planned. STOP is always on screen and lifts the finger right away, even mid-hold.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ NUMBERS ============ -->
+  <section class="section" id="numbers">
+    <div class="wrap">
+      <p class="sec-no">07</p>
+      <h2>The numbers</h2>
+      <p class="sec-sub">Only numbers with a source are here. Everything else says so. Full table, sources and check dates: <span class="mono">docs/costs.md</span>.</p>
+      <div class="statgrid">
+        <div class="stat"><p class="stat-v">&asymp;$20</p><p class="stat-k">Rig parts</p><p class="fine">Servos, webcam, ESP32, wiring. Entered prices, listings not attached yet.</p></div>
+        <div class="stat"><p class="stat-v">Not measured</p><p class="stat-k">Cost per job</p><p class="fine">Planner, screen reads, scorer. No made-up values.</p></div>
+        <div class="stat"><p class="stat-v">Not measured</p><p class="stat-k">Success rate on the rig</p><p class="fine">Jobs that finished right, retries per job. Runs are recorded, the rig time isn&rsquo;t in yet.</p></div>
+      </div>
+      <h3>Replace the machine, or give it an API</h3>
+      <div class="tblwrap"><table class="tbl costs">
+        <thead><tr><th>Instead of replacing&hellip;</th><th>Replacement costs</th><th>Source, checked Nov 2</th></tr></thead>
+        <tbody>
+          <tr><td>Lab benchtop incubator</td><td>$798.59&ndash;$1,185.00</td><td>TEquipment listings</td></tr>
+          <tr><td>Manufacturing HMI touch panel</td><td>$1,718.00</td><td>AutomationDirect</td></tr>
+          <tr><td>Touch screen test robot (hardware QA)</td><td>$12,243.75&ndash;$12,288.75</td><td>igus RBTX</td></tr>
+          <tr><td>Temperature controller (building ops)</td><td>$540.52</td><td>SupplyHouse</td></tr>
+          <tr><td>Greenhouse environment kit</td><td>$8,745.00</td><td>Growers Supply</td></tr>
+          <tr><td>Commercial fryer, programmable</td><td>$6,765.00</td><td>WebstaurantStore</td></tr>
+          <tr><td>Warehouse parcel scale</td><td>$945.00</td><td>Uline</td></tr>
+          <tr><td>Home electric range</td><td>$649.00&ndash;$829.00</td><td>Home Depot</td></tr>
+          <tr><td>IoT retrofit, drill press (sensors + gateway)</td><td>about $2,000</td><td>Bosch Rexroth via Design Development Today</td></tr>
+          <tr><td>IoT retrofit, legacy equipment, typical</td><td>a couple thousand, up to $10,000&ndash;$20,000</td><td>Automate.org</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ============ TEAM ============ -->
+  <section class="section" id="team">
+    <div class="wrap">
+      <p class="sec-no">08</p>
+      <h2>Built during the hackathon</h2>
+      <ul class="team">
+        <li><strong>Pam</strong> (<a href="https://github.com/PamAntonio">@PamAntonio</a>): the idea, the first contract, the first planner and device profiles, the ESP32 firmware, the serial protocol, and the rig, including the press angles.</li>
+        <li><strong>Bhavi</strong> (<a href="https://github.com/Bhavishaahuja">@Bhavishaahuja</a>): the MCP server, the planner hookup and later planner work, the backend runner, vision, the risk scorer, the web app, calibration, and the live camera.</li>
+      </ul>
+      <blockquote>Everything in this repo was written during the hackathon, from Oct 27, except the very first commit: the README was created on Oct 26 (<span class="mono">b06e0dc</span>, Pam). <span class="mono">web/</span> started from <span class="mono">create-next-app</span>.</blockquote>
+      <p>We used Claude Code as a coding assistant. The Co-Authored-By trailers in the commit history show which commits. This site was built with Muse Code. <a href="https://github.com/PamAntonio/physical-mcp/commits">Commit history</a></p>
+    </div>
+  </section>
+
+  <!-- ============ RUN IT ============ -->
+  <section class="section" id="run">
+    <div class="wrap">
+      <p class="sec-no">09</p>
+      <h2>Run it yourself</h2>
+      <p class="sec-sub">No hardware needed. This runs the backend on FakeHardware plus the web app. You need your own Meta Model API key and Baseten key in a repo-root <span class="mono">.env</span> file (<span class="mono">MODEL_API_KEY</span> and <span class="mono">BASETEN_API_KEY</span>).</p>
+      <div class="runcols">
+        <div>
+          <h3>Mac / Linux</h3>
+          <pre>python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements.txt
+FAKE_CONFIDENCE=high FAKE_LOW_READ=2 FAKE_MISS_PRESS=btn_h .venv/bin/python backend/api.py</pre>
+          <p>Then the web app, in another terminal:</p>
+          <pre>cd web
+npm install
+NEXT_PUBLIC_USE_MOCK=false NEXT_PUBLIC_BACKEND_URL=http://localhost:8000 NEXT_PUBLIC_DEVICE_ID=timer-01 npm run dev</pre>
+        </div>
+        <div>
+          <h3>Windows Command Prompt</h3>
+          <pre>python -m venv .venv
+.venv\Scripts\python -m pip install -r backend\requirements.txt
+set FAKE_CONFIDENCE=high
+set FAKE_LOW_READ=2
+set FAKE_MISS_PRESS=btn_h
+.venv\Scripts\python backend\api.py</pre>
+          <p>Then the web app, in another terminal:</p>
+          <pre>cd web
+npm install
+set NEXT_PUBLIC_USE_MOCK=false
+set NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+set NEXT_PUBLIC_DEVICE_ID=timer-01
+npm run dev</pre>
+        </div>
+      </div>
+      <p>Open <span class="mono">http://localhost:3000</span>. The fake flags replay the low read and the missed press from the timer replay above. Restart the backend before every take, each flag fires once per start. Full flags and rig setup are in the repo README.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <p>Built for the Meta Global AI Developer Hackathon, Oct 27 to Nov 4, 2026.</p>
+    <p><a href="https://github.com/PamAntonio/physical-mcp">Repo</a> &middot; <a href="#video">Video</a> &middot; <a href="#top">Back to top</a></p>
+  </div>
+</footer>
+
+<script src="replay.js"></script>
+<script src="rig.js"></script>
+</body>
+</html>
+
