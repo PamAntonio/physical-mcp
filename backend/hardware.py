@@ -36,7 +36,9 @@ class Hardware:
     def read_screen_detail(self, control_id):
         """read_screen plus how sure the read is: {"text", "confidence"}. confidence is the
         vision vote ("high" / "medium" / "low"), or None when this hardware doesn't report one.
-        The MCP read_screen tool calls this. Override it to pass the vision confidence through."""
+        The MCP read_screen tool calls this. Override it to pass the vision confidence through.
+        Optional "usage": a list of {kind, model, prompt_tokens, completion_tokens, seconds}, one
+        per model call the read made, for the job's usage. Leave it off when nothing was called."""
         return {"text": self.read_screen(control_id), "confidence": None}
 
     def stop(self):

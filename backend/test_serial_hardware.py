@@ -164,6 +164,36 @@ class SerialHardwareTests(unittest.TestCase):
         rig.press("btn_up", 1)
         self.assertEqual(fake.commands[-1], "PRESS 1 1 250")
 
+    def test_read_screen_detail_passes_vision_usage_on(self):
+        rig, fake = make_rig(PER_BUTTON)
+        calls = [{"kind": "screen_read", "model": "muse-spark-1.3", "prompt_tokens": 199,
+                  "completion_tokens": 720, "seconds": 2.1}] * 2
+
+        # stand-in for vision/read_screen.py whose vote made two model calls
+        class FakeVision:
+            @staticmethod
+            def read_screen(path, control_id=None, device_id=None):
+                return {"text": "TS 80.0", "confidence": "high", "reads": ["TS 80.0"] * 2, "usage": calls}
+
+            @staticmethod
+            def read_indicator(path, control_id=None, device_id=None):
+                return {"on": False, "brightness": 0.1}
+
+        rig.save_frame = lambda path=None: Path("frame.jpg")
+        saved_module = sys.modules.get("read_screen")
+        sys.modules["read_screen"] = FakeVision
+        try:
+            self.assertEqual(rig.read_screen_detail("screen_pv"),
+                             {"text": "TS 80.0", "confidence": "high", "usage": calls})
+            # an LED is a pixel check, no model call, so no usage key at all
+            self.assertEqual(rig.read_screen_detail("led_heat"), {"text": "OFF", "confidence": None})
+        finally:
+            if saved_module is None:
+                sys.modules.pop("read_screen", None)
+            else:
+                sys.modules["read_screen"] = saved_module
+            rig._closed = True
+
     def test_read_screen_detail_keeps_vision_confidence(self):
         rig, fake = make_rig(PER_BUTTON)
         commands_before = list(fake.commands)

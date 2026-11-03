@@ -191,10 +191,19 @@ class Pressed(TypedDict):
     press_budget: int
 
 
+class ModelCall(TypedDict):
+    kind: str
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    seconds: float
+
+
 class ScreenRead(TypedDict):
     control_id: str
     text: str
     confidence: str | None
+    usage: list[ModelCall]  # the model calls this read made (none on FakeHardware)
 
 
 class Frame(TypedDict):
@@ -260,7 +269,8 @@ async def read_screen(control_id: str) -> ScreenRead:
         raise ToolError(STOPPED + str(err))
     except Exception as err:
         raise ToolError(HARDWARE_ERROR + str(err))
-    return {"control_id": control_id, "text": detail["text"] or "", "confidence": detail.get("confidence")}
+    return {"control_id": control_id, "text": detail["text"] or "", "confidence": detail.get("confidence"),
+            "usage": detail.get("usage") or []}
 
 
 @mcp.tool()

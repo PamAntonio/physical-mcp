@@ -212,14 +212,16 @@ export interface Job {
   // PROPOSED: while status is "paused", why (a low-confidence read, or a step rejected with
   // "pause"). null otherwise. Missing = an older backend
   pause_reason?: string | null;
-  // PROPOSED: one entry per model reply this job used (the planner, then the risk scorer as
-  // each score lands). Token counts as the API reported them, no prices. Missing = an older backend
+  // PROPOSED: one entry per model reply this job used: the planner, every screen read's vote,
+  // and the risk scorer as each score lands. Token counts as the API reported them, no prices.
+  // Missing = an older backend
   usage?: ModelCall[];
 }
 
 // PROPOSED: one model reply's usage. completion_tokens includes reasoning tokens.
 export interface ModelCall {
-  model: string; // "muse-spark-1.3" (planner) or "meta-models/muse-spark-open-1026" (scorer)
+  kind: "planner" | "scorer" | "screen_read"; // missing on entries from before it was added
+  model: string; // "muse-spark-1.3" (planner, screen reads) or "meta-models/muse-spark-open-1026" (scorer)
   prompt_tokens: number;
   completion_tokens: number;
   seconds: number; // how long the call took, round trip

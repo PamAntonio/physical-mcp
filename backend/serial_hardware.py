@@ -325,7 +325,12 @@ class SerialHardware(Hardware):
             result = vision.read_indicator(str(path), control_id=control_id, device_id=self.device_id)
             return {"text": "ON" if result["on"] else "OFF", "confidence": None}
         result = vision.read_screen(str(path), control_id=control_id, device_id=self.device_id)
-        return {"text": result["text"], "confidence": result.get("confidence")}
+        detail = {"text": result["text"], "confidence": result.get("confidence")}
+        # the vote's model calls ride back with the read, so api.py can add them to the job's
+        # usage (vision never touches the job). only there when a model was actually called
+        if result.get("usage"):
+            detail["usage"] = result["usage"]
+        return detail
 
     def close(self):
         self._closed = True

@@ -50,25 +50,26 @@ def write_run(runs_dir, job_id, decisions, usage):
     (folder / "events.json").write_text(json.dumps(events), encoding="utf-8")
 
 
-def call(model, prompt, completion):
-    return {"model": model, "prompt_tokens": prompt, "completion_tokens": completion, "seconds": 1.0}
+def call(kind, prompt, completion):
+    model = "meta-models/muse-spark-open-1026" if kind == "scorer" else "muse-spark-1.3"
+    return {"kind": kind, "model": model, "prompt_tokens": prompt, "completion_tokens": completion, "seconds": 1.0}
 
 
 class RunMetricsTests(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.runs_dir = Path(self.folder.name)
-        planner = "muse-spark-1.3"
-        scorer = "meta-models/muse-spark-open-1026"
         # job a: rejected (tap, 3 s), then approved (hold, 5 s). job b: one hold approval, 2 s.
         write_run(self.runs_dir, "job_a", [decision("reject", "tap", 3000, "2026-11-03T10:00:00Z"),
                                            decision("approve", "hold", 5000, "2026-11-03T10:00:01Z")],
-                  [call(planner, 1000, 2000), call(scorer, 1500, 300)])
+                  [call("planner", 1000, 2000), call("screen_read", 200, 700), call("screen_read", 200, 700),
+                   call("scorer", 1500, 300)])
         write_run(self.runs_dir, "job_b", [decision("approve", "hold", 2000, "2026-11-03T11:00:00Z")],
-                  [call(planner, 1200, 1800), call(scorer, 1500, 200)])
+                  [call("planner", 1200, 1800), call("screen_read", 200, 700), call("screen_read", 200, 700),
+                   call("screen_read", 200, 700), call("scorer", 1500, 200)])
         write_run(self.runs_dir, "job_c", [], None)  # recorded before job.usage and step.decision
         write_run(self.runs_dir, "job_m", [decision("approve", "tap", 900, "2026-11-03T12:00:00Z")],
-                  [call(planner, 1, 1)])
+                  [call("planner", 1, 1)])
         (self.runs_dir / "labels.json").write_text(
             json.dumps({"job_a": "real", "job_b": "real", "job_c": "real", "job_m": "mock"}), encoding="utf-8")
         self.runs = dm.load_runs(self.runs_dir)
@@ -87,11 +88,26 @@ class RunMetricsTests(unittest.TestCase):
 
     def test_tokens_per_job_real_only(self):
         tokens = self.real["real.tokens_per_job"]
-        # job a: 2500 prompt, 2300 completion. job b: 2700, 2000. job c has no usage, left out
-        self.assertEqual(tokens["value"], {"prompt": 2600, "completion": 2150, "total": 4750})
+        # medians of jobs a and b (job c has no usage, left out). screen reads: a made 2 calls
+        # (400 prompt, 1400 completion), b made 3 (600, 2100)
+        self.assertEqual(tokens["value"], {
+            "planner": {"prompt": 1100, "completion": 1900, "total": 3000},
+            "screen_read": {"prompt": 500, "completion": 1750, "total": 2250},
+            "scorer": {"prompt": 1500, "completion": 250, "total": 1750},
+            "all": {"prompt": 3100, "completion": 3900, "total": 7000},
+        })
         self.assertEqual(tokens["sample"], "2 jobs")
+        self.assertIn("2 planner, 5 screen_read, 2 scorer calls", tokens["note"])
         self.assertIn("1 jobs recorded before job.usage existed are left out", tokens["note"])
         self.assertNotIn("mock.tokens_per_job", self.mock)
+
+    def test_entries_from_before_kind_are_kept_apart(self):
+        run = {"job": {"usage": [{"model": "muse-spark-1.3", "prompt_tokens": 10, "completion_tokens": 20},
+                                 call("scorer", 5, 5)]}}
+        tokens = dm.job_tokens(run)
+        self.assertEqual(tokens["not labelled"], (10, 20, 1))
+        self.assertEqual(tokens["scorer"], (5, 5, 1))
+        self.assertEqual(tokens["all"], (15, 25, 2))
 
     def test_mock_stays_mock(self):
         self.assertEqual(self.mock["mock.time_to_decide_median_ms"]["value"], 900)

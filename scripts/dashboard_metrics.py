@@ -180,18 +180,29 @@ def run_decisions(run):
     return decisions
 
 
+USAGE_KINDS = ("planner", "screen_read", "scorer")
+
+
 def job_tokens(run):
-    """(prompt, completion, calls) summed over job.usage, or None if the job has no usage list
-    (recorded before api.py kept one)."""
+    """{kind: (prompt, completion, calls)} summed over job.usage, plus "all". None if the job has
+    no usage list (recorded before api.py kept one). Entries from before kind was added go under
+    "not labelled": the planner and the screen reads share a model, so there's no telling them apart."""
     usage = run["job"].get("usage")
     if usage is None:
         return None
+    by_kind = {}
+    for call in usage:
+        kind = call.get("kind") or "not labelled"
+        prompt, completion, calls = by_kind.get(kind, (0, 0, 0))
+        by_kind[kind] = (prompt + (call.get("prompt_tokens") or 0),
+                         completion + (call.get("completion_tokens") or 0), calls + 1)
     prompt = 0
     completion = 0
-    for call in usage:
-        prompt += call.get("prompt_tokens") or 0
-        completion += call.get("completion_tokens") or 0
-    return prompt, completion, len(usage)
+    for kind_prompt, kind_completion, _calls in by_kind.values():
+        prompt += kind_prompt
+        completion += kind_completion
+    by_kind["all"] = (prompt, completion, len(usage))
+    return by_kind
 
 
 def run_metrics(runs, label):
@@ -428,30 +439,49 @@ def run_metrics(runs, label):
 
     # ---- model usage (real runs only: what the demo's jobs actually cost in tokens) ----
     if label == "real":
-        prompt_per_job = []
-        completion_per_job = []
-        calls = 0
+        per_job = []  # job_tokens() of every real job that has a usage list
         without_usage = 0
         for run in group:
             tokens = job_tokens(run)
             if tokens is None:
                 without_usage += 1
-                continue
-            prompt_per_job.append(tokens[0])
-            completion_per_job.append(tokens[1])
-            calls += tokens[2]
-        if prompt_per_job:
-            totals = []
-            for index in range(len(prompt_per_job)):
-                totals.append(prompt_per_job[index] + completion_per_job[index])
-            note = (f"medians per job over {calls} planner + scorer calls (job.usage). Screen reads aren't "
-                    f"counted yet. Completion includes reasoning tokens. No prices, those come from billing")
+            else:
+                per_job.append(tokens)
+        if per_job:
+            # medians per job for each kind. a job with no calls of a kind counts as 0 for it,
+            # so the kinds are comparable across the same jobs
+            kinds = list(USAGE_KINDS)
+            for tokens in per_job:
+                for kind in tokens:
+                    if kind not in kinds and kind != "all":
+                        kinds.append(kind)
+            kinds.append("all")
+            value = {}
+            calls_by_kind = {}
+            for kind in kinds:
+                prompts = []
+                completions = []
+                totals = []
+                calls = 0
+                for tokens in per_job:
+                    prompt, completion, kind_calls = tokens.get(kind, (0, 0, 0))
+                    prompts.append(prompt)
+                    completions.append(completion)
+                    totals.append(prompt + completion)
+                    calls += kind_calls
+                calls_by_kind[kind] = calls
+                if calls or kind == "all":
+                    value[kind] = {"prompt": median(prompts), "completion": median(completions), "total": median(totals)}
+            counted = []
+            for kind in kinds:
+                if kind != "all" and calls_by_kind[kind]:
+                    counted.append(f"{calls_by_kind[kind]} {kind}")
+            note = (f"medians per job from job.usage, by kind ({', '.join(counted)} calls). Completion includes "
+                    f"reasoning tokens. No prices, those come from billing")
             if without_usage:
                 note += f". {without_usage} jobs recorded before job.usage existed are left out"
             out.update(dict([
-                metric("real.tokens_per_job", {"prompt": median(prompt_per_job), "completion": median(completion_per_job),
-                                               "total": median(totals)},
-                       f"{len(prompt_per_job)} jobs", "runs/*/job.json usage (real)", note=note),
+                metric("real.tokens_per_job", value, f"{len(per_job)} jobs", "runs/*/job.json usage (real)", note=note),
             ]))
 
     # computed from data, but FakeHardware data: never let these read as rig numbers

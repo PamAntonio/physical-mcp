@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detect_controls  # noqa: E402
+import read_screen  # noqa: E402
 from read_screen import (  # noqa: E402
     CALIBRATION_DIR,
     DEVICE_SETTINGS,
@@ -268,6 +269,48 @@ def test_skip_led_slits():
     assert printed.count("skipping button") == 2, printed
 
 
+def real_shaped_reply(text, input_tokens, output_tokens):
+    """A Responses API reply with the fields the saved real ones have (usage.input_tokens /
+    output_tokens, reasoning inside output_tokens)."""
+    return {"model": "muse-spark-1.3",
+            "output": [{"type": "message", "content": [{"type": "output_text", "text": text}]}],
+            "usage": {"input_tokens": input_tokens, "input_tokens_details": {"cached_tokens": 0},
+                      "output_tokens": output_tokens, "output_tokens_details": {"reasoning_tokens": output_tokens - 8},
+                      "total_tokens": input_tokens + output_tokens}}
+
+
+def test_usage_entry():
+    entry = read_screen.usage_entry(real_shaped_reply("02:00 00", 199, 720), 2.345)
+    assert entry == {"kind": "screen_read", "model": "muse-spark-1.3", "prompt_tokens": 199,
+                     "completion_tokens": 720, "seconds": 2.35}, entry
+    assert read_screen.usage_entry({"output": []}, 1.0) is None  # no usage on the reply, nothing counted
+
+
+def test_read_screen_reports_its_model_calls():
+    # no network: the model call and the key are stubbed, the image is made here
+    from PIL import Image
+
+    replies = [real_shaped_reply("TS 80.0", 300, 900), real_shaped_reply("TS 80.0", 310, 950)]
+    saved = (read_screen.call_model, read_screen.get_api_key)
+    read_screen.call_model = lambda api_key, data_url, prompt: replies.pop(0)
+    read_screen.get_api_key = lambda: "test-key"
+    try:
+        with tempfile.TemporaryDirectory() as folder:
+            frame = Path(folder) / "frame.jpg"
+            Image.new("RGB", (400, 300), (40, 40, 40)).save(frame)
+            result = read_screen.read_screen(str(frame), control_id="screen_sv", bbox=[50, 50, 200, 80],
+                                             device_id="inkbird-01")
+    finally:
+        read_screen.call_model, read_screen.get_api_key = saved
+
+    assert result["confidence"] == "high", result  # two agreeing reads, no third call
+    assert len(result["usage"]) == 2, result["usage"]
+    assert [call["prompt_tokens"] for call in result["usage"]] == [300, 310]
+    assert [call["completion_tokens"] for call in result["usage"]] == [900, 950]
+    for call in result["usage"]:
+        assert call["kind"] == "screen_read" and call["model"] == "muse-spark-1.3", call
+
+
 def test_sam_summary():
     boxes = {
         "button": [sam_box(10, 200, 62, 46, 0.94), sam_box(100, 200, 60, 44, 0.88)],
@@ -443,6 +486,8 @@ def main():
         test_row_box,
         test_vote_timer,
         test_skip_led_slits,
+        test_usage_entry,
+        test_read_screen_reports_its_model_calls,
         test_sam_summary,
         test_timer_calibration_file,
         test_find_lcd_rows,
