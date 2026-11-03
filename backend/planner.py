@@ -515,7 +515,7 @@ def _extract_content(response):
 
 
 def record_usage(response, seconds):
-    """Adds {model, prompt_tokens, completion_tokens, seconds} to usage_log.calls, if a caller
+    """Adds {kind, model, prompt_tokens, completion_tokens, seconds} to usage_log.calls, if a caller
     set that up. Field names are what api.meta.ai sends back (checked on a real reply):
     usage.prompt_tokens and usage.completion_tokens (reasoning tokens are counted in the
     completion ones). No usage on the reply, nothing added."""
@@ -524,6 +524,7 @@ def record_usage(response, seconds):
     if calls is None or usage is None:
         return
     calls.append({
+        "kind": "planner",
         "model": getattr(response, "model", None) or MODEL,
         "prompt_tokens": usage.prompt_tokens,
         "completion_tokens": usage.completion_tokens,

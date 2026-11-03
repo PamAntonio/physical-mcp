@@ -39,6 +39,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -319,6 +320,23 @@ def call_model(api_key, image_data_url, prompt):
         raise ApiError(f"Couldn't reach {API_URL}: {err.reason}")
 
 
+def usage_entry(response_json, seconds):
+    """One read's token counts, shaped like the planner's and the scorer's entries in job.usage:
+    {kind, model, prompt_tokens, completion_tokens, seconds}. The Responses API calls them
+    usage.input_tokens and usage.output_tokens (checked in saved real replies, reasoning tokens
+    are inside output_tokens). None if the reply has no usage."""
+    usage = response_json.get("usage")
+    if not isinstance(usage, dict) or usage.get("input_tokens") is None or usage.get("output_tokens") is None:
+        return None
+    return {
+        "kind": "screen_read",
+        "model": response_json.get("model") or MODEL,
+        "prompt_tokens": usage["input_tokens"],
+        "completion_tokens": usage["output_tokens"],
+        "seconds": round(seconds, 2),
+    }
+
+
 def reply_text(response_json):
     """output[] message items -> content[] output_text parts -> text, glued together.
     (the docs: Output Message -> Output Text Content -> "text"). "" if there's none."""
@@ -538,7 +556,8 @@ def read_screen(image_path, control_id=None, bbox=None, device_id=DEFAULT_DEVICE
     """Read one screen (for the Inkbird: screen_pv or screen_sv, never both at once).
     rows/row: cut the screen box into `rows` equal strips and read only strip `row` (1 = top).
     Returns {"text", "parsed", "confidence": "high"|"medium"|"low", "reads", "out_of_range",
-    "bbox", "box_source"}, plus "row", "rows" and "screen_bbox" for a strip.
+    "bbox", "box_source", "usage"}, plus "row", "rows" and "screen_bbox" for a strip.
+    usage: one usage_entry per model call the vote made (2 or 3), for the job's usage.
     raw_log: a list to append the raw API replies to."""
     box, source = resolve_box(image_path, control_id or "screen", device_id, bbox=bbox)
     screen_box = box
@@ -554,8 +573,14 @@ def read_screen(image_path, control_id=None, bbox=None, device_id=DEFAULT_DEVICE
     api_key = get_api_key()
     data_url = image_to_data_url(crop)
 
+    calls = []
+
     def read_once():
+        started = time.monotonic()
         response_json = call_model(api_key, data_url, settings["prompt"])
+        call = usage_entry(response_json, time.monotonic() - started)
+        if call is not None:
+            calls.append(call)
         text = clean_reply(reply_text(response_json), multiline=settings["multiline"])
         if raw_log is not None:
             entry = {"control_id": control_id, "bbox": box, "crop_size": [crop.width, crop.height]}
@@ -570,6 +595,7 @@ def read_screen(image_path, control_id=None, bbox=None, device_id=DEFAULT_DEVICE
     result = vote_reads(read_once, settings)
     result["bbox"] = box
     result["box_source"] = source
+    result["usage"] = calls
     if rows is not None:
         result["row"] = row
         result["rows"] = rows

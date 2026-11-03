@@ -253,13 +253,14 @@ def build_context(job, step):
 
 
 def usage_entry(response, seconds):
-    """{model, prompt_tokens, completion_tokens, seconds} for one reply, or None if it has no
+    """{kind, model, prompt_tokens, completion_tokens, seconds} for one reply, or None if it has no
     usage. Field names are what Baseten sends back (checked on a real reply): usage.prompt_tokens
     and usage.completion_tokens (reasoning tokens are counted in the completion ones)."""
     usage = getattr(response, "usage", None)
     if usage is None:
         return None
     return {
+        "kind": "scorer",
         "model": getattr(response, "model", None) or MODEL,
         "prompt_tokens": usage.prompt_tokens,
         "completion_tokens": usage.completion_tokens,

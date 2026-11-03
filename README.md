@@ -200,7 +200,25 @@ TODO: presses tried vs. presses that registered on the rig, reads checked vs. re
 
 ## Cost
 
-TODO: cost per job (planner, screen reads, scorer) compared with the alternative. No numbers until they're measured.
+What the rig costs next to replacing the machine or retrofitting it. Only numbers with a source
+are here, the rest says so. Every figure, its source page and the date it was checked are in
+[`docs/costs.md`](docs/costs.md).
+
+| | Cost |
+|---|---|
+| Our rig (servos, webcam, ESP32, wiring) | not sourced yet |
+| API cost per job | not sourced yet |
+| Replace: research lab benchtop incubator | $798.59 to $1,185.00 |
+| Replace: legacy manufacturing HMI panel | $1,718.00 |
+| Replace: hardware QA touch screen test robot | $12,243.75 to $12,288.75 |
+| Replace: building ops temperature controller | $540.52 |
+| Replace: greenhouse environment controller | $8,745.00 |
+| Replace: commercial fryer | $6,765.00 |
+| Replace: warehouse parcel scale | $945.00 |
+| Replace: home electric range | $649.00 to $829.00 |
+| Retrofit with IoT: a drill press (Bosch Rexroth) | about $2,000 |
+| Retrofit with IoT: legacy equipment, typical | a couple thousand dollars, up to $10,000 to $20,000 |
+| Rig vs replacing a lab incubator | not sourced yet |
 
 ## Team
 

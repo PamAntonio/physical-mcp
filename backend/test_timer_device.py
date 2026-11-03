@@ -41,6 +41,14 @@ TIMER_CONTROLS = [
 ]
 SCREENS = ["screen_t1", "screen_t2", "screen_t3", "screen_t4"]
 FINGERS = ["btn_h", "btn_stsp"]  # the only two buttons with a finger on them
+
+
+def finger_angles(control_id):
+    """(rest_deg, press_deg) straight from timer-01.json. The tests read the angles instead of
+    hard-coding them, so the next rig rebuild only changes the profile, not the tests."""
+    profile = json.loads((BACKEND_DIR / "devices" / f"{DEVICE}.json").read_text(encoding="utf-8"))
+    entry = profile["controls"][control_id]
+    return entry["rest_deg"], entry["press_deg"]
 TWO_HOURS = "Set T1 to 2 hours and start it"
 REAL_MAKE_PLAN = api.make_plan  # grabbed before any test's setUp replaces it
 
@@ -214,12 +222,21 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(profile["max_hold_ms"], 1800)
 
         controls = profile["controls"]
-        self.assertEqual(controls["btn_h"], {"reachable": True, "servo": 0, "rest_deg": 150, "press_deg": 50,
+        h_rest, h_press = finger_angles("btn_h")
+        self.assertEqual(controls["btn_h"], {"reachable": True, "servo": 0, "rest_deg": h_rest, "press_deg": h_press,
                                              "retry_if_unchanged": True})
         self.assertEqual(profile["plan_reads"], ["screen_t1"])
+        stsp_rest, stsp_press = finger_angles("btn_stsp")
         self.assertEqual(controls["btn_stsp"],
-                         {"reachable": True, "servo": 1, "rest_deg": None, "press_deg": None, "risky": True,
+                         {"reachable": True, "servo": 1, "rest_deg": stsp_rest, "press_deg": stsp_press, "risky": True,
                           "turns_on_output": True})
+        # whatever the angles are, each finger needs real ones that differ, or it can't press
+        for control_id in FINGERS:
+            rest, press = finger_angles(control_id)
+            for angle in (rest, press):
+                self.assertIsInstance(angle, int, control_id)
+                self.assertTrue(0 <= angle <= 180, f"{control_id}: {angle} isn't a servo angle")
+            self.assertNotEqual(rest, press, f"{control_id}: rest and press are the same, the finger wouldn't move")
         for control_id, entry in controls.items():
             for key in ("pan_deg", "tilt_up_deg", "tilt_press_deg"):
                 self.assertNotIn(key, entry, control_id)
@@ -255,16 +272,16 @@ class TimerDeviceTests(unittest.IsolatedAsyncioTestCase):
         rig = SerialHardware(serial_port=fake, device_id="test-device")
         try:
             rig.prepare_step({}, planner.load_profile(DEVICE))
-            rig.press("btn_h", 1, 1000)
-            self.assertEqual(fake.commands[-2:], ["CAL 0 150 50", "PRESS 0 1 1000"])
+            # each finger presses on its own servo, with the angles the profile has right now
+            for servo, control_id in enumerate(FINGERS):
+                rig.press(control_id, 1, 1000)
+                rest, press = finger_angles(control_id)
+                self.assertEqual(fake.commands[-2:], [f"CAL {servo} {rest} {press}", f"PRESS {servo} 1 1000"])
             for command in fake.commands:
                 self.assertFalse(command.startswith("ANGLE"), "no pan move, the finger is fixed")
 
-            # ST/SP has its servo but no angles until Sunday: refused before anything moves
+            # buttons with no finger are refused before anything moves
             sent = len(fake.commands)
-            with self.assertRaises(NotCalibrated) as ctx:
-                rig.press("btn_stsp", 1, 1000)
-            self.assertIn("rest_deg", str(ctx.exception))
             for control_id in ("btn_m", "btn_t2", "btn_reset"):
                 with self.assertRaises(NotCalibrated):
                     rig.press(control_id, 1, 1000)

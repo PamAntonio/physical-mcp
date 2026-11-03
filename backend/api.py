@@ -423,6 +423,9 @@ async def read_once(run, client, control_id):
     """One read through the MCP read_screen tool, as a ScreenRead {control_id, text, confidence}.
     The newest read of every screen is kept in run.last_reads."""
     result = await mcp_server.call(client, "read_screen", {"control_id": control_id})
+    # the read's model calls (vision's vote) go on the job's usage, not on the read itself
+    for call in result.get("usage") or []:
+        run.job.setdefault("usage", []).append(call)
     read = {"control_id": control_id, "text": result.get("text") or "", "confidence": result.get("confidence")}
     run.last_reads[control_id] = read
     return read
@@ -915,7 +918,7 @@ async def create_job(http_request: Request):
         "plan": None,
         "result": None,
         "pause_reason": None,
-        "usage": [],  # one {model, prompt_tokens, completion_tokens, seconds} per planner/scorer reply
+        "usage": [],  # one {kind, model, prompt_tokens, completion_tokens, seconds} per model reply
     }
     run = JobRun(job)
     runs[job["job_id"]] = run

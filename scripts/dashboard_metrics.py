@@ -16,8 +16,8 @@ Where the numbers come from:
 - runs/<job_id>/job.json + events.json (committed, see runs/README.md): reliability, speed,
   safety, step.decision (time to decide, tap vs hold) and job.usage (tokens, real runs only)
 - vision/calibration/<device>.sam_summary.json (detect_controls.py --device): SAM detections
-- docs/costs.md (filled in by hand): a part is proven with an order number or a proof file in
-  docs/receipts/, a comparison counts with a source URL
+- docs/costs.md (filled in by hand): a part is proven with a listing URL and a checked date, a replacement or
+  retrofit cost counts with a $ figure and a source URL. parts_vs_replace only once both are REAL
 - docs/hardware.md, backend/devices/*.json, backend/api.py, risk/out/*.scored.json
 
 Real vs mock for a run: put a runs/labels.json next to the run folders, like
@@ -180,18 +180,29 @@ def run_decisions(run):
     return decisions
 
 
+USAGE_KINDS = ("planner", "screen_read", "scorer")
+
+
 def job_tokens(run):
-    """(prompt, completion, calls) summed over job.usage, or None if the job has no usage list
-    (recorded before api.py kept one)."""
+    """{kind: (prompt, completion, calls)} summed over job.usage, plus "all". None if the job has
+    no usage list (recorded before api.py kept one). Entries from before kind was added go under
+    "not labelled": the planner and the screen reads share a model, so there's no telling them apart."""
     usage = run["job"].get("usage")
     if usage is None:
         return None
+    by_kind = {}
+    for call in usage:
+        kind = call.get("kind") or "not labelled"
+        prompt, completion, calls = by_kind.get(kind, (0, 0, 0))
+        by_kind[kind] = (prompt + (call.get("prompt_tokens") or 0),
+                         completion + (call.get("completion_tokens") or 0), calls + 1)
     prompt = 0
     completion = 0
-    for call in usage:
-        prompt += call.get("prompt_tokens") or 0
-        completion += call.get("completion_tokens") or 0
-    return prompt, completion, len(usage)
+    for kind_prompt, kind_completion, _calls in by_kind.values():
+        prompt += kind_prompt
+        completion += kind_completion
+    by_kind["all"] = (prompt, completion, len(usage))
+    return by_kind
 
 
 def run_metrics(runs, label):
@@ -428,30 +439,49 @@ def run_metrics(runs, label):
 
     # ---- model usage (real runs only: what the demo's jobs actually cost in tokens) ----
     if label == "real":
-        prompt_per_job = []
-        completion_per_job = []
-        calls = 0
+        per_job = []  # job_tokens() of every real job that has a usage list
         without_usage = 0
         for run in group:
             tokens = job_tokens(run)
             if tokens is None:
                 without_usage += 1
-                continue
-            prompt_per_job.append(tokens[0])
-            completion_per_job.append(tokens[1])
-            calls += tokens[2]
-        if prompt_per_job:
-            totals = []
-            for index in range(len(prompt_per_job)):
-                totals.append(prompt_per_job[index] + completion_per_job[index])
-            note = (f"medians per job over {calls} planner + scorer calls (job.usage). Screen reads aren't "
-                    f"counted yet. Completion includes reasoning tokens. No prices, those come from billing")
+            else:
+                per_job.append(tokens)
+        if per_job:
+            # medians per job for each kind. a job with no calls of a kind counts as 0 for it,
+            # so the kinds are comparable across the same jobs
+            kinds = list(USAGE_KINDS)
+            for tokens in per_job:
+                for kind in tokens:
+                    if kind not in kinds and kind != "all":
+                        kinds.append(kind)
+            kinds.append("all")
+            value = {}
+            calls_by_kind = {}
+            for kind in kinds:
+                prompts = []
+                completions = []
+                totals = []
+                calls = 0
+                for tokens in per_job:
+                    prompt, completion, kind_calls = tokens.get(kind, (0, 0, 0))
+                    prompts.append(prompt)
+                    completions.append(completion)
+                    totals.append(prompt + completion)
+                    calls += kind_calls
+                calls_by_kind[kind] = calls
+                if calls or kind == "all":
+                    value[kind] = {"prompt": median(prompts), "completion": median(completions), "total": median(totals)}
+            counted = []
+            for kind in kinds:
+                if kind != "all" and calls_by_kind[kind]:
+                    counted.append(f"{calls_by_kind[kind]} {kind}")
+            note = (f"medians per job from job.usage, by kind ({', '.join(counted)} calls). Completion includes "
+                    f"reasoning tokens. No prices, those come from billing")
             if without_usage:
                 note += f". {without_usage} jobs recorded before job.usage existed are left out"
             out.update(dict([
-                metric("real.tokens_per_job", {"prompt": median(prompt_per_job), "completion": median(completion_per_job),
-                                               "total": median(totals)},
-                       f"{len(prompt_per_job)} jobs", "runs/*/job.json usage (real)", note=note),
+                metric("real.tokens_per_job", value, f"{len(per_job)} jobs", "runs/*/job.json usage (real)", note=note),
             ]))
 
     # computed from data, but FakeHardware data: never let these read as rig numbers
@@ -587,45 +617,60 @@ def money(text):
 
 
 def cost_tables(costs_md):
-    """(parts, comparison) rows from docs/costs.md, or (None, None) if there's no such file."""
+    """{"parts", "replace", "retrofit"} rows from docs/costs.md, or None if there's no such file."""
     if not costs_md.is_file():
-        return None, None
+        return None
     text = costs_md.read_text(encoding="utf-8")
-    return markdown_table(text, "Parts"), markdown_table(text, "Comparison")
+    return {"parts": markdown_table(text, "Parts"), "replace": markdown_table(text, "Replacing the machine"),
+            "retrofit": markdown_table(text, "Retrofitting with IoT")}
 
 
-def link_target(cell):
-    """'[name](receipts/x.pdf)' -> 'receipts/x.pdf'. A bare path comes back as it is."""
-    found = re.search(r"\]\(([^)]+)\)", cell or "")
-    if found:
-        return found.group(1).strip()
-    return (cell or "").strip()
+def dollar_amounts(text):
+    """Every $ figure in a cell, in order: '$798.59 to $1,185.00' -> [798.59, 1185.0]. Only
+    figures with a $ count, so '50 lb' or '10"' in a name never turn into a price."""
+    amounts = []
+    for found in re.finditer(r"\$\s*(\d[\d,]*(?:\.\d+)?)", text or ""):
+        amounts.append(float(found.group(1).replace(",", "")))
+    return amounts
 
 
-def proof_problem(cell, docs_dir):
-    """None if the Proof file cell points at a file that's really there (relative to docs/).
-    Otherwise why it doesn't count. Blank cell -> 'no proof file'."""
-    target = link_target(cell)
-    if not target:
-        return "no proof file"
-    if target.startswith("http://") or target.startswith("https://"):
-        return "a URL isn't proof, it has to be a file in docs/receipts/"
-    path = (Path(docs_dir) / target).resolve()
-    if path.name.lower() == "readme.md" or not path.is_file():
-        return f"proof file {target} isn't in the repo"
-    return None
+def card_slug(card):
+    """'Research labs (incubators, ...)' -> 'research_labs'."""
+    name = (card or "").split("(")[0].strip().lower()
+    return re.sub(r"[^a-z0-9]+", "_", name).strip("_")
 
 
-def parts_metric(rows, docs_dir):
+def is_url(text):
+    return (text or "").strip().startswith(("http://", "https://"))
+
+
+ALREADY_OWNED = "already owned, not counted"
+
+
+def listing_cell(row):
+    """The Listing URL column, whatever the rest of its header says."""
+    for name, value in row.items():
+        if name.startswith("listing url"):
+            return value
+    return ""
+
+
+def owned_label(count):
+    return f"{count} item already owned" if count == 1 else f"{count} items already owned"
+
+
+def parts_metric(rows):
     """cost.hardware_parts_total from the Parts table. A row's cost is its Total (or Qty x Unit
-    price when Total is blank). It's proven with an order number or a proof file that exists.
-    The total is only REAL once every row has a cost and is proven. Until then it's NEEDS INPUT,
-    with what's entered and what's proven shown apart."""
+    price when Total is blank). It's proven with a listing URL and the date it was checked.
+    A row noted "already owned, not counted" is left out: not in the total, not holding it back.
+    The total is only REAL once every other row has a cost and is proven. Until then it's NEEDS
+    INPUT, with what's entered and what's proven shown apart."""
     source = "docs/costs.md Parts"
     if not rows:
         return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": source,
                 "need": "rows in the Parts table"}
     detail = []
+    owned = []
     no_cost = []
     unproven = []
     problems = []
@@ -633,6 +678,10 @@ def parts_metric(rows, docs_dir):
     proven = 0
     for row in rows:
         item = row.get("item")
+        if ALREADY_OWNED in (row.get("note") or "").lower():
+            owned.append(item)
+            detail.append({"item": item, "cost": None, "already_owned": True})
+            continue
         qty = money(row.get("qty"))
         unit = money(row.get("unit price"))
         total = money(row.get("total"))
@@ -640,13 +689,15 @@ def parts_metric(rows, docs_dir):
             total = qty * unit
         elif total is not None and qty is not None and unit is not None and abs(qty * unit - total) > 0.005:
             problems.append(f"{item}: {row.get('qty')} x {row.get('unit price')} isn't {row.get('total')}")
-        order = row.get("order number", "")
-        why_not = proof_problem(row.get("proof file"), docs_dir)
-        if why_not and why_not != "no proof file":
-            problems.append(f"{item}: {why_not}")
-        is_proven = bool(order) or why_not is None
-        detail.append({"item": item, "cost": total, "proven": is_proven, "order_number": order or None,
-                       "proof_file": link_target(row.get("proof file")) or None, "note": row.get("note") or None})
+        listing = listing_cell(row)
+        checked = row.get("checked", "")
+        if listing and not is_url(listing):
+            problems.append(f"{item}: listing isn't a URL ({listing})")
+        if checked and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", checked):
+            problems.append(f"{item}: checked date isn't YYYY-MM-DD ({checked})")
+        is_proven = is_url(listing) and bool(checked)
+        detail.append({"item": item, "cost": total, "proven": is_proven, "listing": listing or None,
+                       "checked": checked or None, "store": row.get("store") or None, "note": row.get("note") or None})
         if total is None:
             no_cost.append(item)
         else:
@@ -656,47 +707,91 @@ def parts_metric(rows, docs_dir):
         if not is_proven:
             unproven.append(item)
 
-    if not no_cost and not unproven and not problems:
-        return {"value": round(entered, 2), "sample": f"{len(rows)} parts, all with an order number or proof file",
+    counted_rows = len(rows) - len(owned)
+    if counted_rows and not no_cost and not unproven and not problems:
+        return {"value": f"${entered:,.2f} counted + {owned_label(len(owned))}", "counted_total": round(entered, 2),
+                "already_owned": owned, "sample": f"{counted_rows} parts with a listing and a checked date",
                 "status": "REAL", "source": source, "parts": detail}
     need = []
     if no_cost:
         need.append("a price for: " + ", ".join(no_cost))
     if unproven:
-        need.append("an order number or a proof file in docs/receipts/ for: " + ", ".join(unproven))
+        need.append("a listing URL and a checked date for: " + ", ".join(unproven))
     if problems:
         need.append("fix: " + "; ".join(problems))
-    priced = len(rows) - len(no_cost)
-    return {"value": None, "sample": f"{priced} of {len(rows)} parts priced, {len(rows) - len(unproven)} proven",
+    priced = counted_rows - len(no_cost)
+    return {"value": None, "sample": f"{priced} of {counted_rows} parts priced, {counted_rows - len(unproven)} proven, "
+                                     f"{owned_label(len(owned))}",
             "status": "NEEDS INPUT", "source": source, "need": ". ".join(need),
             "entered_total": round(entered, 2) if priced else None, "proven_total": round(proven, 2),
-            "parts": detail}
+            "already_owned": owned, "parts": detail}
 
 
-def comparison_metric(rows, wanted, need):
-    """cost.replace_machine / cost.iot_retrofit: every comparison row of that kind that has a
-    cost and a source URL. REAL once there's at least one, NEEDS INPUT before that."""
+def replace_metrics(rows):
+    """cost.replace_machine.<card>, one per row of "Replacing the machine". REAL only with a $
+    figure and a source URL, NEEDS INPUT otherwise. value: the low and high of the range."""
+    metrics = {}
+    for row in rows:
+        card = row.get("card", "")
+        amounts = dollar_amounts(row.get("replacement cost range"))
+        source = row.get("source url", "")
+        entry = {"source": source or "docs/costs.md Replacing the machine", "card": card,
+                 "example": row.get("example machine") or None, "date_checked": row.get("date checked") or None}
+        if amounts and is_url(source):
+            entry.update({"value": {"low": min(amounts), "high": max(amounts)}, "status": "REAL",
+                          "sample": "1 example machine, price as the page shows it"})
+        else:
+            missing = []
+            if not amounts:
+                missing.append("a price")
+            if not is_url(source):
+                missing.append("a source URL")
+            entry.update({"value": None, "status": "NEEDS INPUT", "sample": None,
+                          "need": f"{' and '.join(missing)} in docs/costs.md, Replacing the machine"})
+        metrics[f"cost.replace_machine.{card_slug(card)}"] = entry
+    return metrics
+
+
+def retrofit_metric(rows):
+    """cost.iot_retrofit: every "Retrofitting with IoT" row with a $ figure and a source URL,
+    with the figures as written (the sources give rough ranges, so no math on them)."""
     counted = []
     waiting = []
     for row in rows:
-        option = row.get("option", "")
-        is_retrofit = "retrofit" in option.lower()
-        if is_retrofit != (wanted == "retrofit"):
-            continue
-        price = money(row.get("cost"))
-        source = row.get("source url", "")
-        if price is not None and source:
-            counted.append({"option": option, "cost": price, "source": source})
+        amounts = dollar_amounts(row.get("cost added"))
+        if amounts and is_url(row.get("source url")):
+            counted.append({"option": row.get("option"), "cost": row.get("cost added"), "amounts": amounts,
+                            "source": row.get("source url"), "date_checked": row.get("date checked") or None})
         else:
-            waiting.append(option)
+            waiting.append(row.get("option"))
     if not counted:
-        return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": "docs/costs.md Comparison",
-                "need": need + (f" (blank in docs/costs.md: {', '.join(waiting)})" if waiting else "")}
-    entry = {"value": counted, "sample": f"{len(counted)} cited options", "status": "REAL",
-             "source": "docs/costs.md Comparison"}
+        return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": "docs/costs.md Retrofitting with IoT",
+                "need": "a cost and a source URL for an IoT retrofit"}
+    entry = {"value": counted, "sample": f"{len(counted)} cited sources", "status": "REAL",
+             "source": "docs/costs.md Retrofitting with IoT"}
     if waiting:
         entry["note"] = f"still blank: {', '.join(waiting)}"
     return entry
+
+
+def cheaper_by(parts_entry, replace_entry, card):
+    """cost.parts_vs_replace.<card>: the low end of replacing the machine / our parts total, as
+    'Nx cheaper'. Only when both sides are REAL, NEEDS INPUT with what's missing otherwise."""
+    missing = []
+    if parts_entry is None or parts_entry["status"] != "REAL":
+        missing.append("the parts total (cost.hardware_parts_total)")
+    if replace_entry is None or replace_entry["status"] != "REAL":
+        missing.append(f"a sourced replacement price (cost.replace_machine.{card})")
+    if missing:
+        return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": "docs/costs.md",
+                "need": " and ".join(missing) + " has to be REAL first"}
+    low = replace_entry["value"]["low"]
+    parts_total = parts_entry["counted_total"]
+    ratio = low / parts_total
+    shown = f"{ratio:.0f}x cheaper" if ratio >= 10 else f"{ratio:.1f}x cheaper"
+    return {"value": shown, "ratio": round(ratio, 2), "sample": "1 example machine vs our parts",
+            "status": "REAL", "source": "docs/costs.md Parts + Replacing the machine",
+            "note": f"${low:,.2f} (low end, {replace_entry['example']}) / ${parts_total:,.2f} parts counted"}
 
 
 def scored_fixtures(risk_out):
@@ -861,18 +956,18 @@ def build(runs_dir, out_path):
             "need": "real runs recorded since api.py started keeping step.decision. "
                     "real.human_approval_time_median_s is the event-timestamp proxy until then"}
 
-    # costs, from docs/costs.md (filled in by hand from receipts and cited sources)
-    parts, comparison = cost_tables(REPO_ROOT / "docs" / "costs.md")
-    if parts is None:
-        for name in ("cost.hardware_parts_total", "cost.replace_machine", "cost.iot_retrofit"):
+    # costs, from docs/costs.md (filled in by hand from listings and cited sources)
+    tables = cost_tables(REPO_ROOT / "docs" / "costs.md")
+    if tables is None:
+        for name in ("cost.hardware_parts_total", "cost.iot_retrofit"):
             metrics[name] = {"value": None, "sample": None, "status": "NEEDS INPUT", "source": None,
-                             "need": "docs/costs.md with the Parts and Comparison tables"}
+                             "need": "docs/costs.md with the Parts, Replacing the machine and Retrofitting with IoT tables"}
     else:
-        metrics["cost.hardware_parts_total"] = parts_metric(parts, REPO_ROOT / "docs")
-        metrics["cost.replace_machine"] = comparison_metric(
-            comparison, "replace", "a cost and a source URL for a new 4-channel timer or the lab machine it stands in for")
-        metrics["cost.iot_retrofit"] = comparison_metric(
-            comparison, "retrofit", "a cost and a source URL for an IoT retrofit")
+        metrics["cost.hardware_parts_total"] = parts_metric(tables["parts"])
+        metrics.update(replace_metrics(tables["replace"]))
+        metrics["cost.iot_retrofit"] = retrofit_metric(tables["retrofit"])
+        metrics["cost.parts_vs_replace.research_labs"] = cheaper_by(
+            metrics["cost.hardware_parts_total"], metrics.get("cost.replace_machine.research_labs"), "research_labs")
 
     # the $ per job needs billing pages, the tokens alone don't say what they cost
     metrics["cost.api_spend_per_job"] = {
