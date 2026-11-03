@@ -16,8 +16,8 @@ Where the numbers come from:
 - runs/<job_id>/job.json + events.json (committed, see runs/README.md): reliability, speed,
   safety, step.decision (time to decide, tap vs hold) and job.usage (tokens, real runs only)
 - vision/calibration/<device>.sam_summary.json (detect_controls.py --device): SAM detections
-- docs/costs.md (filled in by hand): a part is proven with a listing URL, a comparison counts
-  with a source URL
+- docs/costs.md (filled in by hand): a part is proven with a listing URL, a replacement or
+  retrofit cost counts with a $ figure and a source URL. parts_vs_replace only once both are REAL
 - docs/hardware.md, backend/devices/*.json, backend/api.py, risk/out/*.scored.json
 
 Real vs mock for a run: put a runs/labels.json next to the run folders, like
@@ -617,11 +617,27 @@ def money(text):
 
 
 def cost_tables(costs_md):
-    """(parts, comparison) rows from docs/costs.md, or (None, None) if there's no such file."""
+    """{"parts", "replace", "retrofit"} rows from docs/costs.md, or None if there's no such file."""
     if not costs_md.is_file():
-        return None, None
+        return None
     text = costs_md.read_text(encoding="utf-8")
-    return markdown_table(text, "Parts"), markdown_table(text, "Comparison")
+    return {"parts": markdown_table(text, "Parts"), "replace": markdown_table(text, "Replacing the machine"),
+            "retrofit": markdown_table(text, "Retrofitting with IoT")}
+
+
+def dollar_amounts(text):
+    """Every $ figure in a cell, in order: '$798.59 to $1,185.00' -> [798.59, 1185.0]. Only
+    figures with a $ count, so '50 lb' or '10"' in a name never turn into a price."""
+    amounts = []
+    for found in re.finditer(r"\$\s*(\d[\d,]*(?:\.\d+)?)", text or ""):
+        amounts.append(float(found.group(1).replace(",", "")))
+    return amounts
+
+
+def card_slug(card):
+    """'Research labs (incubators, ...)' -> 'research_labs'."""
+    name = (card or "").split("(")[0].strip().lower()
+    return re.sub(r"[^a-z0-9]+", "_", name).strip("_")
 
 
 def is_url(text):
@@ -684,30 +700,71 @@ def parts_metric(rows):
             "parts": detail}
 
 
-def comparison_metric(rows, wanted, need):
-    """cost.replace_machine / cost.iot_retrofit: every comparison row of that kind that has a
-    cost and a source URL. REAL once there's at least one, NEEDS INPUT before that."""
+def replace_metrics(rows):
+    """cost.replace_machine.<card>, one per row of "Replacing the machine". REAL only with a $
+    figure and a source URL, NEEDS INPUT otherwise. value: the low and high of the range."""
+    metrics = {}
+    for row in rows:
+        card = row.get("card", "")
+        amounts = dollar_amounts(row.get("replacement cost range"))
+        source = row.get("source url", "")
+        entry = {"source": source or "docs/costs.md Replacing the machine", "card": card,
+                 "example": row.get("example machine") or None, "date_checked": row.get("date checked") or None}
+        if amounts and is_url(source):
+            entry.update({"value": {"low": min(amounts), "high": max(amounts)}, "status": "REAL",
+                          "sample": "1 example machine, price as the page shows it"})
+        else:
+            missing = []
+            if not amounts:
+                missing.append("a price")
+            if not is_url(source):
+                missing.append("a source URL")
+            entry.update({"value": None, "status": "NEEDS INPUT", "sample": None,
+                          "need": f"{' and '.join(missing)} in docs/costs.md, Replacing the machine"})
+        metrics[f"cost.replace_machine.{card_slug(card)}"] = entry
+    return metrics
+
+
+def retrofit_metric(rows):
+    """cost.iot_retrofit: every "Retrofitting with IoT" row with a $ figure and a source URL,
+    with the figures as written (the sources give rough ranges, so no math on them)."""
     counted = []
     waiting = []
     for row in rows:
-        option = row.get("option", "")
-        is_retrofit = "retrofit" in option.lower()
-        if is_retrofit != (wanted == "retrofit"):
-            continue
-        price = money(row.get("cost"))
-        source = row.get("source url", "")
-        if price is not None and source:
-            counted.append({"option": option, "cost": price, "source": source})
+        amounts = dollar_amounts(row.get("cost added"))
+        if amounts and is_url(row.get("source url")):
+            counted.append({"option": row.get("option"), "cost": row.get("cost added"), "amounts": amounts,
+                            "source": row.get("source url"), "date_checked": row.get("date checked") or None})
         else:
-            waiting.append(option)
+            waiting.append(row.get("option"))
     if not counted:
-        return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": "docs/costs.md Comparison",
-                "need": need + (f" (blank in docs/costs.md: {', '.join(waiting)})" if waiting else "")}
-    entry = {"value": counted, "sample": f"{len(counted)} cited options", "status": "REAL",
-             "source": "docs/costs.md Comparison"}
+        return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": "docs/costs.md Retrofitting with IoT",
+                "need": "a cost and a source URL for an IoT retrofit"}
+    entry = {"value": counted, "sample": f"{len(counted)} cited sources", "status": "REAL",
+             "source": "docs/costs.md Retrofitting with IoT"}
     if waiting:
         entry["note"] = f"still blank: {', '.join(waiting)}"
     return entry
+
+
+def cheaper_by(parts_entry, replace_entry, card):
+    """cost.parts_vs_replace.<card>: the low end of replacing the machine / our parts total, as
+    'Nx cheaper'. Only when both sides are REAL, NEEDS INPUT with what's missing otherwise."""
+    missing = []
+    if parts_entry is None or parts_entry["status"] != "REAL":
+        missing.append("the parts total (cost.hardware_parts_total)")
+    if replace_entry is None or replace_entry["status"] != "REAL":
+        missing.append(f"a sourced replacement price (cost.replace_machine.{card})")
+    if missing:
+        return {"value": None, "sample": None, "status": "NEEDS INPUT", "source": "docs/costs.md",
+                "need": " and ".join(missing) + " has to be REAL first"}
+    low = replace_entry["value"]["low"]
+    parts_total = parts_entry["value"]
+    ratio = low / parts_total
+    shown = f"{ratio:.0f}x cheaper" if ratio >= 10 else f"{ratio:.1f}x cheaper"
+    return {"value": shown, "ratio": round(ratio, 2), "sample": "1 example machine vs our parts",
+            "status": "REAL", "source": "docs/costs.md Parts + Replacing the machine",
+            "note": f"${low:,.2f} (low end, {replace_entry['example']}) / ${parts_total:,.2f} parts"}
 
 
 def scored_fixtures(risk_out):
@@ -873,17 +930,17 @@ def build(runs_dir, out_path):
                     "real.human_approval_time_median_s is the event-timestamp proxy until then"}
 
     # costs, from docs/costs.md (filled in by hand from listings and cited sources)
-    parts, comparison = cost_tables(REPO_ROOT / "docs" / "costs.md")
-    if parts is None:
-        for name in ("cost.hardware_parts_total", "cost.replace_machine", "cost.iot_retrofit"):
+    tables = cost_tables(REPO_ROOT / "docs" / "costs.md")
+    if tables is None:
+        for name in ("cost.hardware_parts_total", "cost.iot_retrofit"):
             metrics[name] = {"value": None, "sample": None, "status": "NEEDS INPUT", "source": None,
-                             "need": "docs/costs.md with the Parts and Comparison tables"}
+                             "need": "docs/costs.md with the Parts, Replacing the machine and Retrofitting with IoT tables"}
     else:
-        metrics["cost.hardware_parts_total"] = parts_metric(parts)
-        metrics["cost.replace_machine"] = comparison_metric(
-            comparison, "replace", "a cost and a source URL for a new 4-channel timer or the lab machine it stands in for")
-        metrics["cost.iot_retrofit"] = comparison_metric(
-            comparison, "retrofit", "a cost and a source URL for an IoT retrofit")
+        metrics["cost.hardware_parts_total"] = parts_metric(tables["parts"])
+        metrics.update(replace_metrics(tables["replace"]))
+        metrics["cost.iot_retrofit"] = retrofit_metric(tables["retrofit"])
+        metrics["cost.parts_vs_replace.research_labs"] = cheaper_by(
+            metrics["cost.hardware_parts_total"], metrics.get("cost.replace_machine.research_labs"), "research_labs")
 
     # the $ per job needs billing pages, the tokens alone don't say what they cost
     metrics["cost.api_spend_per_job"] = {

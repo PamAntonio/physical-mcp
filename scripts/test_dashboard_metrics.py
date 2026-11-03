@@ -144,13 +144,20 @@ COSTS = """# Costs
 | Misc | | | $3 | | | |
 | Finger materials | | | | | | |
 
-## Comparison
+## Replacing the machine
 
-| Option | Cost | Source URL |
-|---|---|---|
-| Buy a new 4-channel timer | $1,299.00 | https://example.com/timer |
-| Replace the lab machine | 2000 | |
-| IoT retrofit of the lab machine | | |
+| Card | Example machine | Replacement cost range | Source URL | Date checked |
+|---|---|---|---|---|
+| Research labs (incubators, shakers) | A 37 L benchtop incubator | $798.59 to $1,185.00 | https://example.com/incubators | 2026-11-02 |
+| Commercial kitchens (ovens and fryers) | A 50 lb fryer | $6,765.00 | | 2026-11-02 |
+| Home appliances | | | | |
+
+## Retrofitting with IoT
+
+| Option | Cost added | Source URL | Date checked | What the source says |
+|---|---|---|---|---|
+| Drill press retrofit | about $2,000 | https://example.com/drill | 2026-11-02 | "about $2,000" |
+| Some other retrofit | a lot | https://example.com/other | 2026-11-02 | |
 """
 
 
@@ -159,7 +166,8 @@ class CostsTests(unittest.TestCase):
         self.folder = tempfile.TemporaryDirectory()
         path = Path(self.folder.name) / "costs.md"
         path.write_text(COSTS, encoding="utf-8")
-        self.parts, self.comparison = dm.cost_tables(path)
+        self.tables = dm.cost_tables(path)
+        self.parts = self.tables["parts"]
 
     def tearDown(self):
         self.folder.cleanup()
@@ -213,16 +221,54 @@ class CostsTests(unittest.TestCase):
         self.assertEqual(entry["status"], "NEEDS INPUT")
         self.assertIn("Servo: 2 x $3 isn't $7", entry["need"])
 
-    def test_a_cost_counts_only_with_a_source(self):
-        replace = dm.comparison_metric(self.comparison, "replace", "need")
-        self.assertEqual(replace["status"], "REAL")
-        self.assertEqual(replace["value"], [{"option": "Buy a new 4-channel timer", "cost": 1299.0,
-                                             "source": "https://example.com/timer"}])
-        retrofit = dm.comparison_metric(self.comparison, "retrofit", "need")
-        self.assertEqual(retrofit["status"], "NEEDS INPUT")
+    def test_dollar_amounts_only_take_dollar_figures(self):
+        self.assertEqual(dm.dollar_amounts("$798.59 to $1,185.00"), [798.59, 1185.0])
+        self.assertEqual(dm.dollar_amounts("a couple thousand dollars, up to $10,000 to $20,000"), [10000.0, 20000.0])
+        self.assertEqual(dm.dollar_amounts('50 lb fryer, 10" panel'), [])
+        self.assertEqual(dm.card_slug("Research labs (incubators, shakers)"), "research_labs")
+        self.assertEqual(dm.card_slug("Hardware QA (pressing device buttons)"), "hardware_qa")
+
+    def test_one_replacement_metric_per_card(self):
+        found = dm.replace_metrics(self.tables["replace"])
+        self.assertEqual(sorted(found), ["cost.replace_machine.commercial_kitchens",
+                                         "cost.replace_machine.home_appliances",
+                                         "cost.replace_machine.research_labs"])
+        labs = found["cost.replace_machine.research_labs"]
+        self.assertEqual(labs["status"], "REAL")
+        self.assertEqual(labs["value"], {"low": 798.59, "high": 1185.0})
+        # a price with no source URL doesn't count, and a blank row stays blank
+        kitchens = found["cost.replace_machine.commercial_kitchens"]
+        self.assertEqual(kitchens["status"], "NEEDS INPUT")
+        self.assertIn("a source URL", kitchens["need"])
+        self.assertIsNone(found["cost.replace_machine.home_appliances"]["value"])
+
+    def test_retrofit_needs_a_figure_and_a_source(self):
+        entry = dm.retrofit_metric(self.tables["retrofit"])
+        self.assertEqual(entry["status"], "REAL")
+        self.assertEqual(len(entry["value"]), 1)
+        self.assertEqual(entry["value"][0]["amounts"], [2000.0])
+        self.assertIn("Some other retrofit", entry["note"])  # "a lot" isn't a figure
+
+    def test_cheaper_only_when_both_sides_are_real(self):
+        labs = dm.replace_metrics(self.tables["replace"])["cost.replace_machine.research_labs"]
+        # the parts total here is NEEDS INPUT (no listings everywhere), so no ratio
+        waiting = dm.cheaper_by(dm.parts_metric(self.parts), labs, "research_labs")
+        self.assertEqual(waiting["status"], "NEEDS INPUT")
+        self.assertIsNone(waiting["value"])
+        self.assertIn("parts total", waiting["need"])
+
+        parts_total = {"status": "REAL", "value": 20.0}
+        entry = dm.cheaper_by(parts_total, labs, "research_labs")
+        self.assertEqual(entry["status"], "REAL")
+        self.assertEqual(entry["value"], "40x cheaper")  # 798.59 / 20
+        self.assertEqual(entry["ratio"], 39.93)
+        self.assertEqual(dm.cheaper_by(parts_total, {"status": "REAL", "value": {"low": 50.0}, "example": "x"},
+                                       "x")["value"], "2.5x cheaper")
+        self.assertEqual(dm.cheaper_by(parts_total, None, "nope")["status"], "NEEDS INPUT")
 
     def test_the_repo_costs_file(self):
-        parts, _comparison = dm.cost_tables(dm.REPO_ROOT / "docs" / "costs.md")
+        tables = dm.cost_tables(dm.REPO_ROOT / "docs" / "costs.md")
+        parts = tables["parts"]
         items = []
         for row in parts:
             items.append(row["item"].lower())
@@ -234,6 +280,13 @@ class CostsTests(unittest.TestCase):
         entry = dm.parts_metric(parts)
         self.assertEqual(entry["entered_total"], 20.0)  # $6 + $4 + $7 + $3, as given
         self.assertEqual(entry["proven_total"], 0)
+
+        # one row per Where It Fits card, every one with a price and a source URL
+        cards = dm.replace_metrics(tables["replace"])
+        self.assertEqual(len(cards), 8)
+        for name, card in cards.items():
+            self.assertEqual(card["status"], "REAL", name)
+            self.assertTrue(card["source"].startswith("https://"), name)
 
 
 if __name__ == "__main__":
