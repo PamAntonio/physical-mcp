@@ -163,6 +163,10 @@
           <span class="mt-name">Incubator</span>
           <span class="mt-sub">37 &deg;C for 2 hours, then start</span>
         </button>
+        <button role="tab" aria-selected="false" data-machine="real" id="tab-real">
+          <span class="mt-name">Real run</span>
+          <span class="mt-sub">recorded on the rig, Nov 3</span>
+        </button>
       </div>
 
       <div class="replay" id="replay">
@@ -182,11 +186,16 @@
             <p class="mono" id="rp-screen">&hellip;</p>
           </div>
           <div class="rp-frame" id="rp-frame" role="img" aria-label="Replay camera frame"></div>
+          <p class="fine" id="rp-framecap" hidden>Panel redrawn from the recorded screen reads, not camera footage.</p>
           <div class="rp-controls">
             <button class="btn small" id="rp-play">Play</button>
             <button class="btn ghost small" id="rp-skip">Skip to approval</button>
             <button class="btn ghost small" id="rp-restart">Restart</button>
             <button class="btn ghost small" id="rp-speed" aria-label="Toggle playback speed">1&times;</button>
+          </div>
+          <div class="rr-timeline" id="rr-timeline" hidden>
+            <input type="range" id="rr-scrub" aria-label="Scrub the recorded run" min="0" max="100" step="0.1" value="0">
+            <div class="rr-marks" id="rr-marks" aria-hidden="true"></div>
           </div>
           <div class="rp-steps" id="rp-steps" aria-label="Plan steps"></div>
         </div>
@@ -221,7 +230,13 @@
 
           <section class="panel log-panel">
             <h3>Log</h3>
-            <ol class="log mono" id="rp-log"></ol>
+            <ol class="log mono" id="rp-log" aria-live="polite"></ol>
+          </section>
+          <section class="panel" id="rr-models" hidden>
+            <h3>Meta model calls in this run</h3>
+            <p class="fine" id="rr-totals"></p>
+            <div id="rr-rows"></div>
+            <p class="fine">Listed in call order. The log doesn't timestamp each call.</p>
           </section>
         </div>
       </div>
