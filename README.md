@@ -2,7 +2,9 @@
 
 An API for machines that don't have one. Built for the Meta Global AI Developer Hackathon (Indie Developer track), Oct 27 to Nov 4, 2026.
 
-**Demo video:** TODO (link)
+**Live site:** [physicalmcp.dev](https://physicalmcp.dev), with the 3-minute demo, an interactive look at the rig and a replay you can try
+
+**Demo video:** [watch it here](https://physicalmcp.dev/#video)
 
 ## What it does
 
@@ -24,7 +26,7 @@ What happens:
 
 The AI only ever calls tools: `get_controls`, `press`, `read_screen`, `get_frame`, `stop` (`backend/mcp_server.py`). The step runner in `backend/api.py` is the MCP client, in the same process, so one process owns the finger.
 
-**On the rig, as of Nov 2:** the rig was rebuilt with one finger per button, and both H and ST/SP have their angles in `backend/devices/timer-01.json`. Presses sent directly from Python work. A full job through the app hasn't worked yet: in the Nov 2 runs, no H press changed T1. The frames show the H finger landing on the lower edge of the button after the timer was moved, so it needs re-centring. See [Reliability](#reliability).
+**On the rig, as of Nov 3:** full jobs now work through the app, including "Set T1 to 2 hours and start it" with the hold-to-approve on ST/SP. The rig has one finger per button, with H and ST/SP angles in `backend/devices/timer-01.json`. See [Reliability](#reliability).
 
 The Inkbird temperature controller (`inkbird-01`) is a second profile. It has **not been tested on the rig**: its menu behaviour comes from the manual and every servo angle is still empty. `incubator-01` is a made-up placeholder device that runs on the mock and on FakeHardware, never on the rig.
 
@@ -67,7 +69,7 @@ LED indicators are a pixel check, no model.
 | Path | What's in it | Status |
 |---|---|---|
 | `web/` | Next.js app: job request, camera view with control boxes, step list, approval card (risk, scorer, screen read with confidence, hold-to-approve), pause panel with Resume, action log | Working on mock data and on the backend. Checked in a browser at desktop and 390 px |
-| `backend/api.py` | FastAPI server for the web app: planning, scoring, the step runner, approvals, pauses, Stop | Working on FakeHardware. On the rig, no full job has worked yet (see Reliability) |
+| `backend/api.py` | FastAPI server for the web app: planning, scoring, the step runner, approvals, pauses, Stop | Working on FakeHardware and on the rig (see Reliability) |
 | `backend/mcp_server.py` | The MCP tools every press and read goes through, with the approval gate in `press` | Working, in memory only (no HTTP transport yet) |
 | `backend/planner.py` | Muse Spark planner, plan validation, the timer plan check | Working with the live model |
 | `backend/devices/` | Device profiles: buttons, servo angles, holds, notes for the planner | `timer-01` main (H and ST/SP angles set). `inkbird-01` not tested on the rig. `incubator-01` placeholder, no rig |
@@ -75,12 +77,13 @@ LED indicators are a pixel check, no model.
 | `backend/calibrate.py`, `web/app/calibrate/` | Moves a device's control boxes to a new camera view from 4 clicked corners | Working, unit tested. The boxes on file are still marked placeholder |
 | `backend/record_run.py` | Records a run: every event plus every camera frame, into `runs/<job_id>/` | Working, tested against the real HTTP backend |
 | `backend/fake_camera.py` | The backend on FakeHardware plus a fake live webcam, to try the camera view with no rig | Working |
-| `vision/` | SAM 3.1 control detection, voted screen reads, LED checks, calibration | Reads tested on photos and through the rig camera in the Nov 2 runs. The boxes on file are marked placeholder (the timer's from a hand-held photo) |
+| `vision/` | SAM 3.1 control detection, voted screen reads, LED checks, calibration | Reads tested on photos and through the rig camera in the Nov 2 and Nov 3 runs. The boxes on file are marked placeholder (the timer's from a hand-held photo) |
 | `risk/` | Muse Spark Open step scorer, CLI and a small HTTP endpoint | Working with the live model. Scored fixtures in `risk/out/` |
 | `shared/` | The contract (`types.ts`) and sample jobs both sides build on | v1, with newer fields marked PROPOSED |
 | `scripts/dashboard_metrics.py` | Computes every dashboard number from files in this repo and writes `metrics.json`. Anything it can't compute stays empty and says what's missing | Working, unit tested |
-| `runs/` | Recorded runs for the dashboard, labelled real or mock in `labels.json` | The Nov 2 rig runs are in, as `job.json` and `events.json` |
+| `runs/` | Recorded runs for the dashboard, labelled real or mock in `labels.json` | The Nov 2 and Nov 3 rig runs are in |
 | `web/app/results/` | The results page: five tiles to film and every metric underneath, read from `web/public/metrics.json` | Working |
+| `site/` | The public site at [physicalmcp.dev](https://physicalmcp.dev): demo video, interactive rig, replays. Plain static files, deployed by hand with Vercel | Live |
 | `scripts/readme_cost_table.py` | Writes the README's Cost, Reliability and Speed numbers from `web/public/metrics.json` | Working, unit tested |
 | `docs/` | `hardware.md` (how the rig is built, wired and calibrated), `first-loop-checklist.md` (first full run on the rig), `costs.md` (prices and sources) | Current |
 
@@ -227,33 +230,35 @@ Presses sent directly from Python, with no AI in the loop:
 | ST/SP, rebuilt rig, 10 presses through Python, 1 s hold (Nov 2): start/stop toggles counted on video | 10 | 10 |
 | H, rebuilt rig, 20 presses through Python, 1 s hold (Nov 2): T1 read 20:00 00 | 20 | 20 |
 
-Full jobs through the app on the real rig: **0/10 worked** (`real.job_success_rate`).
+Full jobs through the app on the real rig: **7/23 worked** (`real.job_success_rate`).
 
 | Result | Jobs |
 |---|---|
-| Worked | 0 |
-| Stopped by hand | 5 |
+| Worked | 7 |
+| Stopped by hand | 10 |
 | Refused, nothing pressed | 1 |
 | Failed, gave up after 3 tries | 3 |
-| Failed, hardware error | 1 |
+| Failed, hardware error | 2 |
 <!-- reliability:end -->
 
-The camera read of T1, the plans, the refusal, the retry and Stop all did their job in the rig runs. No H press registered, because of the finger position described in [What it does](#what-it-does). The refusal was correct: T1 was already past the time asked for. The hardware error was another program holding the serial port. Reads checked vs. reads right isn't measured yet.
+The site and demo say 6/7: the Nov 3 runs from 19:16 to 19:57 UTC, once the rig was working, not counting jobs stopped by hand. A later run also succeeded, and every recorded run is counted in the 7/23 above.
+
+In the Nov 2 runs no H press changed T1: the frames show the H finger landing on the lower edge of the button after the timer was moved. In the Nov 3 runs, full jobs worked. The camera read of T1, the plans, the refusal, the retry and Stop all did their job in the rig runs. The refusal was correct: T1 was already past the time asked for. One hardware error was another program holding the serial port. The other, on Nov 3, was `The read operation timed out`. Reads checked vs. reads right isn't measured yet.
 
 ## Speed
 
-Almost all of a job's time is model calls, not presses. From the Nov 2 rig runs in `runs/`, when a read's model calls ran one after another:
+Almost all of a job's time is model calls, not presses. From the Nov 2 and Nov 3 rig runs in `runs/`:
 
 <!-- speed:start, written by scripts/readme_cost_table.py -->
 | Part | Median | Sample | How it's measured |
 |---|---|---|---|
-| One press | 1.39 s | 13 presses | step status running to verifying, from step.updated events. Range 1.38 to 1.4 s |
-| One screen read (2 or 3 model calls) | 42.0 s | 23 reads | verifying, or the read before, to the next note with a read. Range 18.65 to 99.64 s |
-| Reading T1 and planning, together | 59.8 s | 8 jobs | job.created_at to plan.ready ts, includes the pre-plan screen read |
-| Risk score, in the background | 4.76 s | 4 scored steps | plan.ready to the first step.updated with risk_tier (upper bound, it's an event ts) |
+| One press | 1.39 s | 40 presses | step status running to verifying, from step.updated events. Range 1.38 to 1.4 s |
+| One screen read (2 or 3 model calls) | 32.48 s | 64 reads | verifying, or the read before, to the next note with a read. Range 7.86 to 99.64 s |
+| Reading T1 and planning, together | 56.11 s | 19 jobs | job.created_at to plan.ready ts, includes the pre-plan screen read |
+| Risk score, in the background | 9.55 s | 10 scored steps | plan.ready to the first step.updated with risk_tier (upper bound, it's an event ts) |
 <!-- speed:end -->
 
-Since those runs, a read's first two calls run at the same time, and the planner retries at most once. That hasn't been timed on the rig yet. Each job now records the time of every model call in `job.usage`.
+On Nov 2 a read's model calls ran one after another. By Nov 3 the first two ran at the same time and the planner retried at most once, so these medians mix both. So far only the last Nov 3 run has `job.usage`, which records the time of every model call.
 
 ## Cost
 
@@ -268,8 +273,8 @@ Model calls were paid with hackathon credits, so the API figures are cost at lis
 
 | | Cost |
 |---|---|
-| API cost per job, at list price | not sourced yet (real runs recorded since api.py started keeping job.usage) |
-| Tokens per job, real runs | not sourced yet (real runs recorded since api.py started keeping job.usage) |
+| API cost per job, at list price | $0.1373 median (screen_read $0.1052, planner $0.0120, scorer $0.0201), from 1 jobs |
+| Tokens per job, real runs | 40001 median (planner 4278, screen_read 29649, scorer 6074), from 1 jobs |
 | Replace: research lab benchtop incubator | $798.59 to $1,185.00 |
 | Replace: legacy manufacturing HMI panel | $1,718.00 |
 | Replace: hardware QA touch screen test robot | $12,243.75 to $12,288.75 |
