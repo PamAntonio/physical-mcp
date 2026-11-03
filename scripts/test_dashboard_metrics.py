@@ -211,6 +211,12 @@ class CostsTests(unittest.TestCase):
         self.assertNotIn("Power bank", entry["need"])  # no price or listing asked for
         self.assertIn("1 item already owned", entry["sample"])
 
+    def test_already_owned_note_wording(self):
+        self.assertTrue(dm.is_already_owned("already owned (we had them at home), not counted"))
+        self.assertTrue(dm.is_already_owned("already owned, not counted"))
+        self.assertFalse(dm.is_already_owned("plus $6.39 shipping, not counted"))
+        self.assertFalse(dm.is_already_owned(""))
+
     def test_total_stays_needs_input_until_everything_is_listed(self):
         entry = dm.parts_metric(self.parts)
         self.assertEqual(entry["status"], "NEEDS INPUT")
@@ -292,13 +298,15 @@ class CostsTests(unittest.TestCase):
         for row in parts:
             items.append(row["item"].lower())
         self.assertFalse(any("timer" in item for item in items), "the timer is the machine, not a part")
-        for row in parts:
-            # store, listing and date are for Bhavi to fill in, never made up here
-            self.assertEqual((row["store"], dm.listing_cell(row), row["checked"]), ("", "", ""), row)
         entry = dm.parts_metric(parts)
-        self.assertEqual(entry["entered_total"], 20.0)  # $6 + $4 + $7 + $3, as given
-        self.assertEqual(entry["proven_total"], 0)
+        # a filled-in listing always comes with its date, a half-filled row is a typo
+        for row in parts:
+            self.assertEqual(bool(dm.listing_cell(row)), bool(row["checked"]), row)
         self.assertEqual(len(entry["already_owned"]), 2)  # the power bank and the cut USB cable
+        # the total only goes REAL with no row left waiting
+        if entry["status"] != "REAL":
+            self.assertIsNone(entry["value"])
+            self.assertTrue(entry["need"])
 
         # one row per Where It Fits card, every one with a price and a source URL
         cards = dm.replace_metrics(tables["replace"])

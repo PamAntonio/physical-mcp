@@ -644,7 +644,11 @@ def is_url(text):
     return (text or "").strip().startswith(("http://", "https://"))
 
 
-ALREADY_OWNED = "already owned, not counted"
+def is_already_owned(note):
+    """A note like "already owned (we had them at home), not counted". Both parts have to be
+    there, a webcam's "plus $6.39 shipping, not counted" is still a part we count."""
+    note = (note or "").lower()
+    return "already owned" in note and "not counted" in note
 
 
 def listing_cell(row):
@@ -662,7 +666,7 @@ def owned_label(count):
 def parts_metric(rows):
     """cost.hardware_parts_total from the Parts table. A row's cost is its Total (or Qty x Unit
     price when Total is blank). It's proven with a listing URL and the date it was checked.
-    A row noted "already owned, not counted" is left out: not in the total, not holding it back.
+    A row noted as already owned and not counted is left out: not in the total, not holding it back.
     The total is only REAL once every other row has a cost and is proven. Until then it's NEEDS
     INPUT, with what's entered and what's proven shown apart."""
     source = "docs/costs.md Parts"
@@ -678,7 +682,7 @@ def parts_metric(rows):
     proven = 0
     for row in rows:
         item = row.get("item")
-        if ALREADY_OWNED in (row.get("note") or "").lower():
+        if is_already_owned(row.get("note")):
             owned.append(item)
             detail.append({"item": item, "cost": None, "already_owned": True})
             continue

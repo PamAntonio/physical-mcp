@@ -7,8 +7,8 @@ as they are. Add rows freely.
   A price without both shows on the dashboard as entered, not proven.
 - Total is what the listing shows for this row. If it's a share of a multipack, say how in Note:
   `2 of 10 from a $15 pack`.
-- A part we already had gets `already owned, not counted` in Note: it's left out of the total
-  and doesn't hold it back.
+- A part we already had gets `already owned (we had them at home), not counted` in Note: it's left
+  out of the total and doesn't hold it back.
 - Prices in USD, e.g. `12.99` or `$12.99`. Never type an estimate in here, leave it blank.
 - A replacement or retrofit cost only counts with a source URL: a retailer, manufacturer or
   article page that shows the figure. Write the figures as the page shows them, with `$`.
@@ -21,13 +21,14 @@ Prices are what these listings show, not receipts.
 
 | Item | Qty | Unit price | Total | Store | Listing URL (price as listed, checked &lt;date&gt;) | Checked | Note |
 |---|---|---|---|---|---|---|---|
-| SG90 servo (180°, not 360°) | 2 | $3 | $6 | | | | |
-| USB webcam | 1 | $4 | $4 | | | | |
+| MG90S micro servo, metal gear (180°) | 2 | $3 | $6 | Amazon | https://www.amazon.com/dp/B0CP98TZJ2 | 2026-11-03 | &lt;N&gt; of &lt;M&gt; from a $&lt;pack price&gt; pack |
+| Kyusrd 1080P USB webcam | 1 | $4.02 | $4.02 | Walmart | https://www.walmart.com/ip/16109623001 | 2026-11-03 | plus $6.39 shipping, not counted |
 | Microcontroller (ESP32) | | | $7 | | | | |
-| Misc (wire, breadboard) | | | $3 | | | | |
+| Jumper wires | | | | AliExpress | https://www.aliexpress.us/item/3256809267678383.html | 2026-11-03 | |
+| Mini breadboard, Olimex BREADBOARD-MINI | | | | DigiKey | https://www.digikey.com/en/products/detail/olimex-ltd/BREADBOARD-MINI/21662495 | 2026-11-03 | |
 | Finger materials (arms, hot glue, mounting tape, blocks, base board) | | | | | | | |
-| Always-on USB power bank | | | | | | | already owned, not counted |
-| USB cable (one end cut off for servo power) | | | | | | | already owned, not counted |
+| Always-on USB power bank | | | | | | | already owned (we had them at home), not counted |
+| USB cable (one end cut off for servo power) | | | | | | | already owned (we had them at home), not counted |
 
 ## Replacing the machine
 

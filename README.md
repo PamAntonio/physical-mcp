@@ -252,7 +252,7 @@ are here, the rest says so. Every figure, its source page and the date it was ch
 
 | | Cost |
 |---|---|
-| Our rig (servos, webcam, ESP32, wiring) | not sourced yet (prices entered, listings still to add) |
+| Our rig (servos, webcam, ESP32, wiring) | NEEDS INPUT: 3 of 6 parts priced, 4 proven, 2 items already owned |
 | API cost per job | not sourced yet (tokens are recorded per job, prices need the billing pages) |
 | Replace: research lab benchtop incubator | $798.59 to $1,185.00 |
 | Replace: legacy manufacturing HMI panel | $1,718.00 |
