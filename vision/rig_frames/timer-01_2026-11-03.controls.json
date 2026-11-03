@@ -1,0 +1,146 @@
+[
+  {
+    "control_id": "button_1",
+    "label": "button_1",
+    "kind": "button",
+    "bbox": [
+      1649,
+      259,
+      128,
+      129
+    ],
+    "confidence": 0.9416
+  },
+  {
+    "control_id": "button_2",
+    "label": "button_2",
+    "kind": "button",
+    "bbox": [
+      1650,
+      418,
+      129,
+      127
+    ],
+    "confidence": 0.9336
+  },
+  {
+    "control_id": "button_3",
+    "label": "button_3",
+    "kind": "button",
+    "bbox": [
+      1652,
+      579,
+      130,
+      125
+    ],
+    "confidence": 0.9336
+  },
+  {
+    "control_id": "button_4",
+    "label": "button_4",
+    "kind": "button",
+    "bbox": [
+      1656,
+      739,
+      130,
+      125
+    ],
+    "confidence": 0.9452
+  },
+  {
+    "control_id": "button_5",
+    "label": "button_5",
+    "kind": "button",
+    "bbox": [
+      1175,
+      959,
+      140,
+      105
+    ],
+    "confidence": 0.9416
+  },
+  {
+    "control_id": "button_6",
+    "label": "button_6",
+    "kind": "button",
+    "bbox": [
+      1007,
+      961,
+      140,
+      104
+    ],
+    "confidence": 0.9416
+  },
+  {
+    "control_id": "button_7",
+    "label": "button_7",
+    "kind": "button",
+    "bbox": [
+      838,
+      965,
+      143,
+      103
+    ],
+    "confidence": 0.9416
+  },
+  {
+    "control_id": "button_8",
+    "label": "button_8",
+    "kind": "button",
+    "bbox": [
+      1577,
+      1028,
+      222,
+      150
+    ],
+    "confidence": 0.9532
+  },
+  {
+    "control_id": "button_9",
+    "label": "button_9",
+    "kind": "button",
+    "bbox": [
+      1372,
+      1036,
+      152,
+      151
+    ],
+    "confidence": 0.9494
+  },
+  {
+    "control_id": "button_10",
+    "label": "button_10",
+    "kind": "button",
+    "bbox": [
+      1177,
+      1088,
+      139,
+      105
+    ],
+    "confidence": 0.9375
+  },
+  {
+    "control_id": "button_11",
+    "label": "button_11",
+    "kind": "button",
+    "bbox": [
+      1010,
+      1092,
+      140,
+      104
+    ],
+    "confidence": 0.9336
+  },
+  {
+    "control_id": "screen_1",
+    "label": "screen_1",
+    "kind": "screen",
+    "bbox": [
+      879,
+      284,
+      609,
+      580
+    ],
+    "confidence": 0.8865
+  }
+]

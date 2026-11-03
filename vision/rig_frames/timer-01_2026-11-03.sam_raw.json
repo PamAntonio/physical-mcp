@@ -1,0 +1,108 @@
+{
+  "button": {
+    "metadata": {
+      "mask_encoding": "one_bit",
+      "include_confidence": "true"
+    },
+    "top_logprobs": 0,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "service_tier": "auto",
+    "model": "sam-3.1",
+    "background": false,
+    "tools": [],
+    "tool_choice": "auto",
+    "truncation": "disabled",
+    "id": "resp_6aea6a1cde9d56bb894243a6",
+    "object": "response",
+    "status": "completed",
+    "created_at": 1793747484.0,
+    "completed_at": 1793747484.0,
+    "error": null,
+    "incomplete_details": null,
+    "output": [
+      {
+        "type": "message",
+        "id": "msg_b150b3bd-0c56-4e22-95fb-c91ecf11b1d3",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "<0f>0<|box;x1=1563;y1=593;x2=1601;y2=698;w=2560;h=1440;c=0.7770034670829773|><|mask;x=0;y=0;c=0.7770034670829773;data=106,39,!!!!!RG+EO98q{KpNgxdQv:+lW+s*)UpH_w2e`dTi1lB/DbWvT/f%ELhCbE-z|>,1<|box;x1=1656;y1=739;x2=1785;y2=863;w=2560;h=1440;c=0.9452055096626282|><|mask;x=0;y=0;c=0.9452055096626282;data=125,130,!!!!!{D%q2&t`O(#:VkkwXY@5w`pJwsQB5Z-c%9W/[r7Mec#{FDUwT63?IdTW#x{I:(v]/]xu(kEAC^ANEP3VPvd1{oDg^*TF:1BE@sc&PreG39|>,2<|box;x1=1577;y1=1028;x2=1798;y2=1177;w=2560;h=1440;c=0.9532163739204407|><|mask;x=0;y=0;c=0.9532163739204407;data=150,222,!!!!#0B_eIE_o:q.Xhw+m$-U1qqMEK(/pN#10PCN46bx0D0pkmbUH3@U`M(L_4z2X[jSLt'[C^lNoZ{3%lZx:S^t]uSoc=`WCv9:ax!{z+#Z]voH*haK6sX/7D6W$=!!!|>,3<|box;x1=1650;y1=418;x2=1778;y2=544;w=2560;h=1440;c=0.9336099624633789|><|mask;x=0;y=0;c=0.9336099624633789;data=127,129,!!!!!{Cl]GB4VJDnFyXW]8gsY1F&YI_r[+gMe4q#IZ&K[PJ6pz8MRUom#(*U]6Z3G?mEL'ys&$tA(yvE#)3CAA8D@{xk521LO/vAksOfBfljDh#|>,4<|box;x1=1175;y1=959;x2=1314;y2=1063;w=2560;h=1440;c=0.941605806350708|><|mask;x=0;y=0;c=0.941605806350708;data=105,140,!!!!!iCff@7H$dCYce{tqMEhr&:t!p?oVDJIm_J_CDR:]d-6a93jT-Kp91da/6rpn]Q*nZ4Xum.Q/]5V)8T@dc!!!|>,5<|box;x1=1649;y1=259;x2=1776;y2=387;w=2560;h=1440;c=0.941605806350708|><|mask;x=0;y=0;c=0.941605806350708;data=129,128,!!!!##CiVMN+01TB[2ihL9.$F?Jq?k(!+(QgQHUh[:aXpVLxD_GSmlF@mW@y'E)'CAv6yXaDmG1si930GL18mDNX=)Vfa)L^w:4uSe7iJJpgM4]f@l|>,6<|box;x1=1010;y1=1092;x2=1149;y2=1195;w=2560;h=1440;c=0.9336099624633789|><|mask;x=0;y=0;c=0.9336099624633789;data=104,140,!!!!!jC'-dYjCnW3crAGXg:ob8+9=bzZJ:]^8C4(*pSv]bH0jZ3.L@%X&Ke9qiB&Uk$1ZJvqFU(w68L3{KUgkOXu#M|>,7<|box;x1=1558;y1=435;x2=1597;y2=541;w=2560;h=1440;c=0.7620818018913269|><|mask;x=0;y=0;c=0.7620818018913269;data=107,40,!!!!!RFj8x4q6fa:0:q)=-&$`Sa*-#1aVnwQq/xqv0q^]#@/IO!oNg&^8Ek)x|>,8<|box;x1=838;y1=965;x2=980;y2=1067;w=2560;h=1440;c=0.941605806350708|><|mask;x=0;y=0;c=0.941605806350708;data=103,143,!!!!!tBy)Ud0uIYnV4-NeDNb4/5cZYH/v)fFXJW1!IB&yX_'772={z9nXf[iS@b9X!0nyh_1BAUb75Zkz7F:Ol`@12lxJZ47QlQ's!!|>,9<|box;x1=1372;y1=1036;x2=1523;y2=1186;w=2560;h=1440;c=0.949367105960846|><|mask;x=0;y=0;c=0.949367105960846;data=151,152,!!!!!wBkr`g:X(obUnLB@]Ynz!5hEJ6aVr{J@mqp5LaTe5Z_kRc@iqZDMqN:(XKC@^ZR!-`8'eV@2NeJtWVRH)Fzvxn*Y1q06c$40Aus5`|>,10<|box;x1=1177;y1=1088;x2=1315;y2=1192;w=2560;h=1440;c=0.9375000596046448|><|mask;x=0;y=0;c=0.9375000596046448;data=105,139,!!!!!kC'-+8i&neerZ#UQ57F7e(xd6BXUgAwR0Zx$vdb?gh-HS*B!$(.Mil)mk/.QedW$OLX?/V-%M8]'.Sq7OiA#(N|>,11<|box;x1=1566;y1=751;x2=1606;y2=856;w=2560;h=1440;c=0.7655677795410156|><|mask;x=0;y=0;c=0.7655677795410156;data=106,41,!!!!!SF^(`X[xh6KOt@cSatLzudEoEsLojo4^p+8$]sdU%896N)x(t0-Ta0DW!!|>,12<|box;x1=1556;y1=277;x2=1597;y2=386;w=2560;h=1440;c=0.7500000596046448|><|mask;x=0;y=0;c=0.7500000596046448;data=110,42,!!!!!YF(_R[tr?FXTKG7WVw*Y]o[OhWGZ@hrw3:o5O5*R*$qcDt-#x?vEiV?'Es]JUA{R'|>,13<|box;x1=941;y1=1096;x2=983;y2=1197;w=2560;h=1440;c=0.8518518805503845|><|mask;x=0;y=0;c=0.8518518805503845;data=102,43,!!!!!TIby$W``:VCy'kn/&'1?nS4#neTC]6fS^Kfw2[m#cq(sT[MJhWU(zLV{Zx]|>,14<|box;x1=1007;y1=961;x2=1146;y2=1064;w=2560;h=1440;c=0.941605806350708|><|mask;x=0;y=0;c=0.941605806350708;data=104,140,!!!!!kCM=pr*/fVGJPsXE7x5^CASRW)uN/J9#OXT-MdlN6`+{X5FBA_7Gw0FmqUxhDUcr#oi5vj3D&:A5ieC0{'iet5|>,15<|box;x1=1652;y1=579;x2=1781;y2=703;w=2560;h=1440;c=0.9336099624633789|><|mask;x=0;y=0;c=0.9336099624633789;data=125,130,!!!!#!Cu{SsutE:RfMD^LfqF$Z417M)7mF@cHDTd{u@9RH5L-G-X5D1=Nzn$u9P%mCU2w*AVM{Gc?N?EzPp4c{=D?C8'[]A0rHJC'ZXeIauUY(]!!|>\n",
+            "annotations": [],
+            "logprobs": []
+          }
+        ],
+        "status": "completed"
+      }
+    ],
+    "instructions": null,
+    "usage": {
+      "input_tokens": 0,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 0,
+      "output_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "total_tokens": 0,
+      "images_processed": 1
+    },
+    "parallel_tool_calls": true,
+    "store": true
+  },
+  "display screen": {
+    "metadata": {
+      "mask_encoding": "one_bit",
+      "include_confidence": "true"
+    },
+    "top_logprobs": 0,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "service_tier": "auto",
+    "model": "sam-3.1",
+    "background": false,
+    "tools": [],
+    "tool_choice": "auto",
+    "truncation": "disabled",
+    "id": "resp_6aea6a1e4c5b08842ef1441f",
+    "object": "response",
+    "status": "completed",
+    "created_at": 1793747486.0,
+    "completed_at": 1793747486.0,
+    "error": null,
+    "incomplete_details": null,
+    "output": [
+      {
+        "type": "message",
+        "id": "msg_42918534-c5e1-4873-9a29-3d32f5b68d66",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "<0f>0<|box;x1=879;y1=284;x2=1487;y2=863;w=2560;h=1440;c=0.8865247964859009|><|mask;x=0;y=0;c=0.8865247964859009;data=580,609,!!!!$@=G%rEJJ9MPViYqIdFjCCIt91!cyOYx@[G!DNAY@x&Tzn(j=@qyrGF=0obKRqQ_B:)Nd(a91c-)CLtG8%l[p04k5$^txz$JUuOw$0oriu*-2AXZayf]%'Skl5c[QYx[#cq@Y0SxA^q-3Hu.gJO3xgWf:ENb=uIH2b&.1:fEreY%^Fi[GJrTaiGF#q-Tb&R4Yz@$0HNe2^#w=X_1`.HVJ=baTpcKb]PL3agVwWD9F4Mgk'F^@iWjXr2|>\n",
+            "annotations": [],
+            "logprobs": []
+          }
+        ],
+        "status": "completed"
+      }
+    ],
+    "instructions": null,
+    "usage": {
+      "input_tokens": 0,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 0,
+      "output_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "total_tokens": 0,
+      "images_processed": 1
+    },
+    "parallel_tool_calls": true,
+    "store": true
+  }
+}

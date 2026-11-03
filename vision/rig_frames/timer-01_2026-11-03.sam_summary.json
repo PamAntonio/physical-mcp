@@ -1,0 +1,133 @@
+{
+  "device_id": "timer-01",
+  "frame_file": "timer-01_2026-11-03.jpg",
+  "frame_size": [
+    2560,
+    1440
+  ],
+  "timestamp": "2026-11-03T23:11:27Z",
+  "model": "sam-3.1",
+  "from_saved_response": false,
+  "controls": [
+    {
+      "label": "button_1",
+      "bbox": [
+        1649,
+        259,
+        128,
+        129
+      ],
+      "confidence": 0.9416
+    },
+    {
+      "label": "button_2",
+      "bbox": [
+        1650,
+        418,
+        129,
+        127
+      ],
+      "confidence": 0.9336
+    },
+    {
+      "label": "button_3",
+      "bbox": [
+        1652,
+        579,
+        130,
+        125
+      ],
+      "confidence": 0.9336
+    },
+    {
+      "label": "button_4",
+      "bbox": [
+        1656,
+        739,
+        130,
+        125
+      ],
+      "confidence": 0.9452
+    },
+    {
+      "label": "button_5",
+      "bbox": [
+        1175,
+        959,
+        140,
+        105
+      ],
+      "confidence": 0.9416
+    },
+    {
+      "label": "button_6",
+      "bbox": [
+        1007,
+        961,
+        140,
+        104
+      ],
+      "confidence": 0.9416
+    },
+    {
+      "label": "button_7",
+      "bbox": [
+        838,
+        965,
+        143,
+        103
+      ],
+      "confidence": 0.9416
+    },
+    {
+      "label": "button_8",
+      "bbox": [
+        1577,
+        1028,
+        222,
+        150
+      ],
+      "confidence": 0.9532
+    },
+    {
+      "label": "button_9",
+      "bbox": [
+        1372,
+        1036,
+        152,
+        151
+      ],
+      "confidence": 0.9494
+    },
+    {
+      "label": "button_10",
+      "bbox": [
+        1177,
+        1088,
+        139,
+        105
+      ],
+      "confidence": 0.9375
+    },
+    {
+      "label": "button_11",
+      "bbox": [
+        1010,
+        1092,
+        140,
+        104
+      ],
+      "confidence": 0.9336
+    },
+    {
+      "label": "screen_1",
+      "bbox": [
+        879,
+        284,
+        609,
+        580
+      ],
+      "confidence": 0.8865
+    }
+  ]
+}
