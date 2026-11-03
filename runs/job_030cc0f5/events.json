@@ -1,0 +1,667 @@
+[
+  {
+    "type": "job.status",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:31:16.892Z",
+    "status": "planning"
+  },
+  {
+    "type": "plan.ready",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:32:14.418Z",
+    "plan": {
+      "planner": "muse-spark-1.3",
+      "summary": "Set T1 from 00:00 00 to 02:00 00 with 2x H then start with ST/SP",
+      "steps": [
+        {
+          "step_id": "s1",
+          "index": 1,
+          "intent": "Add 1 hour to T1 to reach 01:00 00",
+          "action": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1,
+            "hold_ms": 1000
+          },
+          "expect": {
+            "control_id": "screen_t1",
+            "text_contains": "01:00 00"
+          },
+          "requires_approval": false,
+          "status": "pending",
+          "attempts": 0,
+          "started_at": null,
+          "finished_at": null,
+          "evidence": {
+            "before_frame_url": null,
+            "after_frame_url": null,
+            "screen_text": null
+          },
+          "error": null
+        },
+        {
+          "step_id": "s2",
+          "index": 2,
+          "intent": "Add 1 hour to T1 to reach 02:00 00",
+          "action": {
+            "type": "press",
+            "control_id": "btn_h",
+            "count": 1,
+            "hold_ms": 1000
+          },
+          "expect": {
+            "control_id": "screen_t1",
+            "text_contains": "02:00 00"
+          },
+          "requires_approval": false,
+          "status": "pending",
+          "attempts": 0,
+          "started_at": null,
+          "finished_at": null,
+          "evidence": {
+            "before_frame_url": null,
+            "after_frame_url": null,
+            "screen_text": null
+          },
+          "error": null
+        },
+        {
+          "step_id": "s3",
+          "index": 3,
+          "intent": "Start T1 countdown",
+          "action": {
+            "type": "press",
+            "control_id": "btn_stsp",
+            "count": 1,
+            "hold_ms": 1000
+          },
+          "expect": {
+            "control_id": "screen_t1",
+            "text_contains": "01:59"
+          },
+          "requires_approval": true,
+          "approval_reason": "Starting the countdown turns on the timer output",
+          "turns_on_output": true,
+          "status": "pending",
+          "attempts": 0,
+          "started_at": null,
+          "finished_at": null,
+          "evidence": {
+            "before_frame_url": null,
+            "after_frame_url": null,
+            "screen_text": null
+          },
+          "error": null
+        }
+      ]
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Planned from screen_t1 reads '00:00 00' (high)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "job.status",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:32:14.418Z",
+    "status": "running"
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:32:14.418Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Add 1 hour to T1 to reach 01:00 00",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "running",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:32:14.418Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:32:15.812Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Add 1 hour to T1 to reach 01:00 00",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:32:14.418Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:32:27.131Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Start T1 countdown",
+      "action": {
+        "type": "press",
+        "control_id": "btn_stsp",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:59"
+      },
+      "requires_approval": true,
+      "approval_reason": "Starting the countdown turns on the timer output",
+      "turns_on_output": true,
+      "status": "pending",
+      "attempts": 0,
+      "started_at": null,
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": null
+      },
+      "error": null,
+      "risk_tier": "medium",
+      "risk_reason": "Starts 2-hour countdown as requested, no heat or hazard.",
+      "risk_scored_by": "meta-models/muse-spark-open-1026"
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:32:38.172Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Add 1 hour to T1 to reach 01:00 00",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:32:14.418Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "00:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "screen_t1 reads '00:00 00' (high), wanted '01:00 00', looking again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "00:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:33:14.835Z",
+    "step": {
+      "step_id": "s1",
+      "index": 1,
+      "intent": "Add 1 hour to T1 to reach 01:00 00",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:00 00"
+      },
+      "requires_approval": false,
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:32:14.418Z",
+      "finished_at": "2026-11-03T19:33:14.835Z",
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "01:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Verified: screen_t1 reads '01:00 00' (high)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "01:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:33:14.836Z",
+    "step": {
+      "step_id": "s2",
+      "index": 2,
+      "intent": "Add 1 hour to T1 to reach 02:00 00",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "02:00 00"
+      },
+      "requires_approval": false,
+      "status": "running",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:33:14.836Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "01:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:33:16.226Z",
+    "step": {
+      "step_id": "s2",
+      "index": 2,
+      "intent": "Add 1 hour to T1 to reach 02:00 00",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "02:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:33:14.836Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "01:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:33:52.202Z",
+    "step": {
+      "step_id": "s2",
+      "index": 2,
+      "intent": "Add 1 hour to T1 to reach 02:00 00",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "02:00 00"
+      },
+      "requires_approval": false,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:33:14.836Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "01:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "screen_t1 reads '01:00 00' (high), wanted '02:00 00', looking again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "01:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:34:12.484Z",
+    "step": {
+      "step_id": "s2",
+      "index": 2,
+      "intent": "Add 1 hour to T1 to reach 02:00 00",
+      "action": {
+        "type": "press",
+        "control_id": "btn_h",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "02:00 00"
+      },
+      "requires_approval": false,
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:33:14.836Z",
+      "finished_at": "2026-11-03T19:34:12.484Z",
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "02:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Verified: screen_t1 reads '02:00 00' (high)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "02:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:34:12.484Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Start T1 countdown",
+      "action": {
+        "type": "press",
+        "control_id": "btn_stsp",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:59"
+      },
+      "requires_approval": true,
+      "approval_reason": "Starting the countdown turns on the timer output",
+      "turns_on_output": true,
+      "status": "awaiting_approval",
+      "attempts": 0,
+      "started_at": null,
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "02:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "risk_tier": "medium",
+      "risk_reason": "Starts 2-hour countdown as requested, no heat or hazard.",
+      "risk_scored_by": "meta-models/muse-spark-open-1026"
+    }
+  },
+  {
+    "type": "job.status",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:34:12.484Z",
+    "status": "awaiting_approval"
+  },
+  {
+    "type": "job.status",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:34:21.032Z",
+    "status": "running"
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:34:21.032Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Start T1 countdown",
+      "action": {
+        "type": "press",
+        "control_id": "btn_stsp",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:59"
+      },
+      "requires_approval": true,
+      "approval_reason": "Starting the countdown turns on the timer output",
+      "turns_on_output": true,
+      "status": "running",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:34:21.032Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "02:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "risk_tier": "medium",
+      "risk_reason": "Starts 2-hour countdown as requested, no heat or hazard.",
+      "risk_scored_by": "meta-models/muse-spark-open-1026"
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:34:22.426Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Start T1 countdown",
+      "action": {
+        "type": "press",
+        "control_id": "btn_stsp",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:59"
+      },
+      "requires_approval": true,
+      "approval_reason": "Starting the countdown turns on the timer output",
+      "turns_on_output": true,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:34:21.032Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "02:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "risk_tier": "medium",
+      "risk_reason": "Starts 2-hour countdown as requested, no heat or hazard.",
+      "risk_scored_by": "meta-models/muse-spark-open-1026"
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:34:55.385Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Start T1 countdown",
+      "action": {
+        "type": "press",
+        "control_id": "btn_stsp",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:59"
+      },
+      "requires_approval": true,
+      "approval_reason": "Starting the countdown turns on the timer output",
+      "turns_on_output": true,
+      "status": "verifying",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:34:21.032Z",
+      "finished_at": null,
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "02:00 00",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "risk_tier": "medium",
+      "risk_reason": "Starts 2-hour countdown as requested, no heat or hazard.",
+      "risk_scored_by": "meta-models/muse-spark-open-1026"
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "screen_t1 reads '02:00 00' (high), wanted '01:59', looking again",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "02:00 00",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "step.updated",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:35:19.862Z",
+    "step": {
+      "step_id": "s3",
+      "index": 3,
+      "intent": "Start T1 countdown",
+      "action": {
+        "type": "press",
+        "control_id": "btn_stsp",
+        "count": 1,
+        "hold_ms": 1000
+      },
+      "expect": {
+        "control_id": "screen_t1",
+        "text_contains": "01:59"
+      },
+      "requires_approval": true,
+      "approval_reason": "Starting the countdown turns on the timer output",
+      "turns_on_output": true,
+      "status": "succeeded",
+      "attempts": 1,
+      "started_at": "2026-11-03T19:34:21.032Z",
+      "finished_at": "2026-11-03T19:35:19.861Z",
+      "evidence": {
+        "before_frame_url": null,
+        "after_frame_url": null,
+        "screen_text": "01:59 28",
+        "screen_confidence": "high"
+      },
+      "error": null,
+      "risk_tier": "medium",
+      "risk_reason": "Starts 2-hour countdown as requested, no heat or hazard.",
+      "risk_scored_by": "meta-models/muse-spark-open-1026"
+    },
+    "note": {
+      "kind": "screen_read",
+      "message": "Verified: screen_t1 reads '01:59 28' (high)",
+      "read": {
+        "control_id": "screen_t1",
+        "text": "01:59 28",
+        "confidence": "high"
+      }
+    }
+  },
+  {
+    "type": "job.finished",
+    "job_id": "job_030cc0f5",
+    "ts": "2026-11-03T19:35:19.862Z",
+    "result": {
+      "outcome": "succeeded",
+      "message": "Job done, all 3 steps verified.",
+      "final_screen_text": "01:59 28"
+    }
+  }
+]

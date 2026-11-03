@@ -1,0 +1,330 @@
+{
+  "job_id": "job_030cc0f5",
+  "created_at": "2026-11-03T19:31:16.892Z",
+  "updated_at": "2026-11-03T19:35:19.862Z",
+  "request": "Set T1 to 2 hours and start it",
+  "approval_mode": "risky_steps",
+  "press_budget": 30,
+  "status": "succeeded",
+  "device": {
+    "device_id": "timer-01",
+    "name": "4-channel kitchen timer (placeholder boxes from a hand-held photo)",
+    "camera": {
+      "camera_id": "cam-0",
+      "frame_width": 2560,
+      "frame_height": 1440,
+      "latest_frame_url": "/frames/timer-01-latest.jpg?t=1793734276892"
+    },
+    "controls_version": 1,
+    "controls": [
+      {
+        "control_id": "screen_t1",
+        "label": "T1 time",
+        "kind": "screen",
+        "bbox": [
+          1116,
+          305,
+          235,
+          70
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t2",
+        "label": "T2 time",
+        "kind": "screen",
+        "bbox": [
+          1119,
+          380,
+          234,
+          69
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t3",
+        "label": "T3 time",
+        "kind": "screen",
+        "bbox": [
+          1122,
+          453,
+          234,
+          71
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "screen_t4",
+        "label": "T4 time",
+        "kind": "screen",
+        "bbox": [
+          1125,
+          522,
+          233,
+          78
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t1",
+        "label": "T1",
+        "kind": "button",
+        "bbox": [
+          1439,
+          273,
+          67,
+          69
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t2",
+        "label": "T2",
+        "kind": "button",
+        "bbox": [
+          1444,
+          353,
+          67,
+          69
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t3",
+        "label": "T3",
+        "kind": "button",
+        "bbox": [
+          1450,
+          433,
+          68,
+          69
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_t4",
+        "label": "T4",
+        "kind": "button",
+        "bbox": [
+          1456,
+          514,
+          69,
+          70
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_h",
+        "label": "H",
+        "kind": "button",
+        "bbox": [
+          1032,
+          645,
+          77,
+          59
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_m",
+        "label": "M",
+        "kind": "button",
+        "bbox": [
+          1121,
+          641,
+          77,
+          58
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_s",
+        "label": "S",
+        "kind": "button",
+        "bbox": [
+          1209,
+          636,
+          76,
+          59
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_10m",
+        "label": "10M",
+        "kind": "button",
+        "bbox": [
+          1033,
+          715,
+          79,
+          61
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_5m",
+        "label": "5M",
+        "kind": "button",
+        "bbox": [
+          1124,
+          711,
+          77,
+          59
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_10s",
+        "label": "10S",
+        "kind": "button",
+        "bbox": [
+          1213,
+          706,
+          75,
+          59
+        ],
+        "confidence": 0.9,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_reset",
+        "label": "RESET",
+        "kind": "button",
+        "bbox": [
+          1314,
+          675,
+          84,
+          84
+        ],
+        "confidence": 0.9,
+        "risky": true,
+        "reachable": true
+      },
+      {
+        "control_id": "btn_stsp",
+        "label": "ST/SP",
+        "kind": "button",
+        "bbox": [
+          1422,
+          668,
+          121,
+          84
+        ],
+        "confidence": 0.9,
+        "risky": true,
+        "reachable": true
+      }
+    ]
+  },
+  "plan": {
+    "planner": "muse-spark-1.3",
+    "summary": "Set T1 from 00:00 00 to 02:00 00 with 2x H then start with ST/SP",
+    "steps": [
+      {
+        "step_id": "s1",
+        "index": 1,
+        "intent": "Add 1 hour to T1 to reach 01:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "01:00 00"
+        },
+        "requires_approval": false,
+        "status": "succeeded",
+        "attempts": 1,
+        "started_at": "2026-11-03T19:32:14.418Z",
+        "finished_at": "2026-11-03T19:33:14.835Z",
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": "01:00 00",
+          "screen_confidence": "high"
+        },
+        "error": null
+      },
+      {
+        "step_id": "s2",
+        "index": 2,
+        "intent": "Add 1 hour to T1 to reach 02:00 00",
+        "action": {
+          "type": "press",
+          "control_id": "btn_h",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "02:00 00"
+        },
+        "requires_approval": false,
+        "status": "succeeded",
+        "attempts": 1,
+        "started_at": "2026-11-03T19:33:14.836Z",
+        "finished_at": "2026-11-03T19:34:12.484Z",
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": "02:00 00",
+          "screen_confidence": "high"
+        },
+        "error": null
+      },
+      {
+        "step_id": "s3",
+        "index": 3,
+        "intent": "Start T1 countdown",
+        "action": {
+          "type": "press",
+          "control_id": "btn_stsp",
+          "count": 1,
+          "hold_ms": 1000
+        },
+        "expect": {
+          "control_id": "screen_t1",
+          "text_contains": "01:59"
+        },
+        "requires_approval": true,
+        "approval_reason": "Starting the countdown turns on the timer output",
+        "turns_on_output": true,
+        "status": "succeeded",
+        "attempts": 1,
+        "started_at": "2026-11-03T19:34:21.032Z",
+        "finished_at": "2026-11-03T19:35:19.861Z",
+        "evidence": {
+          "before_frame_url": null,
+          "after_frame_url": null,
+          "screen_text": "01:59 28",
+          "screen_confidence": "high"
+        },
+        "error": null,
+        "risk_tier": "medium",
+        "risk_reason": "Starts 2-hour countdown as requested, no heat or hazard.",
+        "risk_scored_by": "meta-models/muse-spark-open-1026"
+      }
+    ]
+  },
+  "result": {
+    "outcome": "succeeded",
+    "message": "Job done, all 3 steps verified.",
+    "final_screen_text": "01:59 28"
+  },
+  "pause_reason": null
+}
