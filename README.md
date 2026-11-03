@@ -59,7 +59,7 @@ All of these live in the backend, not just the web app.
 |---|---|---|
 | Planning | `muse-spark-1.3` (Meta Model API) | `backend/planner.py` |
 | Reading screens | `muse-spark-1.3` (Meta Model API) | `vision/read_screen.py` |
-| Finding buttons and screens | `sam-3.1` (Meta Model API) | `vision/detect_controls.py` |
+| Finding buttons and screens | `sam-3.1` (Meta Model API) | `vision/detect_controls.py`. SAM 3.1 ran on a real rig frame on Nov 3 to set the timer's control boxes (`vision/rig_frames/timer-01_2026-11-03.jpg` to `vision/calibration/timer-01.boxes.json`). SAM found 11 buttons and the screen outline. 10M, hidden by the H finger, and the 4 LCD rows are worked out from those |
 | Risk scoring | `meta-models/muse-spark-open-1026` (Muse Spark Open on Baseten) | `risk/scorer.py` |
 
 LED indicators are a pixel check, no model.
@@ -74,10 +74,10 @@ LED indicators are a pixel check, no model.
 | `backend/planner.py` | Muse Spark planner, plan validation, the timer plan check | Working with the live model |
 | `backend/devices/` | Device profiles: buttons, servo angles, holds, notes for the planner | `timer-01` main (H and ST/SP angles set). `inkbird-01` tried once on the rig (job_04b0c61c, stopped by hand), servo angles still empty. `incubator-01` placeholder, no rig |
 | `backend/serial_hardware.py`, `firmware/` | ESP32 servo fingers over USB serial, plus the webcam | Working on the bench, see Reliability. Also tested against a fake ESP32 |
-| `backend/calibrate.py`, `web/app/calibrate/` | Moves a device's control boxes to a new camera view from 4 clicked corners | Working, unit tested. The boxes on file are still marked placeholder |
+| `backend/calibrate.py`, `web/app/calibrate/` | Moves a device's control boxes to a new camera view from 4 clicked corners | Working, unit tested. The timer's boxes on file now come from SAM 3.1 on a rig frame, see `vision/`. The Inkbird's are still marked placeholder |
 | `backend/record_run.py` | Records a run: every event plus every camera frame, into `runs/<job_id>/` | Working, tested against the real HTTP backend |
 | `backend/fake_camera.py` | The backend on FakeHardware plus a fake live webcam, to try the camera view with no rig | Working |
-| `vision/` | SAM 3.1 control detection, voted screen reads, LED checks, calibration | Reads tested on photos and through the rig camera in the Nov 2 and Nov 3 runs. The boxes on file are marked placeholder (the timer's from a hand-held photo) |
+| `vision/` | SAM 3.1 control detection, voted screen reads, LED checks, calibration | Reads tested on photos and through the rig camera in the Nov 2 and Nov 3 runs. SAM 3.1 ran on a real rig frame on Nov 3 to set the timer's control boxes (`vision/rig_frames/timer-01_2026-11-03.jpg` to `vision/calibration/timer-01.boxes.json`). SAM found 11 buttons and the screen outline. 10M, hidden by the H finger, and the 4 LCD rows are worked out from those. The Inkbird's boxes are still marked placeholder |
 | `risk/` | Muse Spark Open step scorer, CLI and a small HTTP endpoint | Working with the live model. Scored fixtures in `risk/out/` |
 | `shared/` | The contract (`types.ts`) and sample jobs both sides build on | v1, with newer fields marked PROPOSED |
 | `scripts/dashboard_metrics.py` | Computes every dashboard number from files in this repo and writes `metrics.json`. Anything it can't compute stays empty and says what's missing | Working, unit tested |

@@ -12,6 +12,11 @@ vision/**/*.jpg
 vision/**/*.jpeg
 vision/**/*.png
 vision/**/*.webp
+# except the rig frame the timer's boxes come from, and what SAM said about it
+!vision/rig_frames/*.jpg
+!vision/rig_frames/*.boxes.png
+!vision/rig_frames/*.sam_raw.json
+!vision/rig_frames/*.controls.json
 # read_screen.py: raw Muse Spark replies and --draw crops (crops can come from real photos)
 *.read_raw.json
 *.crop.png

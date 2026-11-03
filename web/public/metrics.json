@@ -398,10 +398,10 @@
     },
     "vision.calibrated_boxes.timer-01": {
       "value": 16,
-      "sample": "frame [959, 1280]",
+      "sample": "frame [2560, 1440]",
       "source": "vision/calibration/timer-01.boxes.json boxes",
-      "status": "NEEDS DATA",
-      "note": "file says PLACEHOLDER (hand-held photo / mock frame), not a rig frame",
+      "status": "REAL",
+      "note": null,
       "group": "Vision"
     },
     "risk_fixtures.scored_by_real_spark_open": {
@@ -577,12 +577,20 @@
       "label": "same START button, 37 °C medium vs 90 °C high, scored by Muse Spark Open",
       "group": "Safety"
     },
-    "vision.sam_detection_confidence": {
-      "value": null,
-      "sample": null,
-      "status": "NEEDS DATA",
-      "source": "vision/calibration/*.sam_summary.json",
-      "need": "run vision/detect_controls.py <rig frame> --device timer-01 and commit the vision/calibration/timer-01.sam_summary.json it writes",
+    "vision.sam_controls_detected.timer-01": {
+      "value": 12,
+      "sample": "1 frame",
+      "status": "REAL",
+      "source": "vision/calibration/timer-01.sam_summary.json",
+      "note": "frame timer-01_2026-11-03.jpg [2560, 1440], 2026-11-03T23:11:27Z",
+      "group": "Vision"
+    },
+    "vision.sam_average_confidence.timer-01": {
+      "value": 0.94,
+      "sample": "12 controls",
+      "status": "REAL",
+      "source": "vision/calibration/timer-01.sam_summary.json controls[].confidence",
+      "note": "frame timer-01_2026-11-03.jpg [2560, 1440], 2026-11-03T23:11:27Z",
       "group": "Vision"
     },
     "cost.hardware_parts_total": {

@@ -361,7 +361,8 @@ def test_timer_calibration_file():
     """timer-01.boxes.json has a box for all 4 LCD rows and all 12 buttons."""
     calibration = json.loads((CALIBRATION_DIR / "timer-01.boxes.json").read_text(encoding="utf-8"))
     assert calibration["device_id"] == "timer-01"
-    assert calibration["_comment"].startswith("PLACEHOLDER"), "hand-held photo, has to be redone on the rig"
+    assert not calibration["_comment"].startswith("PLACEHOLDER"), "from SAM 3.1 on a rig frame"
+    assert "sam-3.1" in calibration["_comment"] and "vision/rig_frames/" in calibration["_comment"]
     boxes = calibration["boxes"]
 
     rows = ["screen_t1", "screen_t2", "screen_t3", "screen_t4"]
