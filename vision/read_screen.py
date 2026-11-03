@@ -42,6 +42,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -518,7 +519,8 @@ def matches_expectation(read_text, text_contains, confidence=None):
 # ---------------------------------------------------------------------------
 
 def vote_reads(read_once, settings=None):
-    """read_once() -> cleaned text of one read. Reads twice: agree = "high".
+    """read_once() -> cleaned text of one read. Reads twice, side by side (a read's model calls
+    are most of a job's run time): agree = "high".
     Disagree = a third read, majority wins = "medium". All three differ = "low", first read.
     An empty winner is always "low": agreeing on "nothing there" isn't a read we can trust.
     Then the sanity check, if the device has one: for the Inkbird a temperature outside
@@ -527,7 +529,10 @@ def vote_reads(read_once, settings=None):
     if settings is None:
         settings = DEVICE_SETTINGS[DEFAULT_DEVICE]
 
-    reads = [read_once(), read_once()]
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="vote") as pool:
+        first = pool.submit(read_once)
+        second = pool.submit(read_once)
+        reads = [first.result(), second.result()]
     if normalize_for_compare(reads[0]) == normalize_for_compare(reads[1]):
         text, confidence = reads[0], "high"
     else:

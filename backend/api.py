@@ -72,6 +72,8 @@ from hardware import FakeHardware, HardwareStopped  # noqa: E402
 from screen_numbers import find_number  # noqa: E402
 
 PLANNER_TIMEOUT_SECONDS = 90
+# the OpenAI client retries twice by default, so one stuck plan could hold a job for 270 s
+PLANNER_MAX_RETRIES = 1
 DEFAULT_PRESS_BUDGET = 30
 DEFAULT_MAX_ATTEMPTS = 3
 # a retry never presses more than this in one go. further off than that and something's
@@ -253,7 +255,8 @@ def make_plan(device_id, request, screen_readings=None):
         raise RuntimeError("MODEL_API_KEY is not set (put it in the repo-root .env)")
     device = planner.load_device(device_id)
     profile = planner.load_profile(device_id)
-    client = OpenAI(base_url=planner.BASE_URL, api_key=api_key, timeout=PLANNER_TIMEOUT_SECONDS)
+    client = OpenAI(base_url=planner.BASE_URL, api_key=api_key, timeout=PLANNER_TIMEOUT_SECONDS,
+                    max_retries=PLANNER_MAX_RETRIES)
     messages = planner.build_messages(device, profile, request, screen_readings)
     content = planner.call_model(client, messages)
     raw = planner.parse_planning_json(content)
