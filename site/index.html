@@ -225,7 +225,7 @@
           </section>
         </div>
       </div>
-      <p class="fine">Replays run from fixed scripts in this page, built from the real fixtures and a recorded risk score. The full stack &mdash; planner, vision, scorer, finger &mdash; runs in the repo below.</p>
+      <p class="fine">Replays run from fixed scripts in this page, built from the real fixtures and a recorded risk score. The full stack (planner, vision, scorer, finger) runs in the repo below.</p>
     </div>
   </section>
 
@@ -295,7 +295,7 @@
         <li>Reads are voted: two reads agree, or a third breaks the tie. A low-confidence read pauses the job instead of pressing blind.</li>
         <li>Press budget: 30 presses per job. Going over is refused, nothing pressed.</li>
         <li>Plans that don&rsquo;t add up get refused with a plain reason. (<span class="mono">backend/planner.py</span> checks the plan against the screen)</li>
-        <li>A press that didn&rsquo;t register gets retried &mdash; never on an approval step, where a double-press would undo the job.</li>
+        <li>A press that didn&rsquo;t register gets retried, but never on an approval step, where a double-press would undo the job.</li>
         <li>Buttons with no finger are never planned. STOP is always on screen and lifts the finger right away, even mid-hold.</li>
       </ul>
     </div>
