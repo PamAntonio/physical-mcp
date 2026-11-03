@@ -28,7 +28,7 @@ The AI only ever calls tools: `get_controls`, `press`, `read_screen`, `get_frame
 
 **On the rig, as of Nov 3:** full jobs now work through the app, including "Set T1 to 2 hours and start it" with the hold-to-approve on ST/SP. The rig has one finger per button, with H and ST/SP angles in `backend/devices/timer-01.json`. See [Reliability](#reliability).
 
-The Inkbird temperature controller (`inkbird-01`) is a second profile. It has **not been tested on the rig**: its menu behaviour comes from the manual and every servo angle is still empty. `incubator-01` is a made-up placeholder device that runs on the mock and on FakeHardware, never on the rig.
+The Inkbird temperature controller (`inkbird-01`) is a second profile. It was **tried once on the rig (job_04b0c61c, stopped by hand), servo angles still empty**. Its menu behaviour comes from the manual. `incubator-01` is a made-up placeholder device that runs on the mock and on FakeHardware, never on the rig.
 
 ## Safety rules
 
@@ -72,7 +72,7 @@ LED indicators are a pixel check, no model.
 | `backend/api.py` | FastAPI server for the web app: planning, scoring, the step runner, approvals, pauses, Stop | Working on FakeHardware and on the rig (see Reliability) |
 | `backend/mcp_server.py` | The MCP tools every press and read goes through, with the approval gate in `press` | Working, in memory only (no HTTP transport yet) |
 | `backend/planner.py` | Muse Spark planner, plan validation, the timer plan check | Working with the live model |
-| `backend/devices/` | Device profiles: buttons, servo angles, holds, notes for the planner | `timer-01` main (H and ST/SP angles set). `inkbird-01` not tested on the rig. `incubator-01` placeholder, no rig |
+| `backend/devices/` | Device profiles: buttons, servo angles, holds, notes for the planner | `timer-01` main (H and ST/SP angles set). `inkbird-01` tried once on the rig (job_04b0c61c, stopped by hand), servo angles still empty. `incubator-01` placeholder, no rig |
 | `backend/serial_hardware.py`, `firmware/` | ESP32 servo fingers over USB serial, plus the webcam | Working on the bench, see Reliability. Also tested against a fake ESP32 |
 | `backend/calibrate.py`, `web/app/calibrate/` | Moves a device's control boxes to a new camera view from 4 clicked corners | Working, unit tested. The boxes on file are still marked placeholder |
 | `backend/record_run.py` | Records a run: every event plus every camera frame, into `runs/<job_id>/` | Working, tested against the real HTTP backend |
@@ -83,7 +83,7 @@ LED indicators are a pixel check, no model.
 | `scripts/dashboard_metrics.py` | Computes every dashboard number from files in this repo and writes `metrics.json`. Anything it can't compute stays empty and says what's missing | Working, unit tested |
 | `runs/` | Recorded runs for the dashboard, labelled real or mock in `labels.json` | The Nov 2 and Nov 3 rig runs are in |
 | `web/app/results/` | The results page: five tiles to film and every metric underneath, read from `web/public/metrics.json` | Working |
-| `site/` | The public site at [physicalmcp.dev](https://physicalmcp.dev): demo video, interactive rig, replays. Plain static files, deployed by hand with Vercel | Live |
+| `site/` | The public site at [physicalmcp.dev](https://physicalmcp.dev): demo video, interactive rig, replays. Plain static files, deployed by hand with Vercel. Built with Muse Code, then changed further with Claude Code. | Live |
 | `scripts/readme_cost_table.py` | Writes the README's Cost, Reliability and Speed numbers from `web/public/metrics.json` | Working, unit tested |
 | `docs/` | `hardware.md` (how the rig is built, wired and calibrated), `first-loop-checklist.md` (first full run on the rig), `costs.md` (prices and sources) | Current |
 
@@ -241,7 +241,7 @@ Full jobs through the app on the real rig: **7/23 worked** (`real.job_success_ra
 | Failed, hardware error | 2 |
 <!-- reliability:end -->
 
-The site and demo say 6/7: the Nov 3 runs from 19:16 to 19:57 UTC, once the rig was working, not counting jobs stopped by hand. A later run also succeeded, and every recorded run is counted in the 7/23 above.
+The site says 7/8: the last 8 full jobs on Nov 3, from 19:16 UTC, not counting jobs stopped by hand. The demo video says 6 of 7 because it was made before the last of those runs. Every recorded run is counted in the 7/23 above.
 
 In the Nov 2 runs no H press changed T1: the frames show the H finger landing on the lower edge of the button after the timer was moved. In the Nov 3 runs, full jobs worked. The camera read of T1, the plans, the refusal, the retry and Stop all did their job in the rig runs. The refusal was correct: T1 was already past the time asked for. One hardware error was another program holding the serial port. The other, on Nov 3, was `The read operation timed out`. Reads checked vs. reads right isn't measured yet.
 
@@ -265,7 +265,7 @@ On Nov 2 a read's model calls ran one after another. By Nov 3 the first two ran 
 What the rig costs next to replacing the machine or retrofitting it. Only numbers with a source are here, the rest says so. Every figure, its source page and the date it was checked are in [`docs/costs.md`](docs/costs.md).
 
 <!-- cost:start, written by scripts/readme_cost_table.py -->
-**Rig parts:** NEEDS INPUT. Still needs a price for: Jumper wires, Mini breadboard, Olimex BREADBOARD-MINI, Finger materials (arms, hot glue, mounting tape, blocks, base board). a listing URL and a checked date for: Microcontroller (ESP32), Finger materials (arms, hot glue, mounting tape, blocks, base board).
+**Rig parts:** $17.02 priced so far (servos, webcam, ESP32), plus wires, breadboard and finger materials not yet priced.
 
 **Rig vs replacing a lab incubator:** not sourced yet (the parts total (cost.hardware_parts_total) has to be REAL first).
 
@@ -296,4 +296,4 @@ Model calls were paid with hackathon credits, so the API figures are cost at lis
 
 Everything in this repo was written during the hackathon, from Oct 27, except the very first commit: the README was created on Oct 26 (`b06e0dc`, Pam). `web/` started from `create-next-app`.
 
-We used Claude Code as a coding assistant. The Co-Authored-By trailers in the commit history mark some of those commits, not all of them.
+We used Claude Code as a coding assistant. The Co-Authored-By trailers in the commit history mark some of those commits, not all of them. The site (`site/`) was built with Muse Code, then changed further with Claude Code.

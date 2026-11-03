@@ -48,6 +48,11 @@ SPEED_ROWS = {
     "real.planner_time_median_s": "Reading T1 and planning, together",
     "real.risk_scoring_time_median_s": "Risk score, in the background",
 }
+# what the Rig parts line says while the Parts table still has rows with no price. Only used
+# while the entered total is still this figure, so a new price can't leave it out of date.
+PARTS_ENTERED_SO_FAR = 17.02
+PARTS_PRICED_SO_FAR = ("$17.02 priced so far (servos, webcam, ESP32), "
+                       "plus wires, breadboard and finger materials not yet priced")
 
 
 def money(amount):
@@ -72,6 +77,8 @@ def parts_line(metrics):
     if entry.get("status") == "REAL":
         return (f"**Rig parts:** {money(entry['counted_total'])} in parts at listed prices, "
                 "plus a power bank and USB cable we already had.")
+    if entry.get("entered_total") == PARTS_ENTERED_SO_FAR:
+        return f"**Rig parts:** {PARTS_PRICED_SO_FAR}."
     return f"**Rig parts:** {entry.get('status', 'NEEDS INPUT')}. Still needs {entry.get('need', 'the Parts table')}."
 
 
