@@ -298,4 +298,4 @@ Everything in this repo was written during the hackathon, from Oct 27, except th
 
 We used Claude Code as a coding assistant. The Co-Authored-By trailers in the commit history mark some of those commits, not all of them. The site (`site/`) was built with Muse Code, then changed further with Claude Code.
 
-The site was built with Muse Code and deployed from a local folder before it went into the repo in `fcfe1d0` (that commit's message notes the local-folder deploy), so the commit history for `site/` only shows Claude Code.
+The site was built with Muse Code and deployed from a local folder before it went into the repo in `fcfe1d0` (that commit's message notes the local-folder deploy), so the commit history for `site/` only shows Claude Code. One exception: the site's "Real run" tab (PR #13, commit `c9476f9`) was written by Muse Code (muse-spark-1.3) from a prompt written with Claude; that commit's Co-Authored-By line credits Claude by mistake.
