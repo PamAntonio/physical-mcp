@@ -32,8 +32,7 @@ from hardware import HardwareStopped
 
 mcp = MCPServer("physical-mcp")
 
-# TODO: to let agents outside this process connect, mount Streamable HTTP in api.py:
-# app.mount("/", mcp.streamable_http_app()) with mcp.session_manager.run() in the app's lifespan
+# Done: outside agents connect over Streamable HTTP via api.py lifespan + mount, endpoint /mcp.
 
 backend = None  # the api module, set by use_backend()
 
