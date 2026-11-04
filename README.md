@@ -297,3 +297,5 @@ Model calls were paid with hackathon credits, so the API figures are cost at lis
 Everything in this repo was written during the hackathon, from Oct 27, except the very first commit: the README was created on Oct 26 (`b06e0dc`, Pam). `web/` started from `create-next-app`.
 
 We used Claude Code as a coding assistant. The Co-Authored-By trailers in the commit history mark some of those commits, not all of them. The site (`site/`) was built with Muse Code, then changed further with Claude Code.
+
+The site was built with Muse Code and deployed from a local folder before it went into the repo in `fcfe1d0` (that commit's message notes the local-folder deploy), so the commit history for `site/` only shows Claude Code.
