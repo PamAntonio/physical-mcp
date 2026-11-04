@@ -70,7 +70,7 @@ LED indicators are a pixel check, no model.
 |---|---|---|
 | `web/` | Next.js app: job request, camera view with control boxes, step list, approval card (risk, scorer, screen read with confidence, hold-to-approve), pause panel with Resume, action log | Working on mock data and on the backend. Checked in a browser at desktop and 390 px |
 | `backend/api.py` | FastAPI server for the web app: planning, scoring, the step runner, approvals, pauses, Stop | Working on FakeHardware and on the rig (see Reliability) |
-| `backend/mcp_server.py` | The MCP tools every press and read goes through, with the approval gate in `press` | Working, in memory only (no HTTP transport yet) |
+| `backend/mcp_server.py` | The MCP tools every press and read goes through, with the approval gate in `press` | Working. In process for the step runner, and over Streamable HTTP at http://127.0.0.1:8000/mcp for outside MCP clients (this computer only) |
 | `backend/planner.py` | Muse Spark planner, plan validation, the timer plan check | Working with the live model |
 | `backend/devices/` | Device profiles: buttons, servo angles, holds, notes for the planner | `timer-01` main (H and ST/SP angles set). `inkbird-01` tried once on the rig (job_04b0c61c, stopped by hand), servo angles still empty. `incubator-01` placeholder, no rig |
 | `backend/serial_hardware.py`, `firmware/` | ESP32 servo fingers over USB serial, plus the webcam | Working on the bench, see Reliability. Also tested against a fake ESP32 |

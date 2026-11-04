@@ -57,6 +57,7 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, WebSocketException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from mcp import Client
 from openai import OpenAI
 
@@ -112,6 +113,17 @@ camera_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="camera")
 # (sys.modules, so it's this copy even when api.py runs as a script)
 mcp_server.use_backend(sys.modules[__name__])
 
+mcp_http_app = None
+
+
+async def mcp_http(scope, receive, send):
+    if mcp_http_app is not None:
+        await mcp_http_app(scope, receive, send)
+    else:
+        response = JSONResponse({"detail": "MCP server not started"}, status_code=503)
+        await response(scope, receive, send)
+
+
 async def keep_frames_fresh():
     """Real rig only: save a webcam frame about every FRAME_SECONDS so the web app's camera view
     is live (it reloads web/public/frames/<device>-latest.jpg). Runs on its own camera thread,
@@ -137,11 +149,16 @@ async def keep_frames_fresh():
 
 @asynccontextmanager
 async def lifespan(app):
+    global mcp_http_app
     frames_task = None
     if LIVE_FRAMES:
         frames_task = asyncio.create_task(keep_frames_fresh())
         log(f"live camera: saving a frame every {FRAME_SECONDS} s")
-    yield
+    mcp_http_app = mcp_server.mcp.streamable_http_app()
+    log("MCP server for outside agents: http://127.0.0.1:8000/mcp")
+    async with mcp_server.mcp.session_manager.run():
+        yield
+    mcp_http_app = None
     if frames_task:
         frames_task.cancel()
 
@@ -1065,6 +1082,11 @@ async def job_events(websocket: WebSocket, job_id: str):
     finally:
         run.watchers.remove(queue)
         sender.cancel()
+
+
+# The tools are also at http://127.0.0.1:8000/mcp for outside agents; press keeps
+# the same gate. The server listens on 127.0.0.1 so only this computer can reach it.
+app.mount("/", mcp_http)
 
 
 def main():
